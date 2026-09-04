@@ -1,0 +1,13 @@
+@font-face {
+    font-family: 'Garam';
+    src: url('https://fastly.jsdelivr.net/gh/projectnoonnu/naverfont_04@1.0/Garam.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+}
+
+body {
+  margin: 0; 
+  background-color: gray;
+  min-height: 100vh;
+  font-family: "Garam";
+}
