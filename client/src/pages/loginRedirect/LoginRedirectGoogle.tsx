@@ -1,8 +1,7 @@
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
-import Lottie from 'lottie-react';
-import loadingLottie from '../../assets/lottie/loadingLottie.json';
+import Spinner from '../../components/common/Spinner';
 import { setLogin } from '../../store/slices/authSlice';
 import { useDispatch } from 'react-redux';
 
@@ -41,7 +40,7 @@ function LoginRedirectGoogle() {
 
   return (
     <LoginRedirectGoogleStyle>
-      <Lottie animationData={loadingLottie} className="lottie" />
+      <Spinner />
       <p>
         구글 아이디로 간편 로그인 중입니다.
         <br />
@@ -58,9 +57,6 @@ const LoginRedirectGoogleStyle = styled.div`
   margin-left: auto;
   margin-right: auto;
 
-  .lottie {
-    width: 300px;
-  }
   p {
     font-size: 20px;
     text-align: center;

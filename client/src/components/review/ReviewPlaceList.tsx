@@ -5,12 +5,16 @@ import { PlaceData } from '../../types/place.type';
 import { setSelectPlace } from '../../store/slices/placeSlice';
 import PaginationComp from '../common/PaginationComp';
 import { useState } from 'react';
-import Programming from '../../assets/images/Programming.png';
+import { MdInbox } from 'react-icons/md';
 import {
   MdDoNotDisturbOnTotalSilence,
   MdExpandCircleDown,
 } from 'react-icons/md';
-import MarkerSprites from '../../assets/images/MarkerSprites.png';
+import {
+  HOSPITAL_MARKER,
+  PHARMACY_MARKER,
+  markerUrl,
+} from '../../utils/markerIcons';
 
 function ReviewPlaceList() {
   const dispatch = useDispatch();
@@ -37,7 +41,7 @@ function ReviewPlaceList() {
     <ReviewPlaceListStyle>
       {searchPlaceResults.length === 0 ? (
         <div className="noResults">
-          <img src={Programming} />
+          <MdInbox className="emptyIcon" />
           <p>검색된 결과가 없습니다.</p>
         </div>
       ) : (
@@ -131,14 +135,15 @@ const ReviewPlaceListStyle = styled.div`
     width: 58px;
     height: 70px;
     margin: 5px;
-    background-image: url(${MarkerSprites});
-    background-size: 232.6px 70px;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
   }
   .marker_pharmacy {
-    background-position: -58px 0px;
+    background-image: ${markerUrl(PHARMACY_MARKER)};
   }
   .marker_hospital {
-    background-position: 0px 0px;
+    background-image: ${markerUrl(HOSPITAL_MARKER)};
   }
 
   .place {
@@ -186,8 +191,10 @@ const ReviewPlaceListStyle = styled.div`
     align-items: center;
     padding-top: 30px;
 
-    img {
-      width: 200px;
+    .emptyIcon {
+      width: 96px;
+      height: 96px;
+      color: #9e9e9e;
     }
     p {
       border-top: solid black;

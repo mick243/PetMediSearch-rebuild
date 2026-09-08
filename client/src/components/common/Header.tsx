@@ -1,13 +1,12 @@
 import styled from 'styled-components';
 import Menu from './Menu';
-import logoLottie from '../../assets/lottie/logoLottie.json';
-import Lottie from 'lottie-react';
+import Logo from './Logo';
 
 function Header() {
   return (
     <HeaderStyle>
       <a href="/">
-        <Lottie animationData={logoLottie} className="lottie" />
+        <Logo className="logo" />
       </a>
       <Menu />
     </HeaderStyle>
@@ -23,8 +22,8 @@ const HeaderStyle = styled.div`
   border-bottom: solid;
   margin-bottom: 20px;
 
-  .lottie {
-    width: 60px;
+  .logo {
+    width: 38px;
   }
 `;
 

@@ -1,5 +1,6 @@
 import { useRouteError } from 'react-router-dom';
 import styled from 'styled-components';
+import { MdErrorOutline } from 'react-icons/md';
 
 interface RouteError {
   statusText?: string;
@@ -10,7 +11,7 @@ function Error() {
   const error = useRouteError() as RouteError;
   return (
     <ErrorStyle>
-      <img src={'../src/assets/images/Error.png'} />
+      <MdErrorOutline className="stateIcon" />
       <div className="error">
         <h3>Error!</h3>
         <h6>{error.message}</h6>
@@ -31,8 +32,10 @@ const ErrorStyle = styled.div`
   margin-right: auto;
   min-height: 100vh;
 
-  img {
-    width: 200px;
+  .stateIcon {
+    width: 96px;
+    height: 96px;
+    color: #e44c4c;
   }
   div {
     border-top: solid black;

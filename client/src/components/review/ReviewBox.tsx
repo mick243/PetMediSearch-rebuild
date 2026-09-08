@@ -14,7 +14,7 @@ import PaginationComp from '../common/PaginationComp';
 import ReviewEdit from './ReviewEdit';
 import React from 'react';
 import Star from '../common/Star';
-import Programming from '../../assets/images/Programming.png';
+import { MdInbox } from 'react-icons/md';
 import { formatDate } from '../../utils/format';
 
 function ReviewBox({ reviews, setReviews }) {
@@ -94,7 +94,7 @@ function ReviewBox({ reviews, setReviews }) {
       <div>
         {reviews.length === 0 ? (
           <div className="noResults">
-            <img src={Programming} />
+            <MdInbox className="emptyIcon" />
             <p>등록된 리뷰가 없습니다.</p>
           </div>
         ) : (
@@ -239,8 +239,10 @@ export const ReviewBoxStyle = styled.div`
     align-items: center;
     padding-top: 30px;
 
-    img {
-      width: 200px;
+    .emptyIcon {
+      width: 96px;
+      height: 96px;
+      color: #9e9e9e;
     }
     p {
       border-top: solid black;

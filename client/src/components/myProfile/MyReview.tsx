@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ReviewData } from '../../types/review.type';
 import { getReviewsByUserId } from '../../apis/myprofile.api';
-import Programming from '../../assets/images/Programming.png';
+import { MdInbox } from 'react-icons/md';
 import { ReviewBoxStyle } from '../review/ReviewBox';
 import React from 'react';
 import Star from '../common/Star';
@@ -31,7 +31,7 @@ function MyReview() {
       <MyReviewStyle>
         {myReviews.length === 0 ? (
           <div className="noResults">
-            <img src={Programming} />
+            <MdInbox className="emptyIcon" />
             <p>등록된 리뷰가 없습니다.</p>
           </div>
         ) : (
@@ -81,8 +81,10 @@ const MyReviewStyle = styled.div`
     align-items: center;
     padding-top: 20px;
 
-    img {
-      width: 100px;
+    .emptyIcon {
+      width: 96px;
+      height: 96px;
+      color: #9e9e9e;
     }
     p {
       border-top: solid black;

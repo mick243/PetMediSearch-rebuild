@@ -1,5 +1,5 @@
 import styled from 'styled-components';
-import naverbttn from '../../assets/images/login/LoginNaver.png';
+import { SiNaver } from 'react-icons/si';
 
 const N_CLIENT_ID = import.meta.env.VITE_N_REST_API_KEY;
 const N_REDIRECT_URI = import.meta.env.VITE_N_REDIRECT_URL;
@@ -11,7 +11,7 @@ function LoginNaver() {
     <LoginNaverStyle>
       <a href={NAVER_AUTH_URL}>
         <div className="naverbttn">
-          <img src={naverbttn} className="icon" />
+          <SiNaver className="icon" />
           <p className="messge">네이버 로그인</p>
         </div>
       </a>
@@ -26,6 +26,8 @@ const LoginNaverStyle = styled.div`
 
   .naverbttn {
     width: 350px;
+    height: 58px;
+    box-sizing: border-box;
     background-color: #03c75a;
     border-radius: 8px;
     display: flex;
@@ -38,8 +40,11 @@ const LoginNaverStyle = styled.div`
     font-family: initial;
 
     .icon {
-      width: 50px;
-      padding: 5px;
+      width: 22px;
+      height: 22px;
+      margin: 0 14px;
+      color: white;
+      flex-shrink: 0;
     }
   }
 `;

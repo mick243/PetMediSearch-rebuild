@@ -1,13 +1,12 @@
 import styled from 'styled-components';
 import Menu from '../components/common/Menu';
-import Lottie from 'lottie-react';
-import logoLottie from '../assets/lottie/logoLottie.json';
+import Logo from '../components/common/Logo';
 
 function Home() {
   return (
     <HomeStyle>
       <p>PetMediSearch</p>
-      <Lottie animationData={logoLottie} className="lottie" />
+      <Logo className="logo" />
       <nav>
         <Menu />
       </nav>
@@ -32,8 +31,8 @@ const HomeStyle = styled.div`
     margin: 0;
   }
 
-  .lottie {
-    width: 250px;
+  .logo {
+    width: 160px;
     margin-bottom: 20px;
   }
 `;

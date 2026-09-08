@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { PostState } from '../../types/post.type';
-import Programming from '../../assets/images/Programming.png';
+import { MdInbox } from 'react-icons/md';
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getPostsByUserId } from '../../apis/myprofile.api';
@@ -29,7 +29,7 @@ function MyPosts() {
     <MyPostsStyle>
       {myPosts.length === 0 ? (
         <div className="noResults">
-          <img src={Programming} />
+          <MdInbox className="emptyIcon" />
           <p>등록된 리뷰가 없습니다.</p>
         </div>
       ) : (
@@ -58,8 +58,10 @@ const MyPostsStyle = styled.div`
     align-items: center;
     padding-top: 20px;
 
-    img {
-      width: 100px;
+    .emptyIcon {
+      width: 96px;
+      height: 96px;
+      color: #9e9e9e;
     }
     p {
       border-top: solid black;

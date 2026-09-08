@@ -1,19 +1,19 @@
-import Lottie from 'lottie-react';
 import styled from 'styled-components';
-import loadingLottie from '../../assets/lottie/loadingLottie.json';
+import Spinner from './Spinner';
 
 function Loading() {
   return (
     <LoadingStyle>
-      <Lottie animationData={loadingLottie} className="lottie" />
+      <Spinner />
     </LoadingStyle>
   );
 }
 
 const LoadingStyle = styled.div`
-  lottie {
-    width: 100px;
-  }
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
 `;
 
 export default Loading;

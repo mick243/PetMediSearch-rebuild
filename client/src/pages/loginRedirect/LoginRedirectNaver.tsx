@@ -1,8 +1,7 @@
 import styled from 'styled-components';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Lottie from 'lottie-react';
-import loadingLottie from '../../assets/lottie/loadingLottie.json';
+import Spinner from '../../components/common/Spinner';
 import { useDispatch } from 'react-redux';
 import { setLogin } from '../../store/slices/authSlice';
 
@@ -42,7 +41,7 @@ function LoginRedirectNaver() {
 
   return (
     <LoginRedirectNaverStyle>
-      <Lottie animationData={loadingLottie} className="lottie" />
+      <Spinner />
       <p>
         네이버 아이디로 간편 로그인 중입니다.
         <br />
@@ -59,9 +58,6 @@ const LoginRedirectNaverStyle = styled.div`
   margin-left: auto;
   margin-right: auto;
 
-  .lottie {
-    width: 300px;
-  }
   p {
     font-size: 20px;
     text-align: center;

@@ -1,5 +1,5 @@
 import styled from 'styled-components';
-import googlebttn from '../../assets/images/login/LoginGoogle.png';
+import { FcGoogle } from 'react-icons/fc';
 
 const G_CLIENT_ID = import.meta.env.VITE_G_REST_API_KEY;
 const G_REDIRECT_URI = import.meta.env.VITE_G_REDIRECT_URL;
@@ -11,7 +11,7 @@ function LoginGoogle() {
     <LoginGoogleStyle>
       <a href={GOOGLE_AUTH_URL}>
         <div className="googlebttn">
-          <img src={googlebttn} className="icon" />
+          <FcGoogle className="icon" />
           <p className="messge">구글 로그인</p>
         </div>
       </a>
@@ -26,6 +26,8 @@ const LoginGoogleStyle = styled.div`
 
   .googlebttn {
     width: 350px;
+    height: 58px;
+    box-sizing: border-box;
     background-color: white;
     border-radius: 8px;
     display: flex;
@@ -39,8 +41,10 @@ const LoginGoogleStyle = styled.div`
     font-family: initial;
 
     .icon {
-      width: 50px;
-      padding: 5px;
+      width: 40px;
+      height: 40px;
+      margin: 0 5px;
+      flex-shrink: 0;
     }
   }
 `;

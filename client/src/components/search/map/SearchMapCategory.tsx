@@ -1,5 +1,10 @@
 import styled from 'styled-components';
-import MarkerSprites from '../../../assets/images/MarkerSprites.png';
+import {
+  HOSPITAL_MARKER,
+  PHARMACY_MARKER,
+  CURRENT_MARKER,
+  markerUrl,
+} from '../../../utils/markerIcons';
 interface Props {
   onClick: (value: React.SetStateAction<string>) => void;
   selectedCategory: string;
@@ -84,17 +89,18 @@ const SearchMapCategoryStyle = styled.div`
     display: inline-block;
     width: 29px;
     height: 35px;
-    background-image: url(${MarkerSprites});
-    background-size: 116.3px 35px;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
   }
   .marker_pharmacy {
-    background-position: -29px 0px;
+    background-image: ${markerUrl(PHARMACY_MARKER)};
   }
   .marker_hospital {
-    background-position: 0px 0px;
+    background-image: ${markerUrl(HOSPITAL_MARKER)};
   }
   .marker_all {
-    background-position: -87px 0px;
+    background-image: ${markerUrl(CURRENT_MARKER)};
   }
 `;
 export default SearchMapCategory;

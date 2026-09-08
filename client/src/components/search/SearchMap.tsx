@@ -7,7 +7,12 @@ import {
 import styled from 'styled-components';
 import Loading from '../common/Loading';
 import { useEffect, useState } from 'react';
-import MarkerSprites from '../../assets/images/MarkerSprites.png';
+import {
+  HOSPITAL_MARKER,
+  PHARMACY_MARKER,
+  CURRENT_MARKER,
+  MARKER_SIZE,
+} from '../../utils/markerIcons';
 import { PlaceData } from '../../types/place.type';
 import proj4 from 'proj4';
 import { useDispatch, useSelector } from 'react-redux';
@@ -53,12 +58,6 @@ function SearchMap() {
     (state: RootState) => state.place
   );
 
-  const imgSize = { width: 36.25, height: 43.75 };
-  const spriteSize = { width: 145.375, height: 43.75 };
-
-  const currentOrigin = { x: 72.5, y: 0 };
-  const hospitalOrigin = { x: 0, y: 0 };
-  const pharmacyOrigin = { x: 37.5, y: 0 };
 
   const [selectedCategory, setSelectedCategory] = useState('allPlace');
   const [openedMarkers, setOpenedMarkers] = useState<number[]>([]);
@@ -241,12 +240,8 @@ function SearchMap() {
                     lng: currentPosition.lng,
                   }}
                   image={{
-                    src: MarkerSprites,
-                    size: imgSize,
-                    options: {
-                      spriteSize: spriteSize,
-                      spriteOrigin: currentOrigin,
-                    },
+                    src: CURRENT_MARKER,
+                    size: MARKER_SIZE,
                   }}
                 />
               )}
@@ -258,15 +253,11 @@ function SearchMap() {
                       lng: place.y as number,
                     }}
                     image={{
-                      src: MarkerSprites,
-                      size: imgSize,
-                      options: {
-                        spriteSize: spriteSize,
-                        spriteOrigin:
-                          place.type === '병원'
-                            ? hospitalOrigin
-                            : pharmacyOrigin,
-                      },
+                      src:
+                        place.type === '병원'
+                          ? HOSPITAL_MARKER
+                          : PHARMACY_MARKER,
+                      size: MARKER_SIZE,
                     }}
                     onClick={() => handleMarkerClick(place.id)}
                   />
