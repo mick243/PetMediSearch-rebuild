@@ -5,7 +5,7 @@ import Logo from '../components/common/Logo';
 function Home() {
   return (
     <HomeStyle>
-      <p>PetMediSearch</p>
+      <h1>PetMediSearch</h1>
       <Logo className="logo" />
       <nav>
         <Menu />
@@ -25,10 +25,13 @@ const HomeStyle = styled.div`
   margin-right: auto;
   min-height: 100vh;
 
-  p {
-    font-style: italic;
-    font-size: 30px;
-    margin: 0;
+  h1 {
+    font-family: ${({ theme }) => theme.font.display};
+    font-size: 34px;
+    font-weight: normal;
+    letter-spacing: 0.5px;
+    color: ${({ theme }) => theme.color.text};
+    margin: 0 0 ${({ theme }) => theme.space.sm};
   }
 
   .logo {

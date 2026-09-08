@@ -93,7 +93,7 @@ const ReviewInputStyle = styled.div`
       font-size: 10px;
       color: #333;
       background-color: #f5f5f5;
-      box-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.3);
+      box-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.12);
       transition: border-color 0.2s ease-in-out;
 
       &:focus {

@@ -8,10 +8,7 @@ function Footer() {
 
   return (
     <FooterStyle>
-      <FaGithubSquare
-        className="m-3 text-4xl rounded text-chickenMain hover:text-white hover:bg-chickenPoint"
-        onClick={newPageGithub}
-      />
+      <FaGithubSquare onClick={newPageGithub} />
       <p>
         ⓒ 2024. PetMediSearch. <br />
         All rights reserved.
@@ -28,7 +25,8 @@ const FooterStyle = styled.div`
   height: 30px;
   justify-content: space-between;
   align-items: center;
-  border-top: solid;
+  border-top: 1px solid ${({ theme }) => theme.color.border};
+  color: ${({ theme }) => theme.color.textMuted};
 
   p {
     padding-right: 10px;
@@ -44,7 +42,7 @@ const FooterStyle = styled.div`
   }
 
   svg:hover {
-    background-color: #575757;
+    background-color: ${({ theme }) => theme.color.primary};
     border-radius: 6px;
     color: white;
     cursor: pointer;

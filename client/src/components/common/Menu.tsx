@@ -67,17 +67,21 @@ const MenuStyle = styled.div`
 
     p {
       cursor: pointer;
-      font-size: 30px;
-      border-left: solid;
-      border-right: solid;
-      padding: 10px;
+      font-size: 22px;
+      color: ${({ theme }) => theme.color.primary};
+      padding: 8px;
+      margin: 0;
+      border-radius: ${({ theme }) => theme.radius.sm};
       display: flex;
       align-items: center;
-      transition: color 0.3s;
+      transition:
+        color 0.2s,
+        background-color 0.2s;
     }
 
     p:hover {
-      color: #575757;
+      color: ${({ theme }) => theme.color.text};
+      background-color: ${({ theme }) => theme.color.surfaceMuted};
     }
   }
 `;

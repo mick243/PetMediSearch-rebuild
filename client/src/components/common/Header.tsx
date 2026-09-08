@@ -19,7 +19,9 @@ const HeaderStyle = styled.div`
   height: 50px;
   justify-content: space-between;
   align-items: center;
-  border-bottom: solid;
+  background-color: ${({ theme }) => theme.color.surface};
+  border-bottom: 1px solid ${({ theme }) => theme.color.border};
+  box-shadow: ${({ theme }) => theme.shadow.sm};
   margin-bottom: 20px;
 
   .logo {

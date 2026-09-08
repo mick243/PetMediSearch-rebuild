@@ -28,7 +28,7 @@ const SearchMapToggleStyle = styled.div`
     background-color: white;
     border: 2px double #919191;
     border-radius: 8px;
-    box-shadow: inset 1px 1px 1px rgba(0, 0, 0, 0.5);
+    box-shadow: inset 1px 1px 1px rgba(0, 0, 0, 0.18);
     border-radius: 16px;
     padding: 5px 10px;
     cursor: pointer;

@@ -35,8 +35,8 @@ const LoginKakaoStyle = styled.div`
     align-items: center;
     color: #191600;
     font-size: 18px;
-    box-shadow: 0 5px 10px rgba(0, 0, 0, 0.4);
-    font-family: initial;
+    box-shadow: ${({ theme }) => theme.shadow.md};
+    font-family: ${({ theme }) => theme.font.body};
 
     .icon {
       width: 26px;

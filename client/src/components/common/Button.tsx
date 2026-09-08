@@ -33,7 +33,8 @@ const ButtonStyle = styled.button<
     background-color: ${({ theme, $scheme }) =>
       theme.buttonScheme[$scheme].hoverBgColor};
   }
-  font-family: 'Garam';
+  font-family: ${({ theme }) => theme.font.body};
+  box-shadow: ${({ theme }) => theme.shadow.sm};
   transition:
     background-color 0.3s,
     color 0.3s;

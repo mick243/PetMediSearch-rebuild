@@ -31,11 +31,20 @@ const InputStyle = styled.input<Props>`
   border-radius: ${({ theme }) => theme.borderRadius.default};
   width: ${({ theme, size }) => theme.input[size].width};
   height: ${({ theme, size }) => theme.input[size].height};
-  font-family: 'Garam';
-  border: 1px solid #575757;
+  font-family: ${({ theme }) => theme.font.body};
+  color: ${({ theme }) => theme.color.text};
+  background-color: ${({ theme }) => theme.color.surface};
+  border: 1px solid ${({ theme }) => theme.color.borderStrong};
   outline: none;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+  &::placeholder {
+    color: ${({ theme }) => theme.color.textMuted};
+  }
   &:focus {
-    border-color: #c6cdbe;
+    border-color: ${({ theme }) => theme.color.primary};
+    box-shadow: 0 0 0 3px ${({ theme }) => theme.color.accent};
     outline: none;
   }
 `;
