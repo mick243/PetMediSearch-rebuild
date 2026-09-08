@@ -5,7 +5,7 @@ const nodePath = require("path");
 const cors = require("cors");
 
 const app = express();
-const port = 8080;
+const port = Number(process.env.PORT) || 8080;
 
 console.log('Current directory:', __dirname);
 
