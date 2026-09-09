@@ -5,7 +5,6 @@ const initialState: PlaceState = {
   data: [], // 장소 전체 데이터
   searchPlaceResults: [], // 장소 검색 결과
   searchInputPlace: '', // 검색하려는 장소명
-  transformedResults: [],
   selectedPlace: null,
 };
 
@@ -19,9 +18,6 @@ const placeSlice = createSlice({
     setResults(state, action: PayloadAction<PlaceData[]>) {
       state.searchPlaceResults = action.payload;
     },
-    setTransformedResults(state, action: PayloadAction<PlaceData[]>) {
-      state.transformedResults = action.payload;
-    },
     setSelectPlace(state, action: PayloadAction<PlaceData>) {
       state.selectedPlace = action.payload;
     },
@@ -34,7 +30,6 @@ const placeSlice = createSlice({
 export const {
   setSearchInputPlace,
   setResults,
-  setTransformedResults,
   setSelectPlace,
   clearSelectedPlace,
 } = placeSlice.actions;

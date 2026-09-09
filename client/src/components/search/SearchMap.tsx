@@ -7,7 +7,7 @@ import {
 } from 'react-kakao-maps-sdk';
 import styled from 'styled-components';
 import Loading from '../common/Loading';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   HOSPITAL_MARKER,
   PHARMACY_MARKER,
@@ -17,10 +17,7 @@ import {
 import { PlaceData } from '../../types/place.type';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '../../store';
-import {
-  setResults,
-  setTransformedResults,
-} from '../../store/slices/placeSlice';
+import { setResults } from '../../store/slices/placeSlice';
 import SearchMapOverlay from './map/SearchMapOverlay';
 import SearchMapCategory from './map/SearchMapCategory';
 import { fetchPlaces } from '../../apis/place.api';
@@ -44,8 +41,9 @@ function SearchMap() {
     // 기본값이 http 라서 HTTPS 로 배포하면 mixed content 로 차단됩니다.
     url: 'https://dapi.kakao.com/v2/maps/sdk.js',
   });
-  const { searchPlaceResults, transformedResults, searchInputPlace } =
-    useSelector((state: RootState) => state.place);
+  const { searchPlaceResults, searchInputPlace } = useSelector(
+    (state: RootState) => state.place
+  );
 
 
   const [selectedCategory, setSelectedCategory] = useState('allPlace');
@@ -179,39 +177,46 @@ function SearchMap() {
 
   useEffect(() => {
     setOpenedMarkerId(null);
+  }, [searchPlaceResults]);
 
-    /*
-     * 좌표는 서버가 적재 시점에 WGS84 로 변환해 lat/lng 컬럼에 담아 보냅니다.
-     * 이전에는 조회할 때마다 클라이언트가 3만여 건을 proj4 로 변환했습니다.
-     * 아래에서 x/y 에 넣는 이유는 하위 컴포넌트가 x=위도, y=경도로 쓰고 있기 때문입니다.
-     */
-    const transformed = searchPlaceResults
-      .map((place) => {
-        const lat = Number(place.lat);
-        const lng = Number(place.lng);
+  /*
+   * 좌표는 서버가 적재 시점에 WGS84 로 변환해 lat/lng 컬럼에 담아 보냅니다.
+   * x/y 에 넣는 이유는 하위 컴포넌트가 x=위도, y=경도로 쓰고 있기 때문입니다.
+   *
+   * 예전에는 이 결과를 Redux 에 다시 저장했습니다. 수천~수만 건이 상태에 한 벌 더 쌓이고
+   * 그때마다 dispatch 가 한 번 더 돌아 dev 검사 비용이 두 배로 들었습니다.
+   * 이 값은 이 컴포넌트에서만 쓰므로 로컬에서 계산합니다.
+   */
+  const transformedResults = useMemo(
+    () =>
+      searchPlaceResults
+        .map((place) => {
+          const lat = Number(place.lat);
+          const lng = Number(place.lng);
 
-        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-        if (!isValidLatLng(lat, lng)) return null;
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+          if (!isValidLatLng(lat, lng)) return null;
 
-        return { ...place, x: lat, y: lng };
-      })
-      .filter((place) => place !== null);
+          return { ...place, x: lat, y: lng };
+        })
+        .filter((place): place is PlaceData => place !== null),
+    [searchPlaceResults]
+  );
 
-    dispatch(setTransformedResults(transformed as PlaceData[]));
-  }, [dispatch, error, searchPlaceResults]);
+  const filteredResults = useMemo(
+    () =>
+      transformedResults.filter((place) => {
+        // if (onlyOpened && place.dtlstatenm !== '정상') {
+        //   return false;
+        // }
 
-  const filteredResults = transformedResults
-    .filter((place) => {
-      // if (onlyOpened && place.dtlstatenm !== '정상') {
-      //   return false;
-      // }
-
-      if (selectedCategory === 'allPlace') return true;
-      if (selectedCategory === 'onlyHospital') return place.type === '병원';
-      if (selectedCategory === 'onlyPharmacy') return place.type === '약국';
-      return false;
-    })
-    .filter((place) => isValidLatLng(place.x as number, place.y as number));
+        if (selectedCategory === 'allPlace') return true;
+        if (selectedCategory === 'onlyHospital') return place.type === '병원';
+        if (selectedCategory === 'onlyPharmacy') return place.type === '약국';
+        return false;
+      }),
+    [transformedResults, selectedCategory]
+  );
 
   /* 검색하면 첫 결과로 지도를 옮깁니다. 검색어를 비우면 다시 화면 범위 조회로 돌아갑니다. */
   useEffect(() => {
@@ -232,6 +237,16 @@ function SearchMap() {
     // 너무 넓게 보고 있으면 결과가 보이도록 당겨줍니다. (숫자가 작을수록 확대)
     setMapLevel((level) => (level > 5 ? 5 : level));
   }, [searchInputPlace, filteredResults]);
+
+  /* 지도 SDK 로드 실패는 화면이 조용히 비어 보이므로 콘솔에 남깁니다. */
+  useEffect(() => {
+    if (error) {
+      console.error(
+        '카카오 지도 SDK 로드 실패. 앱 키, 카카오맵 서비스 활성화, 사이트 도메인 등록을 확인해주세요.',
+        error
+      );
+    }
+  }, [error]);
 
   const openedPlace = filteredResults.find(
     (place) => place.id === openedMarkerId
