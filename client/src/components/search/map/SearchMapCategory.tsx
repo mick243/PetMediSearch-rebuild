@@ -46,9 +46,10 @@ const SearchMapCategoryStyle = styled.div`
   top: 10px;
   left: 10px;
   background-color: white;
-  padding: 0 8px;
-  border: 1px solid #919191;
-  border-radius: 16px;
+  padding: 0 6px;
+  border: 1px solid ${({ theme }) => theme.color.borderStrong};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  box-shadow: ${({ theme }) => theme.shadow.sm};
   z-index: 10;
 
   ul {
@@ -57,17 +58,17 @@ const SearchMapCategoryStyle = styled.div`
     display: flex;
     flex-direction: column;
     justify-content: space-around;
-    font-size: 15px;
-    gap: 5px;
-    margin: 8px 0px;
+    font-size: 12px;
+    gap: 3px;
+    margin: 6px 0px;
     li {
       display: flex;
       align-items: center;
       cursor: pointer;
-      padding: 5px 8px;
-      gap: 5px;
-      border-radius: 12px;
-      border: 1px solid #919191;
+      padding: 3px 6px;
+      gap: 4px;
+      border-radius: 8px;
+      border: 1px solid ${({ theme }) => theme.color.border};
       p {
         margin: 0;
       }
@@ -87,8 +88,8 @@ const SearchMapCategoryStyle = styled.div`
   }
   .marker_comm {
     display: inline-block;
-    width: 29px;
-    height: 35px;
+    width: 18px;
+    height: 22px;
     background-repeat: no-repeat;
     background-position: center;
     background-size: contain;
