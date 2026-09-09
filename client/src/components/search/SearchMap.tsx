@@ -56,6 +56,17 @@ function SearchMap() {
    * 같은 범위를 반복 조회하는 루프가 생깁니다. 같은 범위면 건너뜁니다.
    */
   const lastBoundsRef = useRef<string | null>(null);
+  /*
+   * 검색 결과로 옮겨간 지도 중심.
+   * 검색은 전국을 대상으로 하는데 지도가 그대로 있으면 결과가 화면 밖에 남습니다.
+   * center 가 제어 프롭이라 imperative 하게 setCenter 하면 리렌더에 되돌아가므로 상태로 둡니다.
+   */
+  const [searchCenter, setSearchCenter] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
+  /** 어떤 검색어의 어떤 결과로 이미 옮겼는지. 같은 검색에 반복 이동하지 않도록. */
+  const centeredForRef = useRef<string | null>(null);
   const [mapLevel, setMapLevel] = useState(7);
   const [map, setMap] = useState<kakao.maps.Map | null>(null);
   // const [onlyOpened, setOnlyIsOpened] = useState(false);
@@ -202,6 +213,26 @@ function SearchMap() {
     })
     .filter((place) => isValidLatLng(place.x as number, place.y as number));
 
+  /* 검색하면 첫 결과로 지도를 옮깁니다. 검색어를 비우면 다시 화면 범위 조회로 돌아갑니다. */
+  useEffect(() => {
+    if (!searchInputPlace) {
+      centeredForRef.current = null;
+      setSearchCenter(null);
+      return;
+    }
+
+    const first = filteredResults[0];
+    if (!first) return;
+
+    const key = `${searchInputPlace}:${first.id}`;
+    if (centeredForRef.current === key) return;
+    centeredForRef.current = key;
+
+    setSearchCenter({ lat: first.x as number, lng: first.y as number });
+    // 너무 넓게 보고 있으면 결과가 보이도록 당겨줍니다. (숫자가 작을수록 확대)
+    setMapLevel((level) => (level > 5 ? 5 : level));
+  }, [searchInputPlace, filteredResults]);
+
   const openedPlace = filteredResults.find(
     (place) => place.id === openedMarkerId
   );
@@ -219,9 +250,10 @@ function SearchMap() {
           <div className="mapwrap">
             <Map
               center={
-                currentPosition
+                searchCenter ??
+                (currentPosition
                   ? { lat: currentPosition.lat, lng: currentPosition.lng }
-                  : { lat: 37.56729298121172, lng: 126.98014624989 }
+                  : { lat: 37.56729298121172, lng: 126.98014624989 })
               }
               style={{ width: '100%', height: '100%' }}
               level={mapLevel}
