@@ -23,6 +23,40 @@ require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
 const axios = require('axios');
 const mysql = require('mysql2/promise');
+const proj4 = require('proj4');
+
+/**
+ * 좌표계 변환.
+ *
+ * 원본은 EPSG:5181(중부원점TM)이고 지도는 WGS84 를 씁니다.
+ * 예전에는 클라이언트가 조회할 때마다 3만여 건을 매번 변환했는데,
+ * 적재 시점에 한 번 계산해 lat/lng 컬럼에 저장합니다.
+ * (오프셋은 기존 클라이언트 보정값을 그대로 옮긴 것입니다.)
+ */
+proj4.defs(
+  'EPSG:5181',
+  '+proj=tmerc +lat_0=38 +lon_0=127 +k=1 +x_0=200000 +y_0=500000 +ellps=GRS80 +units=m +no_defs'
+);
+
+const LAT_OFFSET = 0.0028;
+const LNG_OFFSET = 0.0009;
+
+/** TM 좌표 -> { lat, lng }. 변환 불가면 null. */
+function toLatLng(x, y) {
+  const tmX = parseFloat(x);
+  const tmY = parseFloat(y);
+  if (!Number.isFinite(tmX) || !Number.isFinite(tmY)) return null;
+
+  try {
+    const [lng, lat] = proj4('EPSG:5181', 'EPSG:4326', [tmX, tmY]);
+    const adjLat = lat + LAT_OFFSET;
+    const adjLng = lng + LNG_OFFSET;
+    if (adjLat < -90 || adjLat > 90 || adjLng < -180 || adjLng > 180) return null;
+    return { lat: Number(adjLat.toFixed(7)), lng: Number(adjLng.toFixed(7)) };
+  } catch {
+    return null;
+  }
+}
 
 const API_BASE = process.env.DATA_GO_KR_API_BASE || 'https://apis.data.go.kr/1741000';
 
@@ -208,6 +242,36 @@ async function fetchSeoul({ resource, since, label }) {
   return all;
 }
 
+/**
+ * 전국 수집.
+ *
+ * 자치단체 코드로 나누지 않고 그대로 페이지를 넘깁니다.
+ * 전국 기준 병원 약 1.1만건 + 약국 약 2.1만건이고 numOfRows 상한이 100 이므로
+ * 업종당 100~210 회 호출이 듭니다. (개발계정 일 10,000 회 한도 안에서 충분)
+ */
+async function fetchNationwide({ resource, since, label }) {
+  const collected = [];
+  let pageNo = 1;
+  let totalCount = 0;
+
+  do {
+    const page = await fetchPage({ resource, since, pageNo });
+    if (pageNo === 1) {
+      totalCount = page.totalCount;
+      console.log(`  ${label}: 전국 ${totalCount}건 (페이지당 ${MAX_ROWS})`);
+      if (totalCount === 0) break;
+    }
+    if (page.rows.length === 0) break;
+
+    collected.push(...page.rows);
+    process.stdout.write(`\r  ${label}: ${collected.length}/${totalCount} 수집   `);
+    pageNo += 1;
+  } while (collected.length < totalCount);
+
+  if (totalCount > 0) process.stdout.write('\n');
+  return collected;
+}
+
 // ---------------------------------------------------------------- DB
 
 function dbConfig() {
@@ -229,12 +293,13 @@ function dbConfig() {
 
 const COLUMNS = [
   'mgtno', 'bplcnm', 'sitewhladdr', 'rdnwhladdr', 'sitetel',
-  'x', 'y', 'apvpermymd', 'dcbymd', 'dtlstatenm', 'trdstatenm',
+  'x', 'y', 'lat', 'lng', 'apvpermymd', 'dcbymd', 'dtlstatenm', 'trdstatenm',
   'type', 'lastmodts',
 ];
 
 /** API 필드명(대문자 축약형) → 기존 DB 컬럼 */
 function toValues(row, type) {
+  const latLng = toLatLng(row.CRD_INFO_X, row.CRD_INFO_Y);
   return [
     row.MNG_NO,
     row.BPLC_NM,
@@ -243,6 +308,8 @@ function toValues(row, type) {
     row.TELNO || null,
     toCoord(row.CRD_INFO_X),
     toCoord(row.CRD_INFO_Y),
+    latLng ? latLng.lat : null,  // WGS84 위도 (적재 시 미리 변환)
+    latLng ? latLng.lng : null,  // WGS84 경도
     toDate(row.LCPMT_YMD),       // 인허가일자
     toDate(row.CLSBIZ_YMD),      // 폐업일자
     row.DTL_SALS_STTS_NM || null, // 상세영업상태명 (정상/폐업)
@@ -367,9 +434,10 @@ async function sync(options) {
         if (last) since = toStamp(last);
       }
 
-      console.log(`\n[${type}] ${since ? `${since} 이후 변경분` : '전체 수집'}`);
+      console.log(`\n[${type}] ${since ? `${since} 이후 변경분` : '전체 수집'} · ${options.all ? '전국' : '서울'}`);
 
-      const rows = await fetchSeoul({ resource, since, label: type });
+      const fetcher = options.all ? fetchNationwide : fetchSeoul;
+      const rows = await fetcher({ resource, since, label: type });
       if (rows.length === 0) {
         console.log('  갱신할 데이터가 없습니다.');
         continue;
@@ -409,6 +477,7 @@ function usage() {
 
   node scripts/syncData.js verify              인증키 확인
   node scripts/syncData.js sync                변경분만 반영 (기본)
+  node scripts/syncData.js sync --all          전국 수집 (미지정 시 서울만)
   node scripts/syncData.js sync --full         전체 재수집
   node scripts/syncData.js sync --since=YYYYMMDD
   node scripts/syncData.js sync --type=병원|약국
@@ -424,9 +493,10 @@ server/.env 설정:
 }
 
 function parseArgs(argv) {
-  const options = { full: false, dryRun: false, since: null, type: null };
+  const options = { full: false, dryRun: false, since: null, type: null, all: false };
   for (const arg of argv) {
-    if (arg === '--full') options.full = true;
+    if (arg === '--all') options.all = true;
+    else if (arg === '--full') options.full = true;
     else if (arg === '--dry-run') options.dryRun = true;
     else if (arg.startsWith('--since=')) options.since = arg.split('=')[1];
     else if (arg.startsWith('--type=')) options.type = arg.split('=')[1];

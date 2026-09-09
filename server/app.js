@@ -28,7 +28,8 @@ app.get("/search", (req, res) => {
 
 // 지도에 위치 표시 
 app.get("/facilities", (req, res) => {
-  const { type, keyword } = req.query;
+  const { type, keyword, swLat, swLng, neLat, neLng, onlyOpened, limit } =
+    req.query;
   let query = "SELECT * FROM medical_facilities WHERE 1=1";
   const values = [];
 
@@ -42,7 +43,41 @@ app.get("/facilities", (req, res) => {
     values.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`);
   }
 
-  query += " LIMIT 10000";
+  // 폐업 제외. 전국 3만건 중 약 1.2만건이 폐업이라 서버에서 걸러 전송량을 줄입니다.
+  if (onlyOpened !== "false") {
+    query += " AND (dtlstatenm IS NULL OR dtlstatenm <> '폐업')";
+  }
+
+  /*
+   * 지도 화면 범위 조회.
+   * 전국을 한 번에 내려주면 응답이 13MB 를 넘고 클라이언트가 마커를 2만개 그리게 됩니다.
+   * 네 값이 모두 오면 보이는 영역만 내려줍니다. (lat/lng 는 적재 시 미리 계산해 인덱스가 걸려 있음)
+   */
+  const bounds = [swLat, swLng, neLat, neLng].map(Number);
+  const hasBounds = bounds.every((n) => Number.isFinite(n));
+
+  if (hasBounds) {
+    const [s, w, n, e] = bounds;
+    query += " AND lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?";
+    values.push(Math.min(s, n), Math.max(s, n), Math.min(w, e), Math.max(w, e));
+  }
+
+  // 좌표가 없는 레코드는 지도에 찍을 수 없어 범위 조회에서는 제외합니다.
+  if (hasBounds) {
+    query += " AND lat IS NOT NULL AND lng IS NOT NULL";
+  }
+
+  /*
+   * 건수 상한.
+   * 클라이언트가 마커를 그리는 화면에서는 limit 을 넘겨 받습니다.
+   * 한 번에 2만개를 넘기면 지도 클러스터러가 스택 오버플로로 죽습니다.
+   */
+  const maxLimit = Number(process.env.FACILITIES_LIMIT) || 50000;
+  const asked = Number(limit);
+  const rowLimit = Number.isFinite(asked) && asked > 0
+    ? Math.min(Math.floor(asked), maxLimit)
+    : maxLimit;
+  query += ` LIMIT ${rowLimit}`;
 
   console.log("Executing query:", query);
   console.log("Query values:", values);
