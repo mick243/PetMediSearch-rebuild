@@ -25,7 +25,9 @@ import {
   fetchPlaceClusters,
   PlaceCluster,
 } from '../../apis/place.api';
-import SearchMapCluster from './map/SearchMapCluster';
+import SearchMapCluster, {
+  ClusterVariant,
+} from './map/SearchMapCluster';
 import SearchMapControlBar from './map/SearchMapControlBar';
 // '영업 중' 토글은 폐업 시설을 API 단계에서 걸러내면서 잠시 비활성화했습니다.
 // import SearchMapToggle from './map/SearchMapToggle';
@@ -311,6 +313,14 @@ function SearchMap() {
    * 좌표는 격자 중심이 아니라 격자 안 시설들의 평균이라 실제 시설 근처에 착지합니다.
    * 한 번에 많이 당기면 넓은 격자에서는 빈 곳에 떨어질 수 있어 2단계씩만 좁힙니다.
    */
+  /** 선택된 업종에 맞는 풍선 색 */
+  const clusterVariant: ClusterVariant =
+    selectedCategory === 'onlyHospital'
+      ? 'hospital'
+      : selectedCategory === 'onlyPharmacy'
+        ? 'pharmacy'
+        : 'all';
+
   const handleClusterClick = (cell: PlaceCluster) => {
     setSearchCenter({ lat: cell.lat, lng: cell.lng });
     setMapLevel((level) => Math.max(level - 2, 1));
@@ -377,6 +387,7 @@ function SearchMap() {
                     count={cell.count}
                     hospitalCount={cell.hospitalCount}
                     pharmacyCount={cell.pharmacyCount}
+                    variant={clusterVariant}
                     onClick={() => handleClusterClick(cell)}
                   />
                 </CustomOverlayMap>
