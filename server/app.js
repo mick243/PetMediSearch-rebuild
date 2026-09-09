@@ -28,8 +28,9 @@ app.get("/search", (req, res) => {
 
 // 지도에 위치 표시 
 app.get("/facilities", (req, res) => {
-  const { type, keyword, swLat, swLng, neLat, neLng, onlyOpened, limit } =
-    req.query;
+  const {
+    type, keyword, swLat, swLng, neLat, neLng, onlyOpened, limit,
+  } = req.query;
   let query = "SELECT * FROM medical_facilities WHERE 1=1";
   const values = [];
 
@@ -77,6 +78,24 @@ app.get("/facilities", (req, res) => {
   const rowLimit = Number.isFinite(asked) && asked > 0
     ? Math.min(Math.floor(asked), maxLimit)
     : maxLimit;
+
+  /*
+   * 화면 중심에서 가까운 순으로 정렬.
+   *
+   * ORDER BY 가 없으면 MySQL 이 임의 순서(인덱스 스캔 순서)로 limit 만큼 잘라냅니다.
+   * lat 인덱스를 타면 남쪽(제주·부산) 데이터부터 채워져, 줌을 넓게 잡으면
+   * 지도 중앙(예: 세종)의 시설이 통째로 빠지는 문제가 있었습니다.
+   * 잘려나갈 때 최소한 화면 중앙에 가까운 것부터 남도록 합니다.
+   */
+  if (hasBounds) {
+    const [s2, w2, n2, e2] = bounds;
+    const centerLat = (s2 + n2) / 2;
+    const centerLng = (w2 + e2) / 2;
+    query +=
+      ' ORDER BY (POW(lat - ?, 2) + POW(lng - ?, 2)) ASC';
+    values.push(centerLat, centerLng);
+  }
+
   query += ` LIMIT ${rowLimit}`;
 
   console.log("Executing query:", query);
