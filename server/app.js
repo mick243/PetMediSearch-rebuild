@@ -27,6 +27,42 @@ app.get("/search", (req, res) => {
 });
 
 // 지도에 위치 표시 
+/**
+ * 지역명 검색어를 실제 저장된 표기로 확장합니다.
+ *
+ * 주소는 공공데이터 원본 표기(예: "세종특별자치시")로 저장돼 있어서
+ * 사람들이 흔히 쓰는 "세종시" 로는 LIKE 매칭이 되지 않았습니다.
+ * ("세종"+"시" 가 연속되지 않으므로 부분 문자열로 잡히지 않음)
+ */
+const REGION_ALIASES = {
+  '세종시': '세종특별자치시',
+  '세종특별시': '세종특별자치시',
+  '강원도': '강원특별자치도',
+  '전라북도': '전북특별자치도',
+  '전북도': '전북특별자치도',
+  '제주도': '제주특별자치도',
+  '제주시': '제주특별자치도 제주시',
+};
+
+/** 검색어를 [원본, 별칭] 형태로 확장합니다. 별칭이 없으면 원본만. */
+function expandKeyword(keyword) {
+  const trimmed = String(keyword).trim();
+  const alias = REGION_ALIASES[trimmed];
+  return alias ? [trimmed, alias] : [trimmed];
+}
+
+/** 확장된 검색어들에 대한 LIKE 조건과 바인딩 값을 만듭니다. */
+function keywordClause(keyword, values) {
+  const variants = expandKeyword(keyword);
+  const parts = variants.map(() => {
+    return '(bplcnm LIKE ? OR rdnwhladdr LIKE ? OR sitewhladdr LIKE ?)';
+  });
+  variants.forEach((v) => {
+    values.push(`%${v}%`, `%${v}%`, `%${v}%`);
+  });
+  return ` AND (${parts.join(' OR ')})`;
+}
+
 app.get("/facilities", (req, res) => {
   const {
     type, keyword, swLat, swLng, neLat, neLng, onlyOpened, limit,
@@ -40,8 +76,7 @@ app.get("/facilities", (req, res) => {
   }
 
   if (keyword) {
-    query += " AND (bplcnm LIKE ? OR rdnwhladdr LIKE ? OR sitewhladdr LIKE ?)";
-    values.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`);
+    query += keywordClause(keyword, values);
   }
 
   // 폐업 제외. 전국 3만건 중 약 1.2만건이 폐업이라 서버에서 걸러 전송량을 줄입니다.
@@ -151,8 +186,7 @@ app.get("/facilities/clusters", (req, res) => {
   }
 
   if (keyword) {
-    where += " AND (bplcnm LIKE ? OR rdnwhladdr LIKE ? OR sitewhladdr LIKE ?)";
-    values.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`);
+    where += keywordClause(keyword, values);
   }
 
   if (onlyOpened !== "false") {
