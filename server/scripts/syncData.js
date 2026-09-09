@@ -16,6 +16,7 @@
  *
  * server/.env 설정:
  *   DATA_GO_KR_SERVICE_KEY=발급받은_인증키
+  KAKAO_REST_API_KEY=카카오_REST_API_키   (geocode 명령에만 필요)
  */
 
 const path = require('path');
@@ -359,6 +360,141 @@ async function getLastModified(conn, type) {
   return rows[0] && rows[0].last ? rows[0].last : null;
 }
 
+// ---------------------------------------------------------------- 지오코딩
+
+const KAKAO_LOCAL_URL = 'https://dapi.kakao.com/v2/local/search';
+
+/** 카카오 로컬 API 키. 카카오 OAuth 의 client_id 와 같은 REST 키입니다. */
+function kakaoKey() {
+  const key = process.env.KAKAO_REST_API_KEY;
+  if (!key) {
+    throw new Error(
+      '.env 에 KAKAO_REST_API_KEY 가 필요합니다. ' +
+      'https://developers.kakao.com/console/app 의 REST API 키를 넣어주세요.'
+    );
+  }
+  return key;
+}
+
+/**
+ * 주소 한 건을 좌표로 변환합니다.
+ * 주소 검색이 실패하면 상호명 키워드 검색으로 한 번 더 시도합니다.
+ */
+async function geocodeOne({ roadAddr, lotAddr, name }) {
+  const key = kakaoKey();
+  const call = async (path, query) => {
+    if (!query) return null;
+    const res = await axios.get(`${KAKAO_LOCAL_URL}/${path}`, {
+      params: { query, size: 1 },
+      headers: { Authorization: `KakaoAK ${key}` },
+      timeout: 15000,
+      validateStatus: () => true,
+    });
+
+    if (res.status === 401 || res.status === 403) {
+      throw new Error(`카카오 API 인증 실패 (HTTP ${res.status}). 키를 확인해주세요.`);
+    }
+    const doc = res.data && res.data.documents && res.data.documents[0];
+    if (!doc) return null;
+
+    const lat = Number(doc.y);
+    const lng = Number(doc.x);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    return { lat: Number(lat.toFixed(7)), lng: Number(lng.toFixed(7)) };
+  };
+
+  // 도로명 -> 지번 -> 상호명 순으로 시도
+  return (
+    (await call('address.json', roadAddr)) ||
+    (await call('address.json', lotAddr)) ||
+    (await call('keyword.json', name))
+  );
+}
+
+/**
+ * 좌표가 없는 시설을 주소로 보완합니다.
+ *
+ * 원본(공공데이터포털)에 좌표가 비어 오는 레코드가 상당수 있습니다.
+ * 좌표가 없으면 지도에 표시되지 않으므로 주소를 좌표로 변환해 채웁니다.
+ * 이미 좌표가 있는 레코드는 건드리지 않아 호출량을 아낍니다.
+ */
+async function geocode(options) {
+  kakaoKey();
+  const conn = await mysql.createConnection(dbConfig());
+
+  try {
+    const where = options.allStates
+      ? '(lat IS NULL OR lng IS NULL)'
+      : "(lat IS NULL OR lng IS NULL) AND (dtlstatenm IS NULL OR dtlstatenm <> '폐업')";
+
+    const [rows] = await conn.query(
+      `SELECT id, bplcnm, rdnwhladdr, sitewhladdr FROM medical_facilities
+       WHERE ${where} ORDER BY id`
+    );
+
+    const targets = options.limit ? rows.slice(0, options.limit) : rows;
+    console.log(
+      `좌표 없는 시설 ${rows.length}건` +
+      (options.allStates ? '' : ' (폐업 제외)') +
+      ` 중 ${targets.length}건 처리`
+    );
+    if (targets.length === 0) return;
+
+    let filled = 0;
+    let failed = 0;
+    const updates = [];
+
+    for (let i = 0; i < targets.length; i += 1) {
+      const row = targets[i];
+      let coords = null;
+      try {
+        coords = await geocodeOne({
+          roadAddr: row.rdnwhladdr,
+          lotAddr: row.sitewhladdr,
+          name: row.bplcnm,
+        });
+      } catch (err) {
+        console.log(`\n  ${err.message}`);
+        break;
+      }
+
+      if (coords) {
+        updates.push([row.id, coords.lat, coords.lng]);
+        filled += 1;
+      } else {
+        failed += 1;
+      }
+
+      process.stdout.write(
+        `\r  ${i + 1}/${targets.length} 처리, 보완 ${filled} / 실패 ${failed}   `
+      );
+      await new Promise((r) => setTimeout(r, 60)); // 초당 약 16회
+    }
+    process.stdout.write('\n');
+
+    if (options.dryRun) {
+      console.log(`  [dry-run] ${updates.length}건 — DB에 쓰지 않았습니다.`);
+      return;
+    }
+
+    for (let i = 0; i < updates.length; i += 500) {
+      const chunk = updates.slice(i, i + 500);
+      const ids = chunk.map((u) => u[0]);
+      const latCase = chunk.map((u) => `WHEN ${u[0]} THEN ${u[1]}`).join(' ');
+      const lngCase = chunk.map((u) => `WHEN ${u[0]} THEN ${u[2]}`).join(' ');
+      await conn.query(
+        `UPDATE medical_facilities
+         SET lat = CASE id ${latCase} END, lng = CASE id ${lngCase} END
+         WHERE id IN (${ids.join(',')})`
+      );
+    }
+
+    console.log(`  보완 ${filled}건 저장 / 주소로도 못 찾은 건 ${failed}건`);
+  } finally {
+    await conn.end();
+  }
+}
+
 // ---------------------------------------------------------------- 명령
 
 /** 인증키가 실제로 동작하는지, 받아온 데이터가 기존 것과 맞물리는지 확인합니다. */
@@ -476,6 +612,9 @@ function usage() {
 서울시 동물병원/동물약국 데이터 갱신 (공공데이터포털)
 
   node scripts/syncData.js verify              인증키 확인
+  node scripts/syncData.js geocode             좌표 없는 시설을 주소로 보완
+  node scripts/syncData.js geocode --limit=50 --dry-run
+  node scripts/syncData.js geocode --all-states  폐업까지 포함
   node scripts/syncData.js sync                변경분만 반영 (기본)
   node scripts/syncData.js sync --all          전국 수집 (미지정 시 서울만)
   node scripts/syncData.js sync --full         전체 재수집
@@ -493,13 +632,21 @@ server/.env 설정:
 }
 
 function parseArgs(argv) {
-  const options = { full: false, dryRun: false, since: null, type: null, all: false };
+  const options = {
+    full: false, dryRun: false, since: null, type: null, all: false,
+    allStates: false, limit: null,
+  };
   for (const arg of argv) {
     if (arg === '--all') options.all = true;
+    else if (arg === '--all-states') options.allStates = true;
+    else if (arg.startsWith('--limit=')) options.limit = Number(arg.split('=')[1]);
     else if (arg === '--full') options.full = true;
     else if (arg === '--dry-run') options.dryRun = true;
     else if (arg.startsWith('--since=')) options.since = arg.split('=')[1];
     else if (arg.startsWith('--type=')) options.type = arg.split('=')[1];
+  }
+  if (options.limit !== null && (!Number.isInteger(options.limit) || options.limit < 1)) {
+    throw new Error('--limit 은 1 이상의 정수여야 합니다.');
   }
   if (options.since && !/^\d{8}$/.test(options.since)) {
     throw new Error(`--since 는 YYYYMMDD 형식이어야 합니다: ${options.since}`);
@@ -510,6 +657,7 @@ function parseArgs(argv) {
 async function main() {
   const [command, ...rest] = process.argv.slice(2);
 
+  if (command === 'geocode') return geocode(parseArgs(rest));
   if (command === 'verify') return verify();
   if (command === 'sync') return sync(parseArgs(rest));
 
