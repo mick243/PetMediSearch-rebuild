@@ -20,7 +20,12 @@ import { RootState } from '../../store';
 import { setResults } from '../../store/slices/placeSlice';
 import SearchMapOverlay from './map/SearchMapOverlay';
 import SearchMapCategory from './map/SearchMapCategory';
-import { fetchPlaces } from '../../apis/place.api';
+import {
+  fetchPlaces,
+  fetchPlaceClusters,
+  PlaceCluster,
+} from '../../apis/place.api';
+import SearchMapCluster from './map/SearchMapCluster';
 import SearchMapControlBar from './map/SearchMapControlBar';
 // '영업 중' 토글은 폐업 시설을 API 단계에서 걸러내면서 잠시 비활성화했습니다.
 // import SearchMapToggle from './map/SearchMapToggle';
@@ -31,6 +36,19 @@ import { FaLocationCrosshairs } from 'react-icons/fa6';
  * 클러스터러에 2만개를 한 번에 넘기면 RangeError(스택 오버플로)로 죽습니다.
  */
 const MAX_MARKERS = 2000;
+
+/**
+ * 이 줌 레벨부터는 개별 마커 대신 서버 집계를 씁니다. (숫자가 클수록 넓게 봄)
+ * 개별 조회는 limit 으로 잘려 지역이 통째로 빠지지만, 집계는 화면 전체를 덮습니다.
+ */
+const CLUSTER_FROM_LEVEL = 7;
+
+/** 줌 레벨에 맞는 격자 크기(소수점 자리수). */
+function clusterPrecision(level: number) {
+  if (level >= 11) return 0; // 약 111km
+  if (level >= 9) return 1; // 약 11km
+  return 2; // 약 1.1km
+}
 
 function SearchMap() {
   const dispatch = useDispatch();
@@ -59,6 +77,8 @@ function SearchMap() {
    * 검색은 전국을 대상으로 하는데 지도가 그대로 있으면 결과가 화면 밖에 남습니다.
    * center 가 제어 프롭이라 imperative 하게 setCenter 하면 리렌더에 되돌아가므로 상태로 둡니다.
    */
+  /** 서버가 격자로 묶어준 집계. 줌이 넓을 때만 채워집니다. */
+  const [clusters, setClusters] = useState<PlaceCluster[]>([]);
   const [searchCenter, setSearchCenter] = useState<{
     lat: number;
     lng: number;
@@ -118,13 +138,26 @@ function SearchMap() {
       if (lastBoundsRef.current === boundsKey) return;
       lastBoundsRef.current = boundsKey;
 
-      const data = await fetchPlaces({
+      const box = {
         swLat: sw.getLat(),
         swLng: sw.getLng(),
         neLat: ne.getLat(),
         neLng: ne.getLng(),
-        limit: MAX_MARKERS,
-      });
+      };
+
+      // 넓게 보고 있으면 서버 집계, 확대했으면 개별 마커
+      if (target.getLevel() >= CLUSTER_FROM_LEVEL) {
+        const cells = await fetchPlaceClusters({
+          ...box,
+          precision: clusterPrecision(target.getLevel()),
+        });
+        setClusters(cells);
+        dispatch(setResults([]));
+        return;
+      }
+
+      setClusters([]);
+      const data = await fetchPlaces({ ...box, limit: MAX_MARKERS });
       dispatch(setResults(data));
     } catch (err) {
       console.error('화면 범위의 시설을 불러오던 중 오류 발생:', err);
@@ -221,8 +254,13 @@ function SearchMap() {
   /* 검색하면 첫 결과로 지도를 옮깁니다. 검색어를 비우면 다시 화면 범위 조회로 돌아갑니다. */
   useEffect(() => {
     if (!searchInputPlace) {
+      /*
+       * 검색어를 비웠다고 중심을 되돌리면 안 됩니다.
+       * center 는 제어 프롭이라 null 로 바꾸면 기본 좌표로 튕기고,
+       * 집계 풍선 클릭으로 옮긴 위치도 즉시 취소됩니다.
+       * 다음 검색에서 다시 이동할 수 있도록 기록만 초기화합니다.
+       */
       centeredForRef.current = null;
-      setSearchCenter(null);
       return;
     }
 
@@ -248,6 +286,19 @@ function SearchMap() {
     }
   }, [error]);
 
+  /**
+   * 집계 풍선을 누르면 그 지역으로 확대해 들어갑니다.
+   *
+   * 좌표는 격자 중심이 아니라 격자 안 시설들의 평균이라 실제 시설 근처에 착지합니다.
+   * 한 번에 많이 당기면 넓은 격자에서는 빈 곳에 떨어질 수 있어 2단계씩만 좁힙니다.
+   */
+  const handleClusterClick = (cell: PlaceCluster) => {
+    setSearchCenter({ lat: cell.lat, lng: cell.lng });
+    setMapLevel((level) => Math.max(level - 2, 1));
+    // 이동 후 idle 에서 반드시 다시 조회하도록 직전 범위 기록을 비웁니다.
+    lastBoundsRef.current = null;
+  };
+
   const openedPlace = filteredResults.find(
     (place) => place.id === openedMarkerId
   );
@@ -260,7 +311,9 @@ function SearchMap() {
         <div className="mapArea">
           <div className="resultsLength">
             검색된 시설의 개수:{' '}
-            {filteredResults.length ? filteredResults.length : '-'}
+            {clusters.length
+              ? clusters.reduce((sum, cell) => sum + cell.count, 0)
+              : filteredResults.length || '-'}
           </div>
           <div className="mapwrap">
             <Map
@@ -295,6 +348,21 @@ function SearchMap() {
                   }}
                 />
               )}
+              {/* 서버 집계 풍선. 줌이 넓을 때만 그려집니다. */}
+              {clusters.map((cell) => (
+                <CustomOverlayMap
+                  key={`cluster-${cell.lat}-${cell.lng}`}
+                  position={{ lat: cell.lat, lng: cell.lng }}
+                >
+                  <SearchMapCluster
+                    count={cell.count}
+                    hospitalCount={cell.hospitalCount}
+                    pharmacyCount={cell.pharmacyCount}
+                    onClick={() => handleClusterClick(cell)}
+                  />
+                </CustomOverlayMap>
+              ))}
+
               {/*
                 마커가 많으면 줌 레벨에 따라 묶어서 그립니다.
                 minLevel 보다 확대하면 개별 마커로 풀립니다.
