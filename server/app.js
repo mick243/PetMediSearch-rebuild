@@ -113,6 +113,91 @@ app.get("/facilities", (req, res) => {
   });
 });
 
+/**
+ * 화면 범위의 시설을 격자로 묶어 개수만 내려줍니다.
+ *
+ * 개별 레코드를 limit 으로 잘라 보내면, 잘려나간 지역은 지도에 아무것도 안 뜹니다.
+ * (세종시 동물병원 43곳이 통째로 빠지던 문제)
+ * 줌이 넓을 때는 원본 대신 격자별 집계를 보내 화면 전체를 빠짐없이 덮습니다.
+ *
+ * precision 은 격자 크기를 정하는 소수점 자리수입니다.
+ *   0 -> 약 111km, 1 -> 약 11km, 2 -> 약 1.1km
+ */
+app.get("/facilities/clusters", (req, res) => {
+  const { type, keyword, swLat, swLng, neLat, neLng, onlyOpened, precision } =
+    req.query;
+
+  const bounds = [swLat, swLng, neLat, neLng].map(Number);
+  if (!bounds.every((n) => Number.isFinite(n))) {
+    return res
+      .status(400)
+      .json({ error: "swLat, swLng, neLat, neLng 가 모두 필요합니다." });
+  }
+
+  // 0~3 으로 제한. 그 이상은 격자가 너무 촘촘해 집계 의미가 없습니다.
+  const asked = Number(precision);
+  const digits = Number.isFinite(asked) ? Math.min(Math.max(Math.floor(asked), 0), 3) : 1;
+
+  const values = [];
+  let where = "lat IS NOT NULL AND lng IS NOT NULL";
+
+  const [s, w, n, e] = bounds;
+  where += " AND lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?";
+  values.push(Math.min(s, n), Math.max(s, n), Math.min(w, e), Math.max(w, e));
+
+  if (type) {
+    where += " AND type = ?";
+    values.push(type);
+  }
+
+  if (keyword) {
+    where += " AND (bplcnm LIKE ? OR rdnwhladdr LIKE ? OR sitewhladdr LIKE ?)";
+    values.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`);
+  }
+
+  if (onlyOpened !== "false") {
+    where += " AND (dtlstatenm IS NULL OR dtlstatenm <> '폐업')";
+  }
+
+  /*
+   * 격자 중심 대신 격자 안 시설들의 평균 좌표를 씁니다.
+   * 격자 중심에 찍으면 바다나 산 위에 풍선이 뜨는 경우가 생깁니다.
+   */
+  const query =
+    `SELECT
+       ROUND(lat, ${digits}) AS cellLat,
+       ROUND(lng, ${digits}) AS cellLng,
+       COUNT(*) AS count,
+       SUM(type = '병원') AS hospitalCount,
+       SUM(type = '약국') AS pharmacyCount,
+       AVG(lat) AS lat,
+       AVG(lng) AS lng
+     FROM medical_facilities
+     WHERE ${where}
+     GROUP BY cellLat, cellLng
+     ORDER BY count DESC`;
+
+  mysql.query(query, values, (err, results) => {
+    if (err) {
+      console.error("Cluster query error:", err);
+      return res
+        .status(500)
+        .json({ error: "Internal server error", details: err.message });
+    }
+
+    res.json(
+      results.map((row) => ({
+        lat: Number(row.lat),
+        lng: Number(row.lng),
+        count: Number(row.count),
+        hospitalCount: Number(row.hospitalCount),
+        pharmacyCount: Number(row.pharmacyCount),
+      }))
+    );
+  });
+});
+
+
 // 라우터 설정
 const categoryRouter = require('./routes/category');
 const postRouter = require('./routes/post');
