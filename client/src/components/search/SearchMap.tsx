@@ -124,25 +124,44 @@ function SearchMap() {
    * 키워드 검색 중에는 결과가 덮이지 않도록 건너뜁니다.
    */
   const handleMapIdle = async (target: kakao.maps.Map) => {
-    if (searchInputPlace) return;
-
     try {
       const bounds = target.getBounds();
       const sw = bounds.getSouthWest();
       const ne = bounds.getNorthEast();
 
-      // 소수 4자리(약 10m)까지 같으면 같은 화면으로 봅니다.
-      const boundsKey = [sw.getLat(), sw.getLng(), ne.getLat(), ne.getLng()]
-        .map((v) => v.toFixed(4))
-        .join(',');
+      /*
+       * 소수 4자리(약 10m)까지 같으면 같은 화면으로 봅니다.
+       * 검색어·업종이 바뀌면 같은 화면이라도 다시 조회해야 하므로 키에 함께 넣습니다.
+       */
+      const boundsKey = [
+        ...[sw.getLat(), sw.getLng(), ne.getLat(), ne.getLng()].map((v) =>
+          v.toFixed(4)
+        ),
+        target.getLevel(),
+        searchInputPlace,
+        selectedCategory,
+      ].join(',');
       if (lastBoundsRef.current === boundsKey) return;
       lastBoundsRef.current = boundsKey;
 
+      /*
+       * 검색어와 업종을 화면 범위 조회에도 함께 넘깁니다.
+       *
+       * 예전에는 검색어가 있으면 재조회를 아예 건너뛰었습니다. 그 탓에 검색창에 글자가
+       * 남은 상태로 지도를 옮기면 데이터가 갱신되지 않아, 옮겨간 지역에 시설이 있어도
+       * 아무것도 표시되지 않았습니다. (세종시가 비어 보였던 원인)
+       */
       const box = {
         swLat: sw.getLat(),
         swLng: sw.getLng(),
         neLat: ne.getLat(),
         neLng: ne.getLng(),
+        ...(searchInputPlace ? { keyword: searchInputPlace } : {}),
+        ...(selectedCategory === 'onlyHospital'
+          ? { type: '병원' }
+          : selectedCategory === 'onlyPharmacy'
+            ? { type: '약국' }
+            : {}),
       };
 
       // 넓게 보고 있으면 서버 집계, 확대했으면 개별 마커
