@@ -1,5 +1,9 @@
 import './App.css';
-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import {
+  createBrowserRouter,
+  Navigate,
+  RouterProvider,
+} from 'react-router-dom';
 import Home from './pages/Home';
 import Search from './pages/Search';
 import Login from './pages/Login';
@@ -14,8 +18,8 @@ import MyProfile from './pages/MyProfile';
 import LoginProtect from './components/common/LoginProtect';
 import Review from './pages/Review';
 import CreatePost from './pages/CreatePost';
-import Categories from './pages/Category';
 import PostDetail from './pages/PostDetail';
+import PetForm from './pages/PetForm';
 
 const routeList = [
   {
@@ -31,8 +35,9 @@ const routeList = [
     element: <Login />,
   },
   {
+    // 카테고리 화면은 게시판 탭으로 흡수됐습니다. 예전 주소는 통합(전체 글)로 보냅니다.
     path: '/category',
-    element: <Categories />,
+    element: <Navigate to="/posts" replace />,
   },
   {
     path: '/posts',
@@ -59,6 +64,22 @@ const routeList = [
     element: <LoginRedirectGoogle />,
   },
   {
+    path: '/pets/new',
+    element: (
+      <LoginProtect>
+        <PetForm />
+      </LoginProtect>
+    ),
+  },
+  {
+    path: '/pets/:id/edit',
+    element: (
+      <LoginProtect>
+        <PetForm />
+      </LoginProtect>
+    ),
+  },
+  {
     path: '/myprofile',
     element: (
       <LoginProtect>
@@ -78,7 +99,6 @@ const routeList = [
 
 const router = createBrowserRouter(
   routeList.map((item) => {
-    if (item.path === '/') return item;
     return {
       ...item,
       element: <Layout>{item.element}</Layout>,

@@ -1,6 +1,7 @@
 import { FaX } from 'react-icons/fa6';
 import styled from 'styled-components';
 import { PlaceData } from '../../../types/place.type';
+import FavoriteButton from './FavoriteButton';
 import {
   MdDoNotDisturbOnTotalSilence,
   MdExpandCircleDown,
@@ -53,11 +54,14 @@ function SearchMapOverlay({ onClick, place }: Props) {
               )}
             </div>
           </div>
-          <FaX
-            className="closebttn"
-            aria-label="닫기"
-            onClick={() => onClick(place.id)}
-          />
+          <div className="tools">
+            <FavoriteButton facilityId={place.id} />
+            <FaX
+              className="closebttn"
+              aria-label="닫기"
+              onClick={() => onClick(place.id)}
+            />
+          </div>
         </div>
         <div className="address">
           {place.sitewhladdr ? (
@@ -120,6 +124,12 @@ const SearchMapOverlayStyle = styled.div`
       display: flex;
       justify-content: space-between;
       padding: 10px;
+      .tools {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex: none;
+      }
       border-top-left-radius: 16px;
       border-top-right-radius: 16px;
       align-items: center;
