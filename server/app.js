@@ -15,7 +15,8 @@ const allowedOrigins = (process.env.CORS_ORIGIN || "https://pet-medi-search.verc
   .map((origin) => origin.trim().replace(/\/+$/, ""))
   .filter(Boolean);
 app.use(cors({ origin: allowedOrigins, credentials: true }));
-app.use(express.json());
+// 반려동물 사진은 축소된 JPEG 를 data URL 로 본문에 실어 보냅니다. 기본 100kb 로는 모자랍니다.
+app.use(express.json({ limit: '3mb' }));
 
 // swagger 연동
 const { swaggerUi, specs } = require("./swagger/swagger");
@@ -238,7 +239,9 @@ const postRouter = require('./routes/post');
 const reviewRouter = require('./routes/review');
 const commentRouter = require('./routes/comment');
 const authRouter = require('./routes/auth');
-const mypageRouter = require('./routes/mypage')
+const mypageRouter = require('./routes/mypage');
+const petsRouter = require('./routes/pets');
+const favoritesRouter = require('./routes/favorites');
 
 app.use('/category', categoryRouter);
 app.use('/posts', postRouter);
@@ -246,6 +249,8 @@ app.use('/reviews', reviewRouter);
 app.use('/comments', commentRouter);
 app.use('/auth', authRouter);
 app.use('/mypage', mypageRouter);
+app.use('/pets', petsRouter);
+app.use('/favorites', favoritesRouter);
 
 // 서버 시작
 app.listen(port, () => {

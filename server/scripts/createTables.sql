@@ -75,3 +75,42 @@ CREATE TABLE `comments` (
    CONSTRAINT `reviews_ibfk_2` FOREIGN KEY (`facility_id`) REFERENCES `medical_facilities` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
    CONSTRAINT `reviews_chk_1` CHECK ((`rating` between 1 and 5))
  );
+
+-- 반려동물 프로필. 홈 화면(H안)의 주인공입니다.
+CREATE TABLE IF NOT EXISTS `pets` (
+  `pet_id` int NOT NULL AUTO_INCREMENT,
+  `user_id` int NOT NULL,
+  `name` varchar(50) NOT NULL,
+  `category_id` int DEFAULT NULL COMMENT '분류(강아지·고양이·…). 게시판 카테고리와 같은 표',
+  `breed` varchar(50) DEFAULT NULL,
+  `birth_date` date DEFAULT NULL,
+  `weight_kg` decimal(5,2) DEFAULT NULL,
+  `photo` mediumtext DEFAULT NULL COMMENT '축소된 JPEG data URL',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`pet_id`),
+  KEY `pets_user` (`user_id`),
+  CONSTRAINT `pets_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE,
+  CONSTRAINT `pets_ibfk_2` FOREIGN KEY (`category_id`) REFERENCES `categories` (`category_id`) ON DELETE SET NULL
+);
+
+-- 접종·검진 일정. 홈의 D-day 타일이 여기서 나옵니다.
+CREATE TABLE IF NOT EXISTS `pet_vaccinations` (
+  `vaccination_id` int NOT NULL AUTO_INCREMENT,
+  `pet_id` int NOT NULL,
+  `name` varchar(80) NOT NULL,
+  `due_date` date NOT NULL,
+  `done` tinyint(1) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`vaccination_id`),
+  KEY `vacc_pet` (`pet_id`),
+  CONSTRAINT `vacc_ibfk_1` FOREIGN KEY (`pet_id`) REFERENCES `pets` (`pet_id`) ON DELETE CASCADE
+);
+
+-- 단골 병원·약국. 지도 정보창의 ★ 로 넣고 뺍니다.
+CREATE TABLE IF NOT EXISTS `favorite_facilities` (
+  `user_id` int NOT NULL,
+  `facility_id` int NOT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`user_id`, `facility_id`),
+  CONSTRAINT `fav_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE,
+  CONSTRAINT `fav_ibfk_2` FOREIGN KEY (`facility_id`) REFERENCES `medical_facilities` (`id`) ON DELETE CASCADE
+);
