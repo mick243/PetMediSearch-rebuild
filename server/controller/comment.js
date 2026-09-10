@@ -5,7 +5,8 @@ const { verifyToken } = require('./authUser');
 const getCommentsByPostId = (req, res) => {
     const post_id = req.params.post_id;
 
-    const query = 'SELECT c.comment_id, c.content, c.created_at, u.username AS author, c.parent_comment_id FROM comments c JOIN users u ON c.user_id = u.user_id WHERE c.post_id = ? ORDER BY c.created_at ASC';
+    // user_id 는 본인 댓글에만 삭제 버튼을 보이기 위해 함께 내려줍니다.
+    const query = 'SELECT c.comment_id, c.user_id, c.content, c.created_at, u.username AS author, c.parent_comment_id FROM comments c JOIN users u ON c.user_id = u.user_id WHERE c.post_id = ? ORDER BY c.created_at ASC';
 
     conn.query(query, [post_id], (err, results) => {
         if (err) {

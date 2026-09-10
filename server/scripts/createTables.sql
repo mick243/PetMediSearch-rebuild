@@ -21,12 +21,11 @@ INSERT INTO `users` (`user_id`, `username`) VALUES (6, '유리');
 INSERT INTO `categories` (`category_name`) VALUES ('통합');
 INSERT INTO `categories` (`category_name`) VALUES ('강아지');
 INSERT INTO `categories` (`category_name`) VALUES ('고양이');
-INSERT INTO `categories` (`category_name`) VALUES ('토끼');
-INSERT INTO `categories` (`category_name`) VALUES ('물고기');
-INSERT INTO `categories` (`category_name`) VALUES ('새');
-INSERT INTO `categories` (`category_name`) VALUES ('개구리');
+INSERT INTO `categories` (`category_name`) VALUES ('포유류');
+INSERT INTO `categories` (`category_name`) VALUES ('양서류');
 INSERT INTO `categories` (`category_name`) VALUES ('파충류');
-INSERT INTO `categories` (`category_name`) VALUES ('곤충');
+INSERT INTO `categories` (`category_name`) VALUES ('조류');
+INSERT INTO `categories` (`category_name`) VALUES ('어류');
 INSERT INTO `categories` (`category_name`) VALUES ('기타');
 
  CREATE TABLE `posts` (

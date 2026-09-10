@@ -5,7 +5,8 @@ const { verifyToken } = require('./authUser');
 const getPostById = (req, res) => {
     const post_id = req.params.post_id;
 
-    const query = 'SELECT p.title, p.content, p.created_at, u.username AS author FROM posts p JOIN users u ON p.user_id = u.user_id WHERE p.post_id = ?';
+    // user_id 는 화면에서 작성자에게만 수정·삭제 버튼을 보이기 위해 함께 내려줍니다.
+    const query = 'SELECT p.post_id, p.user_id, p.category_id, p.title, p.content, p.created_at, u.username AS author FROM posts p JOIN users u ON p.user_id = u.user_id WHERE p.post_id = ?';
 
     conn.query(query, [post_id], (err, results) => {
         if (err) {
