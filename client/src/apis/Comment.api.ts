@@ -3,13 +3,16 @@ import { httpClient } from './http';
 export const addComment = async (
   userId: number,
   post_id: number,
-  content: string
+  content: string,
+  /** 답글이면 원댓글 id. 새 댓글이면 null. */
+  parent_comment_id: number | null = null
 ) => {
   try {
     const response = await httpClient.post(`/comments`, {
       user_id: userId,
       post_id: post_id,
       content: content,
+      parent_comment_id: parent_comment_id,
     });
     return response.data;
   } catch (error) {

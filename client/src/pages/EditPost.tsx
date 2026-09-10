@@ -1,9 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import styled from 'styled-components';
-import { PostState } from '../types/post.type';
-import Button from '../components/common/Button';
+import { useRef, useState } from 'react';
 import ReactQuill from 'react-quill';
-import { editPosts } from '../apis/Posts.api';
+import 'react-quill/dist/quill.snow.css';
+import { PostState } from '../types/post.type';
+import {
+  Actions,
+  CancelBt,
+  EditorBody,
+  EditorFrame,
+  EditorPage,
+  QUILL_FORMATS,
+  QUILL_MODULES,
+  SubmitBt,
+  TitleInput,
+} from '../components/board/postEditor';
 
 interface EditPostProps {
   post: PostState;
@@ -11,119 +20,63 @@ interface EditPostProps {
   onCancel: () => void;
 }
 
+/**
+ * 글 수정 화면. 작성 화면과 같은 에디터 부품을 씁니다.
+ *
+ * 예전에는 마운트 시점에 editPosts(PUT) 를 호출해 값을 "불러오려" 했는데,
+ * 그 API 는 저장용이라 빈 제목·내용으로 글을 덮어쓸 수 있었습니다.
+ * 받은 post 로 초기값을 잡고, 저장은 onEdit 에서만 합니다.
+ */
 function EditPost({ post, onEdit, onCancel }: EditPostProps) {
-  const [updateTitle, setUpdateTitle] = useState<string>();
-  const [updateContent, setUpdateContent] = useState<string>();
+  const [updateTitle, setUpdateTitle] = useState(post.title);
+  const [updateContent, setUpdateContent] = useState(post.content);
   const quillRef = useRef<ReactQuill>(null);
 
   const handleEdit = () => {
+    if (updateTitle.trim().length === 0) {
+      alert('제목을 입력해주세요');
+      return;
+    }
+    if (updateContent.length === 0) {
+      alert('내용을 입력해 주세요');
+      return;
+    }
     onEdit(post.post_id, updateTitle, updateContent);
   };
 
-  useEffect(() => {
-    const fetchPost = async () => {
-      try {
-        const res = await editPosts(post.post_id, updateTitle, updateContent);
-        setUpdateTitle(res.data.updateTitle);
-        setUpdateContent(res.data.updateContent);
-      } catch (error) {
-        console.error(error);
-      }
-    };
-
-    fetchPost();
-  }, [post.post_id]);
-
-  const modules = useMemo(
-    () => ({
-      toolbar: {
-        container: [
-          ['bold', 'italic', 'underline', 'strike', 'blockquote'],
-          [{ size: ['small', false, 'large', 'huge'] }, { color: [] }],
-          [
-            { list: 'ordered' },
-            { list: 'bullet' },
-            { indent: '-1' },
-            { indent: '+1' },
-            { align: [] },
-          ],
-          ['link', 'image'],
-        ],
-      },
-    }),
-    []
-  );
-  const formats = [
-    'size',
-    'color',
-    'background',
-    'bold',
-    'italic',
-    'underline',
-    'strike',
-    'blockquote',
-    'list',
-    'bullet',
-    'indent',
-    'link',
-    'image',
-  ];
-
   return (
-    <EditPostStyle>
-      <Title>
-        <label htmlFor="title">제목 : </label>
-        <input
+    <EditorPage>
+      <EditorBody onSubmit={(e) => e.preventDefault()}>
+        <TitleInput
           id="title"
+          aria-label="제목"
           value={updateTitle}
           onChange={(e) => setUpdateTitle(e.target.value)}
           placeholder="제목을 입력해주세요"
-        ></input>
-      </Title>
-      <ReactQuill
-        style={{ width: '100%', height: '500px' }}
-        ref={quillRef}
-        value={updateContent}
-        modules={modules}
-        formats={formats}
-        onChange={setUpdateContent}
-        theme="snow"
-        placeholder="내용을 입력해주세요."
-      />
-      <EditButton>
-        <div className="bttn">
-          <Button size="small" scheme="positive" onClick={handleEdit}>
-            수정
-          </Button>
-          <Button size="small" scheme="negative" onClick={onCancel}>
-            취소
-          </Button>
-        </div>
-      </EditButton>
-    </EditPostStyle>
+        />
+        <EditorFrame>
+          <ReactQuill
+            ref={quillRef}
+            value={updateContent}
+            modules={QUILL_MODULES}
+            formats={QUILL_FORMATS}
+            onChange={setUpdateContent}
+            theme="snow"
+            placeholder="내용을 입력해주세요."
+          />
+        </EditorFrame>
+      </EditorBody>
+
+      <Actions>
+        <CancelBt type="button" onClick={onCancel}>
+          취소
+        </CancelBt>
+        <SubmitBt type="button" onClick={handleEdit}>
+          수정
+        </SubmitBt>
+      </Actions>
+    </EditorPage>
   );
 }
-
-const EditPostStyle = styled.div`
-  .bttn {
-    display: flex;
-    justify-content: end;
-    gap: 5px;
-  }
-`;
-
-const Title = styled.div`
-  margin-top: 10px;
-  margin-bottom: 10px;
-  height: 30px;
-  #title {
-    width: 88%;
-    height: 30px;
-  }
-`;
-
-const EditButton = styled.div`
-  margin-top: 100px;
-`;
 
 export default EditPost;

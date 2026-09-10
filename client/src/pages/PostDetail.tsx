@@ -1,74 +1,73 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useParams, useNavigate } from 'react-router-dom';
-import { PostState } from '../types/post.type';
 import styled from 'styled-components';
 import { useSelector } from 'react-redux';
-import { addComment } from '../apis/Comment.api';
-import { RootState } from '../store';
-import Button from '../components/common/Button';
-import CommentList from '../comment/CommentList';
-import { deletePosts } from '../apis/Posts.api';
 import dompurify from 'dompurify';
+import { PostState } from '../types/post.type';
+import { RootState } from '../store';
+import CommentSection from '../comment/CommentSection';
+import { deletePosts, editPosts } from '../apis/Posts.api';
+import EditPost from './EditPost';
+import { formatDateTime } from '../utils/postContent';
 
 const BASE_URL = import.meta.env.VITE_BASE_URL;
 
 function PostDetail() {
   const [post, setPost] = useState<PostState>();
-  const [content, setContent] = useState<string>('');
+  const [isEditing, setIsEditing] = useState(false);
   const postId = useParams().id;
   const user = useSelector((state: RootState) => state.auth.user);
   const navigate = useNavigate();
   const sanitizer = dompurify.sanitize;
 
-  const handleDeletePosts = async () => {
-    if (window.confirm('게시글을 삭제하시겠습니까?')) {
-      try {
-        await deletePosts(Number(postId));
-        alert('게시글이 삭제되었습니다.');
-        navigate('/category');
-      } catch (error) {
-        console.error(error);
-      }
-    }
-  };
+  /*
+   * 수정·삭제는 작성자에게만 보입니다.
+   * 서버도 토큰으로 한 번 더 막지만, 남의 글에서 버튼이 보이는 것 자체가 혼란스럽습니다.
+   */
+  const isAuthor = !!post && !!user?.id && post.user_id === user.id;
 
-  const handleChangePosts = async () => {
+  const handleDeletePosts = async () => {
+    if (!window.confirm('게시글을 삭제하시겠습니까?')) return;
     try {
-      navigate('/editpost');
+      await deletePosts(Number(postId));
+      alert('게시글이 삭제되었습니다.');
+      navigate('/posts');
     } catch (error) {
       console.error(error);
+      alert('게시글을 삭제하지 못했습니다.');
     }
   };
 
-  const handleSubmitButtonClick = async (
-    e: React.FormEvent<HTMLFormElement>
+  /*
+   * 수정은 같은 화면에서 에디터로 바꿔 보여줍니다.
+   * 저장은 서버가 토큰의 사용자와 글 작성자를 비교해 작성자만 통과시킵니다.
+   */
+  const handleEditSubmit = async (
+    post_id: number,
+    updateTitle: string,
+    updateContent: string
   ) => {
-    e.preventDefault();
-    // 내용
-    if (!content.trim() || content === null) {
-      return;
-    } else {
-      try {
-        await addComment(user.id, Number(postId), content);
-        alert('댓글이 등록되었습니다.');
-        setContent('');
-      } catch (error) {
-        console.error(error);
-        throw error;
-      }
+    try {
+      await editPosts(post_id, updateTitle, updateContent);
+      setPost((prev) =>
+        prev ? { ...prev, title: updateTitle, content: updateContent } : prev
+      );
+      setIsEditing(false);
+      alert('게시글이 수정되었습니다.');
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.message ??
+        error?.response?.data?.error ??
+        '게시글을 수정하지 못했습니다.';
+      alert(message);
     }
-  };
-
-  const handleChangeComment = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setContent(e.target.value);
   };
 
   useEffect(() => {
     const fetchPostById = async () => {
       try {
         const response = await axios.get(`${BASE_URL}/posts/${postId}`);
-        console.log(response);
         setPost(response.data);
       } catch (error) {
         console.error('Error fetching post:', error);
@@ -77,169 +76,179 @@ function PostDetail() {
     fetchPostById();
   }, [postId]);
 
+  if (post && isEditing) {
+    return (
+      <EditPost
+        post={{ ...post, post_id: Number(postId) }}
+        onEdit={handleEditSubmit}
+        onCancel={() => setIsEditing(false)}
+      />
+    );
+  }
+
   return (
-    <>
-      <div className="bttn">
-        <Button
-          size="small"
-          scheme="positive"
-          onClick={() => {
-            handleChangePosts;
-          }}
-        >
-          수정
-        </Button>
-        <Button
-          size="small"
-          scheme="negative"
-          onClick={() => {
-            handleDeletePosts();
-          }}
-        >
-          삭제
-        </Button>
-      </div>
+    <Page>
       {post ? (
-        <PostsStyle>
-          <h3 className="title">제목 : {post.title}</h3>
-          <div className="author">작성자 : {post.author}</div>
-          <div className="created_at">작성일 : {post.created_at}</div>
+        <>
+          <Head>
+            <Title>{post.title}</Title>
+            <MetaRow>
+              <Meta>
+                <span>{post.author}</span>
+                <Dot aria-hidden="true" />
+                <span>{formatDateTime(post.created_at)}</span>
+              </Meta>
+              {isAuthor && (
+                <ActionGroup>
+                  <SmallBt type="button" onClick={() => setIsEditing(true)}>
+                    수정
+                  </SmallBt>
+                  <SmallBt
+                    type="button"
+                    $danger
+                    onClick={() => {
+                      handleDeletePosts();
+                    }}
+                  >
+                    삭제
+                  </SmallBt>
+                </ActionGroup>
+              )}
+            </MetaRow>
+          </Head>
 
-          <ContentContainer>
-            <div
-              className="content"
-              dangerouslySetInnerHTML={{
-                __html: sanitizer(`${post.content}`),
-              }}
-            />
-          </ContentContainer>
-        </PostsStyle>
-      ) : (
-        <div>게시글이 존재하지 않습니다.</div>
-      )}
-      <Container>
-        <CommentForm onSubmit={handleSubmitButtonClick}>
-          <CommentText
-            placeholder="댓글을 입력 해주세요."
-            onChange={handleChangeComment}
-            value={content}
-            cols={30}
-            wrap="hard"
+          <Content
+            className="content"
+            dangerouslySetInnerHTML={{ __html: sanitizer(`${post.content}`) }}
           />
-          <CommentSubmitButtonContainer>
-            <Button
-              size="small"
-              scheme="positive"
-              onClick={() => handleSubmitButtonClick}
-            >
-              등록
-            </Button>
-          </CommentSubmitButtonContainer>
-        </CommentForm>
-      </Container>
+        </>
+      ) : (
+        <Empty>게시글이 존재하지 않습니다.</Empty>
+      )}
 
-      <CommentContainer>
-        <CommentList />
-      </CommentContainer>
-    </>
+      <CommentSection postId={Number(postId)} postAuthorId={post?.user_id} />
+    </Page>
   );
 }
 
 export default PostDetail;
 
-const PostsStyle = styled.div`
-  height: 110px;
-  background-color: #d9d9d9;
-  .title {
-    margin-left: 10px;
-  }
+/*
+ * 제목·작성자·작성일·본문·댓글이 모두 같은 글꼴(본문용 Pretendard)·크기를 씁니다.
+ * h1 은 App.css 전역 규칙으로 손글씨체(Garam)를 받으므로 여기서 되돌립니다.
+ */
+const TEXT_SIZE = '15px';
 
-  .author {
-    margin-left: 10px;
-  }
-
-  .created_at {
-    margin-left: 10px;
-  }
-`;
-
-const ContentContainer = styled.div`
-  width: 100%;
-  background-color: #d9d9d9;
-  height: 70.2vh;
+const Page = styled.section`
   display: flex;
-  overflow-y: auto;
+  flex-direction: column;
+  flex: 1;
+  background-color: ${({ theme }) => theme.color.surface};
+  font-family: ${({ theme }) => theme.font.body};
+  font-size: ${TEXT_SIZE};
+  color: ${({ theme }) => theme.color.text};
+`;
 
-  .content {
-    padding: 10px;
-    margin-left: 20px;
-    margin-top: 20px;
-    height: 500px;
-    width: 355px;
-    background-color: #f5f5f5;
+const Head = styled.header`
+  display: grid;
+  gap: ${({ theme }) => theme.space.sm};
+  padding: ${({ theme }) => theme.space.lg};
+  border-bottom: 1px solid ${({ theme }) => theme.color.border};
+`;
+
+const Title = styled.h1`
+  margin: 0;
+  font-family: ${({ theme }) => theme.font.body};
+  font-size: ${TEXT_SIZE};
+  font-weight: 700;
+  line-height: 1.5;
+  word-break: keep-all;
+`;
+
+const MetaRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: ${({ theme }) => theme.space.md};
+`;
+
+const Meta = styled.p`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.space.sm};
+  margin: 0;
+  font-family: ${({ theme }) => theme.font.body};
+  font-size: ${TEXT_SIZE};
+  color: ${({ theme }) => theme.color.textMuted};
+  font-variant-numeric: tabular-nums;
+`;
+
+const Dot = styled.i`
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background-color: ${({ theme }) => theme.color.borderStrong};
+`;
+
+/* 수정·삭제. 오른쫽 정렬, 사이 5px. */
+const ActionGroup = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 5px;
+  flex: none;
+`;
+
+/* 기존 Button size="small" 과 같은 치수(12px / 8px 12px)를 유지합니다. */
+const SmallBt = styled.button<{ $danger?: boolean; $primary?: boolean }>`
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: ${({ theme }) => theme.font.body};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  border: 1px solid
+    ${({ theme, $primary }) =>
+      $primary ? theme.color.primary : theme.color.borderStrong};
+  background-color: ${({ theme, $primary }) =>
+    $primary ? theme.color.primary : theme.color.surface};
+  color: ${({ theme, $danger, $primary }) =>
+    $primary
+      ? theme.color.textInverse
+      : $danger
+        ? theme.color.danger
+        : theme.color.text};
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+
+  &:hover {
+    background-color: ${({ theme, $primary }) =>
+      $primary ? theme.color.primaryHover : theme.color.surfaceMuted};
   }
 `;
 
-const Container = styled.div`
-  background-color: #d9d9d9;
-  margin-top: 550px;
-  width: 100%;
-  height: 100%;
-  display: flex;
-`;
+const Content = styled.div`
+  flex: 1;
+  padding: ${({ theme }) => theme.space.lg};
+  font-family: ${({ theme }) => theme.font.body};
+  font-size: ${TEXT_SIZE};
+  line-height: 1.7;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 
-const CommentContainer = styled.div`
-  background-color: #d9d9d9;
-  height: 100%;
-  width: 415px;
+  p {
+    margin: 0 0 ${({ theme }) => theme.space.sm};
+  }
 
-  .contents {
-    margin-left: 10px;
+  img {
+    max-width: 100%;
+    border-radius: ${({ theme }) => theme.radius.sm};
   }
 `;
-const CommentForm = styled.form`
-  width: 415px;
-  margin: 0 auto;
+
+const Empty = styled.p`
+  margin: 0;
+  padding: ${({ theme }) => theme.space.xxl} ${({ theme }) => theme.space.lg};
+  text-align: center;
+  color: ${({ theme }) => theme.color.textMuted};
 `;
-
-const CommentText = styled.textarea`
-  width: 90%;
-
-  margin-left: 4px;
-  margin-bottom: 5px;
-  padding: 16px;
-  display: flex;
-  overflow-y: auto;
-
-  border: 0.5px solid #d0d0d0;
-  border-radius: 10px;
-
-  resize: none;
-
-  transition-duration: 0.3s;
-`;
-
-const CommentSubmitButtonContainer = styled.div`
-  display: flex;
-  width: 100%;
-`;
-
-// const CommentSubmitButton = styled.button`
-//   width: 50px;
-//   height: 30px;
-//   margin-left: auto;
-//   margin-right: 3px;
-//   margin-top: 0px;
-
-//   border: 1px solid #d0d0d0;
-//   border-radius: 10px;
-
-//   background-color: #fff;
-//   color: #262b7f;
-
-//   cursor: pointer;
-//   &:hover {
-//     background-color: yellow;
-//     color: #000000;
-//   }
-// `;
