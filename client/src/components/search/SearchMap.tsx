@@ -7,7 +7,13 @@ import {
 } from 'react-kakao-maps-sdk';
 import styled from 'styled-components';
 import Loading from '../common/Loading';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react';
 import {
   HOSPITAL_MARKER,
   PHARMACY_MARKER,
@@ -25,9 +31,7 @@ import {
   fetchPlaceClusters,
   PlaceCluster,
 } from '../../apis/place.api';
-import SearchMapCluster, {
-  ClusterVariant,
-} from './map/SearchMapCluster';
+import SearchMapCluster, { ClusterVariant } from './map/SearchMapCluster';
 import SearchMapControlBar from './map/SearchMapControlBar';
 // '영업 중' 토글은 폐업 시설을 API 단계에서 걸러내면서 잠시 비활성화했습니다.
 // import SearchMapToggle from './map/SearchMapToggle';
@@ -52,6 +56,33 @@ function clusterPrecision(level: number) {
   return 2; // 약 1.1km
 }
 
+/*
+ * 클라이언트 클러스터러(확대했을 때 마커를 묶는 원) 모양.
+ * styles 를 주지 않으면 카카오 기본 스프라이트(50px 이상)가 쓰여 화면이 어지럽습니다.
+ * 기본 색은 유지한 채 크기만 줄입니다. lineHeight 는 테두리를 뺀 안쪽 높이(20-1*2).
+ */
+const CLIENT_CLUSTER_STYLE: CSSProperties = {
+  width: '20px',
+  height: '20px',
+  /*
+   * line-height 로 세우면 글꼴 메트릭 때문에 숫자가 한두 픽셀 비껴 앉습니다.
+   * flex 로 가운데를 잡고 SDK 가 넣는 여백은 0 으로 눌러둡니다.
+   */
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: 0,
+  lineHeight: 1,
+  boxSizing: 'border-box',
+  borderRadius: '50%',
+  background: '#47ccff',
+  border: '1px solid #ffffff',
+  color: '#0d3c52',
+  textAlign: 'center',
+  fontSize: '10px',
+  fontWeight: 700,
+};
+
 function SearchMap() {
   const dispatch = useDispatch();
   const [loading, error] = useKakaoLoader({
@@ -64,7 +95,6 @@ function SearchMap() {
   const { searchPlaceResults, searchInputPlace } = useSelector(
     (state: RootState) => state.place
   );
-
 
   const [selectedCategory, setSelectedCategory] = useState('allPlace');
   const [openedMarkerId, setOpenedMarkerId] = useState<number | null>(null);
@@ -397,7 +427,11 @@ function SearchMap() {
                 마커가 많으면 줌 레벨에 따라 묶어서 그립니다.
                 minLevel 보다 확대하면 개별 마커로 풀립니다.
               */}
-              <MarkerClusterer averageCenter={true} minLevel={5}>
+              <MarkerClusterer
+                averageCenter={true}
+                minLevel={5}
+                styles={[CLIENT_CLUSTER_STYLE]}
+              >
                 {filteredResults.map((place) => (
                   <MapMarker
                     key={`place-${place.id}`}

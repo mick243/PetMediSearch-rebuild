@@ -43,8 +43,9 @@ function SearchMapCluster({
   onClick,
 }: Props) {
   // 개수에 따라 크기를 키워 밀집도가 한눈에 보이도록
-  const size = count >= 1000 ? 62 : count >= 300 ? 54 : count >= 50 ? 46 : 38;
-  const label = count >= 1000 ? `${Math.round(count / 100) / 10}천` : String(count);
+  const size = count >= 1000 ? 36 : count >= 300 ? 30 : count >= 50 ? 24 : 20;
+  const label =
+    count >= 1000 ? `${Math.round(count / 100) / 10}천` : String(count);
 
   return (
     <ClusterStyle
@@ -76,13 +77,13 @@ const ClusterStyle = styled.div<{
   box-sizing: border-box;
 
   background-color: ${({ $bg }) => $bg};
-  border: 3px solid ${({ theme }) => theme.color.surface};
+  border: 1px solid ${({ theme }) => theme.color.surface};
   box-shadow: ${({ theme }) => theme.shadow.md};
   transition: transform 0.15s;
 
   .count {
     color: ${({ $fg }) => $fg};
-    font-size: ${({ $size }) => ($size >= 54 ? 15 : 13)}px;
+    font-size: 10px;
     font-weight: 700;
     line-height: 1;
   }
