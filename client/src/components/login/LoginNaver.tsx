@@ -26,6 +26,8 @@ const LoginNaverStyle = styled.div`
 
   .naverbttn {
     width: 350px;
+    /* 화면 틀이 415px 라 좁은 기기에서는 350px 를 다 못 씁니다. */
+    max-width: 100%;
     height: 58px;
     box-sizing: border-box;
     background-color: #03c75a;

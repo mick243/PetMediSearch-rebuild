@@ -9,14 +9,15 @@ import {
   fetchFavorites,
   removeFavorite,
 } from '../../../apis/favorites.api';
+import { apiErrorMessage } from '../../../utils/apiError';
 
 interface Props {
   facilityId: number;
 }
 
 /**
- * 지도 정보창의 단골(★) 토글.
- * 로그인 전에는 눌렀을 때 로그인으로 보냅니다. 홈의 '단골' 목록이 여기서 채워집니다.
+ * 지도 정보창의 즐겨찾기(★) 토글.
+ * 로그인 전에는 눌렀을 때 로그인으로 보냅니다. 홈의 '즐겨찾기' 목록이 여기서 채워집니다.
  */
 function FavoriteButton({ facilityId }: Props) {
   const isLogin = useSelector((s: RootState) => s.auth.isLogin);
@@ -39,7 +40,7 @@ function FavoriteButton({ facilityId }: Props) {
 
   const toggle = async () => {
     if (!isLogin) {
-      if (window.confirm('단골 등록은 로그인 후 할 수 있어요. 로그인할까요?'))
+      if (window.confirm('즐겨찾기는 로그인 후 쓸 수 있어요. 로그인할까요?'))
         navigate('/login');
       return;
     }
@@ -50,7 +51,7 @@ function FavoriteButton({ facilityId }: Props) {
       else await addFavorite(facilityId);
       setOn(!on);
     } catch (error: any) {
-      alert(error?.response?.data?.message ?? '저장하지 못했습니다.');
+      alert(apiErrorMessage(error, '저장하지 못했습니다.'));
     } finally {
       setBusy(false);
     }
@@ -61,8 +62,8 @@ function FavoriteButton({ facilityId }: Props) {
       type="button"
       onClick={toggle}
       aria-pressed={on}
-      aria-label={on ? '단골 해제' : '단골로 등록'}
-      title={on ? '단골 해제' : '단골로 등록'}
+      aria-label={on ? '즐겨찾기 해제' : '즐겨찾기에 추가'}
+      title={on ? '즐겨찾기 해제' : '즐겨찾기에 추가'}
       $on={on}
     >
       {on ? <HiStar /> : <HiOutlineStar />}

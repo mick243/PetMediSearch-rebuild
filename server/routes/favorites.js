@@ -7,7 +7,7 @@ const router = express.Router();
  * /favorites:
  *   get:
  *     tags: [Favorites]
- *     summary: 내 단골 병원·약국 목록
+ *     summary: 내 즐겨찾기한 병원·약국 목록
  *     security:
  *       - BearerAuth: []
  *     responses:
@@ -23,12 +23,12 @@ router.get('/', getFavorites);
  * /favorites/{facility_id}:
  *   post:
  *     tags: [Favorites]
- *     summary: 단골 등록 (이미 있으면 그대로 성공)
+ *     summary: 즐겨찾기 추가 (이미 있으면 그대로 성공)
  *     security:
  *       - BearerAuth: []
  *   delete:
  *     tags: [Favorites]
- *     summary: 단골 해제
+ *     summary: 즐겨찾기 해제
  *     security:
  *       - BearerAuth: []
  */

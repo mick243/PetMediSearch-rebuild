@@ -3,25 +3,36 @@ import { ReviewData } from '../../types/review.type';
 import Button from '../common/Button';
 import styled from 'styled-components';
 import Star from '../common/Star';
+import ReviewImagePicker from './ReviewImagePicker';
 
 interface EditReviewFormProps {
   review: ReviewData;
+  /** 펼칠 때 받아 둔 사진. 목록에는 장수만 실려 있어 밖에서 넘겨받습니다 */
+  images: string[];
   onEdit: (
     reviewId: number,
     updatedRating: number,
-    updatedContent: string
+    updatedContent: string,
+    updatedImages: string[]
   ) => void;
   onCancel: () => void;
 }
 
-function EditReviewForm({ review, onEdit, onCancel }: EditReviewFormProps) {
+function EditReviewForm({
+  review,
+  images,
+  onEdit,
+  onCancel,
+}: EditReviewFormProps) {
   const [updatedRating, setUpdatedRating] = useState<number>(review.rating);
   const [updatedContent, setUpdatedContent] = useState<string>(
     review.review_content
   );
+  // 이미 붙어 있던 사진과 새로 고르는 사진을 한 목록으로 다룹니다.
+  const [updatedImages, setUpdatedImages] = useState<string[]>(images);
 
   const handleEdit = () => {
-    onEdit(review.review_id, updatedRating, updatedContent);
+    onEdit(review.review_id, updatedRating, updatedContent, updatedImages);
   };
 
   return (
@@ -48,6 +59,7 @@ function EditReviewForm({ review, onEdit, onCancel }: EditReviewFormProps) {
         value={updatedContent}
         onChange={(e) => setUpdatedContent(e.target.value)}
       />
+      <ReviewImagePicker images={updatedImages} onChange={setUpdatedImages} />
     </EditReviewFormStyle>
   );
 }

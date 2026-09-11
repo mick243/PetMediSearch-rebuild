@@ -1,6 +1,7 @@
 const express = require('express');
 const {
     getReviewsByFacilityId,
+    getReviewImages,
     createReview,
     updateReview,
     deleteReview
@@ -85,6 +86,25 @@ router.post('/', createReview);
  *         description: 서버 오류 발생
  */
 router.get('/facility/:facility_id', getReviewsByFacilityId);
+
+/**
+ * @swagger
+ * /reviews/{review_id}/images:
+ *   get:
+ *     tags: [Reviews]
+ *     summary: 후기에 붙은 사진 (목록에는 장수만 실립니다)
+ *     parameters:
+ *       - in: path
+ *         name: review_id
+ *         required: true
+ *         schema: { type: integer }
+ *     responses:
+ *       200:
+ *         description: 줄인 JPEG data URL 목록
+ *       404:
+ *         description: 후기를 찾을 수 없습니다.
+ */
+router.get('/:review_id/images', getReviewImages);
 
 /**
  * @swagger

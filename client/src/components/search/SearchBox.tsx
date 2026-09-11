@@ -10,8 +10,15 @@ import {
 } from '../../store/slices/placeSlice';
 import { fetchPlaces } from '../../apis/place.api';
 
-/** 검색 결과 상한. 지도가 감당할 수 있는 마커 수에 맞춥니다. */
-const SEARCH_RESULT_LIMIT = 2000;
+/**
+ * 전국 검색 결과 상한.
+ *
+ * 이 조회는 "지도를 어디로 옮길지" 를 정하려고 씁니다. 옮기고 나면 화면 범위
+ * 조회가 그 지역 마커를 다시 채우므로, 여기서 전국 것을 잔뜩 받을 이유가 없습니다.
+ * 2000 건이던 시절 '약국' 검색 한 번이 933KB 였습니다. 서버가 적합도 순으로
+ * 정렬해 보내므로 앞쪽 100 건이면 갈 곳을 정하기에 충분합니다.
+ */
+const SEARCH_RESULT_LIMIT = 100;
 
 function SearchBox() {
   const dispatch = useDispatch();

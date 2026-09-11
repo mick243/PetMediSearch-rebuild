@@ -11,7 +11,7 @@ import {
   EditorFrame,
   EditorPage,
   QUILL_FORMATS,
-  QUILL_MODULES,
+  useQuillModules,
   SubmitBt,
   TitleInput,
 } from '../components/board/postEditor';
@@ -25,6 +25,7 @@ const CreatePost = () => {
   /** 따로 고르지 않으면 통합(1)에 올라갑니다. */
   const [categoryId, setCategoryId] = useState<number | null>(1);
   const quillRef = useRef<ReactQuill>(null);
+  const modules = useQuillModules(quillRef);
   const user = useSelector((state: RootState) => state.auth.user);
 
   const formSubmit = async () => {
@@ -73,7 +74,7 @@ const CreatePost = () => {
           <ReactQuill
             ref={quillRef}
             value={content}
-            modules={QUILL_MODULES}
+            modules={modules}
             formats={QUILL_FORMATS}
             onChange={setContent}
             theme="snow"

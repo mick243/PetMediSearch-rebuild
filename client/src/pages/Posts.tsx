@@ -1,5 +1,5 @@
 import styled from 'styled-components';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { HiOutlinePencilSquare } from 'react-icons/hi2';
@@ -36,6 +36,8 @@ function Posts() {
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [posts, setPosts] = useState<PostState[]>([]);
+  /** 서버가 알려 주는 전체 글 수. 쪽 번호를 그리는 데만 씁니다. */
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(() =>
     !hasParam || paramId === saved?.categoryId ? (saved?.page ?? 1) : 1
@@ -59,16 +61,28 @@ function Posts() {
     let alive = true;
     setLoading(true);
 
+    /*
+     * 보고 있는 쪽만 받아옵니다.
+     *
+     * 예전에는 그 분류의 글을 본문째 전부 받아 화면에서 잘라 썼습니다. 글이
+     * 2만 건일 때 통합 목록 한 번에 30MB 가 내려왔습니다. 쪽을 넘길 때마다
+     * 다시 받지만 한 번에 10건이라 훨씬 가볍습니다.
+     */
     axios
-      .get<{ posts: PostState[] }>(
-        `${BASE_URL}/category?category=${selectedId}`
+      .get<{ posts: PostState[]; total: number }>(
+        `${BASE_URL}/category?category=${selectedId}&page=${currentPage}&limit=${POSTS_PER_PAGE}`
       )
       .then((res) => {
-        if (alive) setPosts(res.data.posts ?? []);
+        if (!alive) return;
+        setPosts(res.data.posts ?? []);
+        setTotal(res.data.total ?? 0);
       })
       .catch((err) => {
         console.error('게시글을 불러오지 못했습니다:', err);
-        if (alive) setPosts([]);
+        if (alive) {
+          setPosts([]);
+          setTotal(0);
+        }
       })
       .finally(() => {
         if (alive) setLoading(false);
@@ -77,7 +91,7 @@ function Posts() {
     return () => {
       alive = false;
     };
-  }, [selectedId]);
+  }, [selectedId, currentPage]);
 
   /* 화면을 떠날 때(글 열기 등) 지금 자리를 남깁니다. */
   const positionRef = useRef({ categoryId: selectedId, page: currentPage });
@@ -120,17 +134,9 @@ function Posts() {
     setSearchParams({ categoryId: String(categoryId) });
   };
 
-  /*
-   * 페이지 단위는 그대로 10개입니다.
-   * 1페이지에서만 그중 첫 글을 대표 글로 크게 그리고 나머지 9개를 목록으로 둡니다.
-   */
-  const pageItems = useMemo(() => {
-    const start = (currentPage - 1) * POSTS_PER_PAGE;
-    return posts.slice(start, start + POSTS_PER_PAGE);
-  }, [posts, currentPage]);
-
-  const hero = currentPage === 1 ? pageItems[0] : undefined;
-  const rows = hero ? pageItems.slice(1) : pageItems;
+  /* 1페이지에서만 첫 글을 대표 글로 크게 그리고 나머지를 목록으로 둡니다. */
+  const hero = currentPage === 1 ? posts[0] : undefined;
+  const rows = hero ? posts.slice(1) : posts;
 
   return (
     <Board>
@@ -141,7 +147,8 @@ function Posts() {
       />
 
       <Toolbar>
-        <Count>{loading ? '불러오는 중' : `글 ${posts.length}개`}</Count>
+        {/* 한 쪽 건수가 아니라 그 분류의 전체 글 수입니다. */}
+        <Count>{loading ? '불러오는 중' : `글 ${total}개`}</Count>
         <WriteBt
           type="button"
           onClick={() => navigate('/createpost')}
@@ -171,9 +178,9 @@ function Posts() {
         <PostList post={rows} selectedCategoryId={selectedId} />
       )}
 
-      {posts.length > POSTS_PER_PAGE && (
+      {total > POSTS_PER_PAGE && (
         <PaginationComp
-          totalItemsCount={posts.length}
+          totalItemsCount={total}
           itemsCountPerPage={POSTS_PER_PAGE}
           currentPage={currentPage}
           onPageChange={setCurrentPage}

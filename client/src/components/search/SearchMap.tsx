@@ -21,6 +21,7 @@ import {
   MARKER_SIZE,
 } from '../../utils/markerIcons';
 import { PlaceData } from '../../types/place.type';
+import { useSearchParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '../../store';
 import { setResults } from '../../store/slices/placeSlice';
@@ -85,6 +86,7 @@ const CLIENT_CLUSTER_STYLE: CSSProperties = {
 
 function SearchMap() {
   const dispatch = useDispatch();
+  const [searchParams] = useSearchParams();
   const [loading, error] = useKakaoLoader({
     appkey: import.meta.env.VITE_K_JAVASCRIPT_KEY,
     // MarkerClusterer 는 clusterer 라이브러리를 함께 받아야 동작합니다.
@@ -301,6 +303,28 @@ function SearchMap() {
       }),
     [transformedResults, selectedCategory]
   );
+
+  /*
+   * 주소에 좌표가 실려 오면 그 지점에서 시작합니다. (즐겨찾기 목록에서 넘어온 경우)
+   *
+   * 한 번만 옮깁니다. 지도를 옮기면 화면 범위 조회가 돌며 리렌더가 이어지는데,
+   * 그때마다 다시 중심을 잡으면 사용자가 지도를 끌어도 계속 제자리로 돌아옵니다.
+   */
+  const movedForRef = useRef<string | null>(null);
+  useEffect(() => {
+    const lat = Number(searchParams.get('lat'));
+    const lng = Number(searchParams.get('lng'));
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return;
+
+    const key = `${lat},${lng}`;
+    if (movedForRef.current === key) return;
+    movedForRef.current = key;
+
+    setSearchCenter({ lat, lng });
+    // 시설 하나를 보러 온 것이므로 건물이 구분될 만큼 당깁니다. (작을수록 확대)
+    setMapLevel(3);
+  }, [searchParams]);
 
   /* 검색하면 첫 결과로 지도를 옮깁니다. 검색어를 비우면 다시 화면 범위 조회로 돌아갑니다. */
   useEffect(() => {

@@ -6,6 +6,5 @@ import { AppTheme } from './style/theme';
  * 이 선언이 없어 지금까지 theme 이 any 로 추론됐고, 토큰 오타가 잡히지 않았습니다.
  */
 declare module 'styled-components' {
-  // eslint-disable-next-line @typescript-eslint/no-empty-interface
   export interface DefaultTheme extends AppTheme {}
 }

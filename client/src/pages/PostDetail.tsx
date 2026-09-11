@@ -10,6 +10,7 @@ import CommentSection from '../comment/CommentSection';
 import { deletePosts, editPosts } from '../apis/Posts.api';
 import EditPost from './EditPost';
 import { formatDateTime } from '../utils/postContent';
+import { apiErrorMessage } from '../utils/apiError';
 
 const BASE_URL = import.meta.env.VITE_BASE_URL;
 
@@ -22,20 +23,26 @@ function PostDetail() {
   const sanitizer = dompurify.sanitize;
 
   /*
-   * 수정·삭제는 작성자에게만 보입니다.
+   * 수정은 작성자에게만, 삭제는 작성자와 관리자에게 보입니다.
    * 서버도 토큰으로 한 번 더 막지만, 남의 글에서 버튼이 보이는 것 자체가 혼란스럽습니다.
    */
   const isAuthor = !!post && !!user?.id && post.user_id === user.id;
+  /** 관리자가 남의 글을 지우는 경우. 실수로 누르지 않도록 표시와 확인 문구를 다르게 합니다. */
+  const deletingAsAdmin = !!post && user?.role === 'admin' && !isAuthor;
+  const canDelete = isAuthor || deletingAsAdmin;
 
   const handleDeletePosts = async () => {
-    if (!window.confirm('게시글을 삭제하시겠습니까?')) return;
+    const message = deletingAsAdmin
+      ? `관리자 권한으로 ${post?.author}님의 게시글을 삭제합니다. 계속할까요?`
+      : '게시글을 삭제하시겠습니까?';
+    if (!window.confirm(message)) return;
     try {
       await deletePosts(Number(postId));
       alert('게시글이 삭제되었습니다.');
       navigate('/posts');
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      alert('게시글을 삭제하지 못했습니다.');
+      alert(apiErrorMessage(error, '게시글을 삭제하지 못했습니다.'));
     }
   };
 
@@ -56,11 +63,7 @@ function PostDetail() {
       setIsEditing(false);
       alert('게시글이 수정되었습니다.');
     } catch (error: any) {
-      const message =
-        error?.response?.data?.message ??
-        error?.response?.data?.error ??
-        '게시글을 수정하지 못했습니다.';
-      alert(message);
+      alert(apiErrorMessage(error, '게시글을 수정하지 못했습니다.'));
     }
   };
 
@@ -98,11 +101,14 @@ function PostDetail() {
                 <Dot aria-hidden="true" />
                 <span>{formatDateTime(post.created_at)}</span>
               </Meta>
-              {isAuthor && (
+              {canDelete && (
                 <ActionGroup>
-                  <SmallBt type="button" onClick={() => setIsEditing(true)}>
-                    수정
-                  </SmallBt>
+                  {/* 관리자라도 남의 글을 고칠 수는 없습니다. 수정은 작성자만. */}
+                  {isAuthor && (
+                    <SmallBt type="button" onClick={() => setIsEditing(true)}>
+                      수정
+                    </SmallBt>
+                  )}
                   <SmallBt
                     type="button"
                     $danger
@@ -110,7 +116,7 @@ function PostDetail() {
                       handleDeletePosts();
                     }}
                   >
-                    삭제
+                    {deletingAsAdmin ? '삭제 (관리자)' : '삭제'}
                   </SmallBt>
                 </ActionGroup>
               )}

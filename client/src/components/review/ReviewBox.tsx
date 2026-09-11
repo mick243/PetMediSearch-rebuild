@@ -1,15 +1,15 @@
 import { useSelector } from 'react-redux';
 import styled from 'styled-components';
 import { RootState } from '../../store';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   editReview,
-  getReviewsByFacilityId,
+  getReviewImages,
   removeReview,
+  REVIEWS_PER_PAGE,
 } from '../../apis/review.api';
 import { ReviewData } from '../../types/review.type';
 import Button from '../common/Button';
-import { PlaceData } from '../../types/place.type';
 import PaginationComp from '../common/PaginationComp';
 import ReviewEdit from './ReviewEdit';
 import React from 'react';
@@ -17,18 +17,14 @@ import Star from '../common/Star';
 import { MdInbox } from 'react-icons/md';
 import { formatDate } from '../../utils/format';
 
-function ReviewBox({ reviews, setReviews }) {
-  const selectedPlace = useSelector(
-    (state: RootState) => state.place.selectedPlace as PlaceData
-  );
+function ReviewBox({ reviews, total, page, onPageChange, onReload }) {
   const user = useSelector((state: RootState) => state.auth.user);
   const [editingReviewId, setEditingReviewId] = useState<number | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-
-  const postsPerPage = 5;
-  const indexOfLastPost = currentPage * postsPerPage;
-  const indexOfFirstPost = indexOfLastPost - postsPerPage;
-  const currentReviews = reviews.slice(indexOfFirstPost, indexOfLastPost);
+  /*
+   * 펼쳐서 받아 온 사진을 후기 번호별로 들고 있습니다.
+   * 목록에는 장수만 실려 있어서, 접었다 다시 펴도 다시 받지 않도록 남겨 둡니다.
+   */
+  const [imagesById, setImagesById] = useState<Record<number, string[]>>({});
 
   const startEditing = (review: ReviewData) => {
     setEditingReviewId(review.review_id);
@@ -37,17 +33,13 @@ function ReviewBox({ reviews, setReviews }) {
   const handleEditReview = async (
     reviewId: number,
     updatedRating: number,
-    updatedContent: string
+    updatedContent: string,
+    updatedImages: string[]
   ) => {
     try {
-      await editReview(reviewId, updatedRating, updatedContent);
-
-      const updatedReviews = await getReviewsByFacilityId(selectedPlace.id);
-      setReviews(updatedReviews || []);
-
+      await editReview(reviewId, updatedRating, updatedContent, updatedImages);
       setEditingReviewId(null);
-
-      console.log('최신 리뷰 목록:', updatedReviews);
+      onReload();
     } catch (error) {
       console.error('리뷰 수정 중 오류 발생:', error);
     }
@@ -56,38 +48,30 @@ function ReviewBox({ reviews, setReviews }) {
   const handleRemoveReview = async (review: ReviewData) => {
     try {
       await removeReview(review.review_id);
-      setReviews((prevReviews) =>
-        prevReviews.filter((prev) => prev.review_id !== review.review_id)
-      );
+      // 지우고 나면 그 자리에 다음 쪽 글이 올라와야 하므로 서버에서 다시 받습니다.
+      onReload();
     } catch (error) {
       console.error('리뷰 삭제 중 오류 발생:', error);
     }
   };
 
-  const handlePageChange = (pageNumber: number) => {
-    setCurrentPage(pageNumber);
-  };
-
   const [selectedReviewId, setSelectedReviewId] = useState<number | null>(null);
 
-  const handleClickReview = (reviewId: number) => {
+  const handleClickReview = (review: ReviewData) => {
+    const reviewId = review.review_id;
     setSelectedReviewId((prevId) => (prevId === reviewId ? null : reviewId));
-  };
 
-  useEffect(() => {
-    if (selectedPlace) {
-      getReviewsByFacilityId(selectedPlace.id)
-        .then((reviews) => {
-          setReviews(reviews || []);
-        })
-        .catch((err) => {
-          console.error(
-            `리뷰를 불러오던 중 오류 발생, 해당하는 리뷰가 존재하는지 확인하세요: ${err}`
-          );
-          setReviews([]);
-        });
+    // 사진이 있는 글을 처음 펼칠 때만 받아옵니다.
+    if (
+      selectedReviewId !== reviewId &&
+      review.image_count > 0 &&
+      !imagesById[reviewId]
+    ) {
+      getReviewImages(reviewId).then((images) =>
+        setImagesById((prev) => ({ ...prev, [reviewId]: images }))
+      );
     }
-  }, [selectedPlace, setReviews]);
+  };
 
   return (
     <ReviewBoxStyle>
@@ -100,11 +84,11 @@ function ReviewBox({ reviews, setReviews }) {
         ) : (
           <>
             <ul className="reviews">
-              {currentReviews.map((review, index) => (
+              {reviews.map((review, index) => (
                 <React.Fragment key={index}>
                   <li
                     className="review"
-                    onClick={() => handleClickReview(review.review_id)}
+                    onClick={() => handleClickReview(review)}
                   >
                     <Star
                       rating={review.rating}
@@ -119,6 +103,7 @@ function ReviewBox({ reviews, setReviews }) {
                       {editingReviewId === review.review_id ? (
                         <ReviewEdit
                           review={review}
+                          images={imagesById[review.review_id] ?? []}
                           onEdit={handleEditReview}
                           onCancel={() => setEditingReviewId(null)}
                         />
@@ -152,6 +137,26 @@ function ReviewBox({ reviews, setReviews }) {
                             ) : null}
                           </div>
                           <div className="content">{review.review_content}</div>
+                          {review.image_count > 0 && (
+                            <ul className="reviewImages">
+                              {(imagesById[review.review_id] ?? []).map(
+                                (src, i) => (
+                                  <li key={src.slice(0, 64) + i}>
+                                    <img
+                                      src={src}
+                                      alt={`후기에 첨부된 사진 ${i + 1}`}
+                                    />
+                                  </li>
+                                )
+                              )}
+                              {/* 받아오는 동안 자리를 잡아 둡니다. 없으면 글이 아래에서 튑니다. */}
+                              {!imagesById[review.review_id] && (
+                                <li className="loading">
+                                  사진 {review.image_count}장 불러오는 중…
+                                </li>
+                              )}
+                            </ul>
+                          )}
                         </>
                       )}
                     </li>
@@ -160,10 +165,10 @@ function ReviewBox({ reviews, setReviews }) {
               ))}
             </ul>
             <PaginationComp
-              totalItemsCount={reviews.length}
-              itemsCountPerPage={postsPerPage}
-              currentPage={currentPage}
-              onPageChange={handlePageChange}
+              totalItemsCount={total}
+              itemsCountPerPage={REVIEWS_PER_PAGE}
+              currentPage={page}
+              onPageChange={onPageChange}
             />
           </>
         )}
@@ -211,6 +216,27 @@ export const ReviewBoxStyle = styled.div`
     justify-content: space-between;
     align-items: center;
     padding: 0px 5px;
+  }
+
+  /* 붙임 사진. 비율은 원본 그대로 두고 후기 칸을 넘지 않게만 잡습니다. */
+  .reviewImages {
+    display: flex;
+    .loading {
+      font-size: 12px;
+      color: #575757;
+    }
+    flex-direction: column;
+    gap: 6px;
+    margin: 10px 0 0;
+    padding: 0;
+    list-style: none;
+
+    img {
+      display: block;
+      max-width: 300px;
+      max-height: 240px;
+      border-radius: 8px;
+    }
   }
 
   .content {

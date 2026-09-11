@@ -7,7 +7,8 @@
     "start": "node app.js",
     "dev": "nodemon app.js",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "sync-data": "node scripts/syncData.js"
+    "sync-data": "node scripts/syncData.js",
+    "create-admin": "node scripts/createAdmin.js"
   },
   "author": "",
   "license": "ISC",

@@ -15,6 +15,8 @@ import {
   updatePet,
 } from '../apis/pets.api';
 import { Actions, CancelBt, SubmitBt } from '../components/board/postEditor';
+import { shrinkToSquareDataUrl } from '../utils/image';
+import { apiErrorMessage } from '../utils/apiError';
 
 const BASE_URL = import.meta.env.VITE_BASE_URL;
 
@@ -29,39 +31,6 @@ const EMPTY: PetInput = {
 
 /** 사진은 이 크기의 정방형 JPEG 로 줄여 저장합니다. 홈 카드에서 56px 로 쓰므로 충분합니다. */
 const PHOTO_SIZE = 320;
-
-/**
- * 고른 이미지를 정방형으로 잘라 줄인 data URL 로 바꿉니다.
- * 원본을 그대로 올리면 수 MB 가 DB 에 들어가서, 브라우저에서 먼저 줄입니다.
- */
-function shrinkToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      const side = Math.min(img.width, img.height);
-      const sx = (img.width - side) / 2;
-      const sy = (img.height - side) / 2;
-      const canvas = document.createElement('canvas');
-      canvas.width = PHOTO_SIZE;
-      canvas.height = PHOTO_SIZE;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        URL.revokeObjectURL(url);
-        reject(new Error('canvas unavailable'));
-        return;
-      }
-      ctx.drawImage(img, sx, sy, side, side, 0, 0, PHOTO_SIZE, PHOTO_SIZE);
-      URL.revokeObjectURL(url);
-      resolve(canvas.toDataURL('image/jpeg', 0.82));
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error('이미지를 읽을 수 없습니다'));
-    };
-    img.src = url;
-  });
-}
 
 /**
  * 반려동물 등록·수정.
@@ -130,7 +99,7 @@ function PetForm() {
       return;
     }
     try {
-      set('photo', await shrinkToDataUrl(file));
+      set('photo', await shrinkToSquareDataUrl(file, PHOTO_SIZE));
     } catch (error) {
       console.error(error);
       alert('사진을 불러오지 못했습니다.');
@@ -156,7 +125,7 @@ function PetForm() {
         navigate('/');
       }
     } catch (error: any) {
-      alert(error?.response?.data?.message ?? '저장하지 못했습니다.');
+      alert(apiErrorMessage(error, '저장하지 못했습니다.'));
     } finally {
       setSaving(false);
     }
@@ -169,7 +138,7 @@ function PetForm() {
       await deletePet(petId);
       navigate('/');
     } catch (error: any) {
-      alert(error?.response?.data?.message ?? '삭제하지 못했습니다.');
+      alert(apiErrorMessage(error, '삭제하지 못했습니다.'));
     }
   };
 
@@ -184,7 +153,7 @@ function PetForm() {
       setNewVacc({ name: '', due_date: '' });
       await load();
     } catch (error: any) {
-      alert(error?.response?.data?.message ?? '추가하지 못했습니다.');
+      alert(apiErrorMessage(error, '추가하지 못했습니다.'));
     }
   };
 

@@ -21,8 +21,10 @@ function pin(fill: string, symbol: string): string {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
-const CROSS = '<path d="M15.6 9.6h4.8v4.8h4.8v4.8h-4.8v4.8h-4.8v-4.8h-4.8v-4.8h4.8z" fill="#ffffff"/>';
-const RING = '<circle cx="18" cy="16.8" r="5.4" fill="none" stroke="#ffffff" stroke-width="3"/>';
+const CROSS =
+  '<path d="M15.6 9.6h4.8v4.8h4.8v4.8h-4.8v4.8h-4.8v-4.8h-4.8v-4.8h4.8z" fill="#ffffff"/>';
+const RING =
+  '<circle cx="18" cy="16.8" r="5.4" fill="none" stroke="#ffffff" stroke-width="3"/>';
 const DOT = '<circle cx="18" cy="16.8" r="4.8" fill="#ffffff"/>';
 
 /** 병원 — 붉은 핀 + 흰 십자 */

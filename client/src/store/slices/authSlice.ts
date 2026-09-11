@@ -9,9 +9,12 @@ import {
   setUser,
 } from '../../utils/localStorage';
 
+/** 로그아웃 상태의 빈 사용자. 복원 실패 시에도 이 값으로 떨어집니다. */
+const GUEST: UserState = { id: 0, username: '', socialType: '', role: 'user' };
+
 const initialState: AuthState = {
   isLogin: getToken() ? true : false,
-  user: getUser() || { id: 0, username: '', socialType: '' }, // 로컬 스토리지에서 유저 정보 복원
+  user: getUser() || GUEST, // 로컬 스토리지에서 유저 정보 복원
 };
 
 const authSlice = createSlice({
@@ -31,7 +34,7 @@ const authSlice = createSlice({
       state.isLogin = false;
       removeToken();
       removeUser();
-      state.user = { id: 0, username: '', socialType: '' };
+      state.user = GUEST;
     },
   },
 });

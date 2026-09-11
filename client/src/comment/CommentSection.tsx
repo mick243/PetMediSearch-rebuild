@@ -7,6 +7,7 @@ import { RootState } from '../store';
 import { addComment, deleteComment } from '../apis/Comment.api';
 import { formatDateTime } from '../utils/postContent';
 import PaginationComp from '../components/common/PaginationComp';
+import { apiErrorMessage } from '../utils/apiError';
 
 const BASE_URL = import.meta.env.VITE_BASE_URL;
 const PER_PAGE = 5;
@@ -31,6 +32,10 @@ interface Thread {
  */
 export default function CommentSection({ postId, postAuthorId }: Props) {
   const [comments, setComments] = useState<Comment[]>([]);
+  /** 스레드 수. 쪽 번호를 그리는 데 씁니다. */
+  const [threadCount, setThreadCount] = useState(0);
+  /** 이 글의 전체 댓글 수. 머리말의 "댓글 N개" 입니다. */
+  const [commentCount, setCommentCount] = useState(0);
   const [page, setPage] = useState(1);
   const [draft, setDraft] = useState('');
   /** 답글을 달 원댓글. null 이면 새 댓글입니다. */
@@ -56,19 +61,45 @@ export default function CommentSection({ postId, postAuthorId }: Props) {
   }, []);
   const user = useSelector((state: RootState) => state.auth.user);
   const isLoggedIn = !!user?.id;
+  /** 관리자는 작성자와 상관없이 댓글을 지울 수 있습니다. */
+  const isAdmin = isLoggedIn && user.role === 'admin';
 
-  const fetchComments = useCallback(async () => {
-    try {
-      const res = await axios.get<Comment[]>(`${BASE_URL}/comments/${postId}`);
-      setComments(res.data ?? []);
-    } catch (error) {
-      console.error('댓글을 불러오지 못했습니다:', error);
-    }
+  /*
+   * 보고 있는 쪽만 받아옵니다.
+   *
+   * 서버가 스레드(원댓글 + 거기 달린 답글) 단위로 잘라 주므로, 답글이 부모와
+   * 떨어져 사라지는 일이 없습니다. 예전에는 한 글의 댓글을 전부 받아 화면에서
+   * 잘라 썼습니다.
+   */
+  const fetchComments = useCallback(
+    async (which: number) => {
+      try {
+        const res = await axios.get<{
+          comments: Comment[];
+          total: number;
+          count: number;
+        }>(`${BASE_URL}/comments/${postId}?page=${which}&limit=${PER_PAGE}`);
+        setComments(res.data.comments ?? []);
+        setThreadCount(res.data.total ?? 0);
+        setCommentCount(res.data.count ?? 0);
+        return res.data.total ?? 0;
+      } catch (error) {
+        console.error('댓글을 불러오지 못했습니다:', error);
+        setComments([]);
+        return 0;
+      }
+    },
+    [postId]
+  );
+
+  /* 글을 바꾸면 첫 쪽부터 봅니다. */
+  useEffect(() => {
+    setPage(1);
   }, [postId]);
 
   useEffect(() => {
-    fetchComments();
-  }, [fetchComments]);
+    fetchComments(page);
+  }, [fetchComments, page]);
 
   /*
    * 서버는 댓글을 평평하게 내려주고 parent_comment_id 로만 관계를 표시합니다.
@@ -76,28 +107,35 @@ export default function CommentSection({ postId, postAuthorId }: Props) {
    */
   const threads = useMemo<Thread[]>(() => {
     const byId = new Map(comments.map((c) => [c.comment_id, c]));
-    const roots = comments.filter((c) => !c.parent_comment_id);
+
+    /*
+     * 부모가 목록에 없으면 이 댓글이 원댓글 자리에 섭니다.
+     *
+     * 부모를 지우면 행은 남고 조회에서만 빠지므로(soft delete) 답글의
+     * parent_comment_id 는 그대로입니다. 매달릴 곳이 없다고 건너뛰면
+     * 답글이 화면에서 통째로 사라져서, 원댓글로 올려 그립니다.
+     */
+    const isRoot = (c: Comment) =>
+      !c.parent_comment_id || !byId.has(c.parent_comment_id);
+
+    const roots = comments.filter(isRoot);
     const threadOf = new Map<number, Thread>(
       roots.map((c) => [c.comment_id, { comment: c, replies: [] }])
     );
 
     comments
-      .filter((c) => c.parent_comment_id)
+      .filter((c) => !isRoot(c))
       .forEach((c) => {
         // 답글의 답글이면 타고 올라가 맨 위 원댓글을 찾습니다.
-        let rootId = c.parent_comment_id as number;
-        for (let i = 0; i < 10; i += 1) {
-          const parent = byId.get(rootId);
-          if (!parent?.parent_comment_id) break;
-          rootId = parent.parent_comment_id;
+        let root = byId.get(c.parent_comment_id as number) as Comment;
+        for (let i = 0; i < 10 && !isRoot(root); i += 1) {
+          root = byId.get(root.parent_comment_id as number) as Comment;
         }
-        threadOf.get(rootId)?.replies.push(c);
+        threadOf.get(root.comment_id)?.replies.push(c);
       });
 
     return roots.map((c) => threadOf.get(c.comment_id) as Thread);
   }, [comments]);
-
-  const pageThreads = threads.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   /** 답글이 누구에게 단 것인지 표시하려면 원댓글 작성자 이름이 필요합니다. */
   const authorById = useMemo(
@@ -118,6 +156,8 @@ export default function CommentSection({ postId, postAuthorId }: Props) {
     }
     if (!draft.trim() || sending) return;
 
+    const wasReply = replyTo !== null;
+
     setSending(true);
     try {
       await addComment(
@@ -128,30 +168,71 @@ export default function CommentSection({ postId, postAuthorId }: Props) {
       );
       setDraft('');
       setReplyTo(null);
-      await fetchComments();
+
+      const total = await fetchComments(page);
+      /*
+       * 새 원댓글은 맨 뒤에 붙습니다. 보던 쪽에 그대로 두면 방금 쓴 글이
+       * 안 보여 등록이 안 된 것처럼 읽힙니다. 마지막 쪽으로 옮겨 줍니다.
+       * 답글은 원래 스레드에 붙으므로 보던 자리를 지킵니다.
+       */
+      if (!wasReply) {
+        const last = Math.max(1, Math.ceil(total / PER_PAGE));
+        if (last !== page) setPage(last);
+      }
     } catch (error: any) {
-      alert(
-        error?.response?.data?.error ??
-          error?.response?.data?.message ??
-          '댓글을 등록하지 못했습니다.'
-      );
+      alert(apiErrorMessage(error, '댓글을 등록하지 못했습니다.'));
     } finally {
       setSending(false);
     }
   };
 
+  /**
+   * 이 댓글에 달린 답글 id 들. 답글의 답글까지 따라갑니다.
+   *
+   * 관리자가 지우면 서버가 여기까지 함께 지우므로, 몇 개가 사라지는지 미리 알려주려고 셉니다.
+   * parent 가 고리를 이루더라도 멈추도록 한 번 본 것은 다시 보지 않습니다.
+   */
+  const descendantIds = (commentId: number) => {
+    const found = new Set<number>();
+    const queue = [commentId];
+    while (queue.length > 0) {
+      const id = queue.shift() as number;
+      comments.forEach((c) => {
+        if (c.parent_comment_id === id && !found.has(c.comment_id)) {
+          found.add(c.comment_id);
+          queue.push(c.comment_id);
+        }
+      });
+    }
+    return found;
+  };
+
   const handleDelete = async (comment: Comment) => {
-    if (!window.confirm('댓글을 삭제하시겠습니까?')) return;
+    const mine = isLoggedIn && comment.user_id === user.id;
+    /* 관리자 삭제만 답글까지 지웁니다. 본인 삭제는 그 댓글 하나뿐입니다. */
+    const removed = isAdmin
+      ? descendantIds(comment.comment_id)
+      : new Set<number>();
+    const owner = mine ? '' : `${comment.author}님의 `;
+    const message = !isAdmin
+      ? '댓글을 삭제하시겠습니까?'
+      : removed.size > 0
+        ? `관리자 권한으로 ${owner}댓글과 달린 답글 ${removed.size}개를 함께 삭제합니다. 계속할까요?`
+        : `관리자 권한으로 ${owner}댓글을 삭제합니다. 계속할까요?`;
+
+    if (!window.confirm(message)) return;
     try {
       await deleteComment(comment.comment_id);
-      if (replyTo?.comment_id === comment.comment_id) setReplyTo(null);
-      await fetchComments();
+      removed.add(comment.comment_id);
+      // 답글을 쓰던 중이었는데 그 대상이 이번에 사라졌을 수 있습니다.
+      if (replyTo && removed.has(replyTo.comment_id)) setReplyTo(null);
+
+      const total = await fetchComments(page);
+      // 마지막 스레드를 지워 이 쪽이 비면 한 쪽 앞으로 물러납니다.
+      const last = Math.max(1, Math.ceil(total / PER_PAGE));
+      if (page > last) setPage(last);
     } catch (error: any) {
-      alert(
-        error?.response?.data?.message ??
-          error?.response?.data?.error ??
-          '댓글을 삭제하지 못했습니다.'
-      );
+      alert(apiErrorMessage(error, '댓글을 삭제하지 못했습니다.'));
     }
   };
 
@@ -163,6 +244,8 @@ export default function CommentSection({ postId, postAuthorId }: Props) {
    */
   const renderComment = (comment: Comment, rootId?: number) => {
     const mine = isLoggedIn && comment.user_id === user.id;
+    /* 관리자가 남의 댓글을 지우는 경우. 실수로 누르지 않도록 버튼에 표시합니다. */
+    const deletingAsAdmin = isAdmin && !mine;
     const isReply = rootId !== undefined;
     const byPostAuthor =
       postAuthorId !== undefined && comment.user_id === postAuthorId;
@@ -198,9 +281,9 @@ export default function CommentSection({ postId, postAuthorId }: Props) {
         </Tap>
         <Foot>
           <Time>{formatDateTime(comment.created_at)}</Time>
-          {mine && (
+          {(mine || deletingAsAdmin) && (
             <DeleteBt type="button" onClick={() => handleDelete(comment)}>
-              삭제
+              {deletingAsAdmin ? '삭제 (관리자)' : '삭제'}
             </DeleteBt>
           )}
         </Foot>
@@ -211,13 +294,13 @@ export default function CommentSection({ postId, postAuthorId }: Props) {
   return (
     <Section>
       <BottomSpace $height={composerHeight} />
-      <CountRow>댓글 {comments.length}개</CountRow>
+      <CountRow>댓글 {commentCount}개</CountRow>
 
       <List>
         {threads.length === 0 ? (
           <EmptyRow>첫 댓글을 남겨보세요.</EmptyRow>
         ) : (
-          pageThreads.map(({ comment, replies }) => (
+          threads.map(({ comment, replies }) => (
             <Thread key={comment.comment_id}>
               {renderComment(comment)}
               {replies.map((reply) => renderComment(reply, comment.comment_id))}
@@ -226,9 +309,9 @@ export default function CommentSection({ postId, postAuthorId }: Props) {
         )}
       </List>
 
-      {threads.length > PER_PAGE && (
+      {threadCount > PER_PAGE && (
         <PaginationComp
-          totalItemsCount={threads.length}
+          totalItemsCount={threadCount}
           itemsCountPerPage={PER_PAGE}
           currentPage={page}
           onPageChange={setPage}
