@@ -3,6 +3,12 @@
 -- 기존에는 이 DDL 이 README 본문에만 있어서 레포만 받으면 재현이 안 됐습니다.
 -- lat/lng 는 원본 TM 좌표(x, y)를 적재 시점에 WGS84 로 변환해 담아두는 컬럼입니다.
 -- (예전에는 클라이언트가 조회할 때마다 3만여 건을 proj4 로 변환했습니다.)
+--
+-- 적용 (createTables.sql 보다 먼저):
+--   docker exec -i petmedisearch-mysql mysql -uroot -p<암호> --default-character-set=utf8mb4 petmedisearch < createFacilitiesTable.sql
+--
+-- --default-character-set=utf8mb4 를 빼면 type 의 enum('약국','병원') 이 깨져
+-- 적재(syncData.js)가 값을 못 넣습니다.
 
 CREATE TABLE IF NOT EXISTS `medical_facilities` (
   `id` INT NOT NULL AUTO_INCREMENT,
