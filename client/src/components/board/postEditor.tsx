@@ -1,4 +1,7 @@
+import { useMemo } from 'react';
+import type ReactQuill from 'react-quill';
 import styled from 'styled-components';
+import { shrinkToDataUrl } from '../../utils/image';
 
 /**
  * 글 작성·수정 화면이 함께 쓰는 에디터 설정과 스타일.
@@ -12,22 +15,73 @@ import styled from 'styled-components';
  * 한 줄로 두면 415px 폭에서 제멋대로 접혀 아이콘 열이 어긋납니다.
  * 1줄: 글자 꾸밈 / 2줄: 문단(목록·들여쓰기·정렬)과 삽입.
  */
-export const QUILL_MODULES = {
-  toolbar: {
-    container: [
-      ['bold', 'italic', 'underline', 'strike', 'blockquote'],
-      [{ size: ['small', false, 'large', 'huge'] }, { color: [] }],
-      [
-        { list: 'ordered' },
-        { list: 'bullet' },
-        { indent: '-1' },
-        { indent: '+1' },
-        { align: [] },
-      ],
-      ['link', 'image'],
-    ],
-  },
-};
+const TOOLBAR_CONTAINER = [
+  ['bold', 'italic', 'underline', 'strike', 'blockquote'],
+  [{ size: ['small', false, 'large', 'huge'] }, { color: [] }],
+  [
+    { list: 'ordered' },
+    { list: 'bullet' },
+    { indent: '-1' },
+    { indent: '+1' },
+    { align: [] },
+  ],
+  ['link', 'image'],
+];
+
+/**
+ * 본문에 넣는 사진의 긴 변. 화면 폭이 415px 이라 2배 해상도까지 덮습니다.
+ *
+ * 기본 동작은 고른 파일을 **원본 그대로** base64 로 본문에 박아 넣습니다.
+ * 요즘 휴대폰 사진이 3~5MB 라, 글 한 건이 그만큼 커지고 그 글이 목록에
+ * 섞이면 목록 응답까지 같이 부풀어 오릅니다. 넣기 전에 줄입니다.
+ */
+const BODY_IMAGE_MAX_SIDE = 900;
+
+/**
+ * 에디터 설정. 사진을 줄여 넣으려면 에디터 인스턴스가 필요해 훅으로 둡니다.
+ *
+ * modules 는 매 렌더마다 새 객체를 주면 react-quill 이 툴바를 다시 만듭니다.
+ * useMemo 로 한 번만 만듭니다.
+ */
+export function useQuillModules(quillRef: React.RefObject<ReactQuill>) {
+  return useMemo(
+    () => ({
+      toolbar: {
+        container: TOOLBAR_CONTAINER,
+        handlers: {
+          image() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            input.onchange = async () => {
+              const file = input.files?.[0];
+              if (!file) return;
+
+              const editor = quillRef.current?.getEditor();
+              if (!editor) return;
+
+              try {
+                const dataUrl = await shrinkToDataUrl(
+                  file,
+                  BODY_IMAGE_MAX_SIDE
+                );
+                // 파일 고르는 사이 커서를 잃으므로 다시 잡습니다(true = 없으면 만듭니다).
+                const range = editor.getSelection(true);
+                editor.insertEmbed(range.index, 'image', dataUrl);
+                editor.setSelection(range.index + 1, 0);
+              } catch (error) {
+                console.error('사진을 넣지 못했습니다:', error);
+                alert('사진을 불러오지 못했습니다.');
+              }
+            };
+            input.click();
+          },
+        },
+      },
+    }),
+    [quillRef]
+  );
+}
 
 // 'align' 이 빠져 있어 툴바의 정렬 버튼이 눌러도 반응이 없었습니다.
 export const QUILL_FORMATS = [

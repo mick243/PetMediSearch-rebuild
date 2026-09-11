@@ -9,7 +9,7 @@ import {
   EditorFrame,
   EditorPage,
   QUILL_FORMATS,
-  QUILL_MODULES,
+  useQuillModules,
   SubmitBt,
   TitleInput,
 } from '../components/board/postEditor';
@@ -31,6 +31,7 @@ function EditPost({ post, onEdit, onCancel }: EditPostProps) {
   const [updateTitle, setUpdateTitle] = useState(post.title);
   const [updateContent, setUpdateContent] = useState(post.content);
   const quillRef = useRef<ReactQuill>(null);
+  const modules = useQuillModules(quillRef);
 
   const handleEdit = () => {
     if (updateTitle.trim().length === 0) {
@@ -58,7 +59,7 @@ function EditPost({ post, onEdit, onCancel }: EditPostProps) {
           <ReactQuill
             ref={quillRef}
             value={updateContent}
-            modules={QUILL_MODULES}
+            modules={modules}
             formats={QUILL_FORMATS}
             onChange={setUpdateContent}
             theme="snow"
