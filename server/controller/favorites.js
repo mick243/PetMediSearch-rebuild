@@ -5,13 +5,13 @@ function requireUser(req, res) {
     const token = req.headers.authorization?.split(' ')[1];
     const decoded = verifyToken(token);
     if (!decoded) {
-        res.status(401).send({ error: '유효하지 않은 토큰입니다.' });
+        res.status(401).send({ message: '유효하지 않은 토큰입니다.' });
         return null;
     }
     return decoded.id;
 }
 
-// 단골 병원·약국 목록 (시설 정보 포함)
+// 즐겨찾기한 병원·약국 목록 (시설 정보 포함)
 const getFavorites = (req, res) => {
     const user_id = requireUser(req, res);
     if (!user_id) return;
@@ -26,13 +26,13 @@ const getFavorites = (req, res) => {
     conn.query(query, [user_id], (err, rows) => {
         if (err) {
             console.error(err);
-            return res.status(500).send({ error: '서버 에러 발생' });
+            return res.status(500).send({ message: '서버 에러 발생' });
         }
         return res.send(rows);
     });
 };
 
-// 단골 추가. 이미 있으면 그대로 성공 처리
+// 즐겨찾기 추가. 이미 있으면 그대로 성공 처리
 const addFavorite = (req, res) => {
     const user_id = requireUser(req, res);
     if (!user_id) return;
@@ -47,14 +47,14 @@ const addFavorite = (req, res) => {
                 if (err.code === 'ER_NO_REFERENCED_ROW_2') {
                     return res.status(404).send({ message: '해당 시설을 찾을 수 없습니다.' });
                 }
-                return res.status(500).send({ error: '서버 에러 발생' });
+                return res.status(500).send({ message: '서버 에러 발생' });
             }
-            return res.send({ message: '단골로 등록했습니다.' });
+            return res.send({ message: '즐겨찾기에 추가했습니다.' });
         }
     );
 };
 
-// 단골 해제
+// 즐겨찾기 해제
 const removeFavorite = (req, res) => {
     const user_id = requireUser(req, res);
     if (!user_id) return;
@@ -65,9 +65,9 @@ const removeFavorite = (req, res) => {
         (err) => {
             if (err) {
                 console.error(err);
-                return res.status(500).send({ error: '서버 에러 발생' });
+                return res.status(500).send({ message: '서버 에러 발생' });
             }
-            return res.send({ message: '단골에서 해제했습니다.' });
+            return res.send({ message: '즐겨찾기에서 뺐습니다.' });
         }
     );
 };

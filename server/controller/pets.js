@@ -6,7 +6,7 @@ function requireUser(req, res) {
     const token = req.headers.authorization?.split(' ')[1];
     const decoded = verifyToken(token);
     if (!decoded) {
-        res.status(401).send({ error: '유효하지 않은 토큰입니다.' });
+        res.status(401).send({ message: '유효하지 않은 토큰입니다.' });
         return null;
     }
     return decoded.id;
@@ -31,7 +31,7 @@ const getMyPets = (req, res) => {
     conn.query(query, [user_id], (err, pets) => {
         if (err) {
             console.error(err);
-            return res.status(500).send({ error: '서버 에러 발생' });
+            return res.status(500).send({ message: '서버 에러 발생' });
         }
         if (pets.length === 0) return res.send([]);
 
@@ -44,7 +44,7 @@ const getMyPets = (req, res) => {
         conn.query(vq, [ids], (verr, vacc) => {
             if (verr) {
                 console.error(verr);
-                return res.status(500).send({ error: '서버 에러 발생' });
+                return res.status(500).send({ message: '서버 에러 발생' });
             }
             const byPet = new Map(ids.map((id) => [id, []]));
             vacc.forEach((v) => byPet.get(v.pet_id).push(v));
@@ -74,7 +74,7 @@ const addPet = (req, res) => {
     conn.query(query, values, (err, result) => {
         if (err) {
             console.error(err);
-            return res.status(500).send({ error: '서버 에러 발생' });
+            return res.status(500).send({ message: '서버 에러 발생' });
         }
         return res.send({ message: '반려동물이 등록되었습니다.', petId: result.insertId });
     });
@@ -98,7 +98,7 @@ const updatePet = (req, res) => {
     conn.query(query, values, (err, result) => {
         if (err) {
             console.error(err);
-            return res.status(500).send({ error: '서버 에러 발생' });
+            return res.status(500).send({ message: '서버 에러 발생' });
         }
         if (result.affectedRows === 0) {
             return res.status(404).send({ message: '본인의 반려동물만 수정할 수 있습니다.' });
@@ -118,7 +118,7 @@ const deletePet = (req, res) => {
         (err, result) => {
             if (err) {
                 console.error(err);
-                return res.status(500).send({ error: '서버 에러 발생' });
+                return res.status(500).send({ message: '서버 에러 발생' });
             }
             if (result.affectedRows === 0) {
                 return res.status(404).send({ message: '본인의 반려동물만 삭제할 수 있습니다.' });
@@ -144,7 +144,7 @@ const addVaccination = (req, res) => {
     conn.query(query, [String(name).trim(), due_date, req.params.pet_id, user_id], (err, result) => {
         if (err) {
             console.error(err);
-            return res.status(500).send({ error: '서버 에러 발생' });
+            return res.status(500).send({ message: '서버 에러 발생' });
         }
         if (result.affectedRows === 0) {
             return res.status(404).send({ message: '본인의 반려동물에만 일정을 추가할 수 있습니다.' });
@@ -167,7 +167,7 @@ const setVaccinationDone = (req, res) => {
     conn.query(query, [done, req.params.vaccination_id, user_id], (err, result) => {
         if (err) {
             console.error(err);
-            return res.status(500).send({ error: '서버 에러 발생' });
+            return res.status(500).send({ message: '서버 에러 발생' });
         }
         if (result.affectedRows === 0) return res.status(404).send({ message: '일정을 찾을 수 없습니다.' });
         return res.send({ message: '저장되었습니다.' });
@@ -186,7 +186,7 @@ const deleteVaccination = (req, res) => {
     conn.query(query, [req.params.vaccination_id, user_id], (err, result) => {
         if (err) {
             console.error(err);
-            return res.status(500).send({ error: '서버 에러 발생' });
+            return res.status(500).send({ message: '서버 에러 발생' });
         }
         if (result.affectedRows === 0) return res.status(404).send({ message: '일정을 찾을 수 없습니다.' });
         return res.send({ message: '삭제되었습니다.' });
