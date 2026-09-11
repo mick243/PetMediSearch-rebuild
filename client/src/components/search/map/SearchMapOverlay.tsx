@@ -1,6 +1,9 @@
 import { FaX } from 'react-icons/fa6';
 import styled from 'styled-components';
+import { useDispatch } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import { PlaceData } from '../../../types/place.type';
+import { setSelectPlace } from '../../../store/slices/placeSlice';
 import FavoriteButton from './FavoriteButton';
 import {
   MdDoNotDisturbOnTotalSilence,
@@ -29,6 +32,19 @@ const notPrepared = () => (
 );
 
 function SearchMapOverlay({ onClick, place }: Props) {
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+
+  /*
+   * 후기 화면은 store 의 selectedPlace 를 보고 어느 시설의 후기인지 정합니다.
+   * 예전에는 <a href="/review"> 라서 페이지가 통째로 새로 뜨며 store 가 비워졌고,
+   * 그래서 늘 시설 목록부터 다시 고르게 했습니다. 고른 시설을 그대로 넘깁니다.
+   */
+  const goToReview = () => {
+    dispatch(setSelectPlace(place));
+    navigate('/review');
+  };
+
   return (
     <SearchMapOverlayStyle>
       <div className="overlayWrap">
@@ -97,7 +113,9 @@ function SearchMapOverlay({ onClick, place }: Props) {
             notPrepared()
           )}
           <div className="review">
-            <a href="/review">후기 작성하기</a>
+            <button type="button" onClick={goToReview}>
+              후기 작성하기
+            </button>
           </div>
         </div>
       </div>
@@ -195,13 +213,18 @@ const SearchMapOverlayStyle = styled.div`
         cursor: pointer;
       }
       .review {
-        a {
+        button {
+          padding: 0;
+          border: 0;
+          background: none;
+          font-family: inherit;
+          font-size: inherit;
           color: #464646;
-          text-decoration: none;
           font-weight: bold;
+          cursor: pointer;
         }
 
-        a:hover {
+        button:hover {
           color: #5ba95b;
         }
       }

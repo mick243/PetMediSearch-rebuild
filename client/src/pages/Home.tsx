@@ -8,6 +8,7 @@ import { RootState } from '../store';
 import { Pet, FavoriteFacility } from '../types/pet.type';
 import { PostState } from '../types/post.type';
 import { fetchMyPets } from '../apis/pets.api';
+import { daysUntil, ddayLabel } from '../utils/format';
 import { fetchFavorites } from '../apis/favorites.api';
 import { timeAgo } from '../utils/postContent';
 
@@ -38,20 +39,11 @@ function ageOf(birth: string | null): string | null {
   return `${Math.floor(months / 12)}살`;
 }
 
-/** 오늘 기준 D-day. 지난 날짜는 음수. */
-function daysUntil(date: string): number {
-  const d = new Date(date);
-  const today = new Date();
-  d.setHours(0, 0, 0, 0);
-  today.setHours(0, 0, 0, 0);
-  return Math.round((d.getTime() - today.getTime()) / 86400000);
-}
-
 /**
  * 홈.
  *
  * 로그인 + 반려동물이 있으면 그 아이가 주인공입니다(H안).
- * 접종 D-day · 단골 병원 · 같은 분류 게시글을 붙이고, 검색은 아래로 내립니다.
+ * 접종 D-day · 즐겨찾기한 병원 · 같은 분류 게시글을 붙이고, 검색은 아래로 내립니다.
  * 로그인 전이거나 아직 등록한 아이가 없으면 등록을 권하는 화면을 보여줍니다.
  */
 function Home() {
@@ -95,10 +87,11 @@ function Home() {
   useEffect(() => {
     let alive = true;
     axios
+      // 홈은 3건만 씁니다. 예전에는 전부 받아 와서 잘라 썼습니다.
       .get<{ posts: PostState[] }>(
-        `${BASE_URL}/category?category=${postCategory}`
+        `${BASE_URL}/category?category=${postCategory}&limit=3`
       )
-      .then((res) => alive && setPosts((res.data.posts ?? []).slice(0, 3)))
+      .then((res) => alive && setPosts(res.data.posts ?? []))
       .catch(() => alive && setPosts([]));
     return () => {
       alive = false;
@@ -115,6 +108,9 @@ function Home() {
   }, [pet]);
 
   const dday = nextVacc ? daysUntil(nextVacc.due_date) : null;
+
+  /* 어느 아이든 일정이 하나라도 있으면 목록을 열어 줍니다. */
+  const hasVaccinations = pets.some((p) => p.vaccinations.length > 0);
 
   if (loading) {
     return (
@@ -178,40 +174,6 @@ function Home() {
             </div>
             <HiChevronRight aria-hidden="true" />
           </PetCard>
-
-          <Tiles>
-            <Tile
-              type="button"
-              $tone={dday != null && dday <= 7 ? 'hot' : 'plain'}
-              onClick={() => navigate(`/pets/${pet.pet_id}/edit`)}
-            >
-              {nextVacc ? (
-                <>
-                  <TileNum>
-                    {dday === 0
-                      ? '오늘'
-                      : dday! > 0
-                        ? `D-${dday}`
-                        : `${-dday!}일 지남`}
-                  </TileNum>
-                  <TileLabel>{nextVacc.name}</TileLabel>
-                </>
-              ) : (
-                <>
-                  <TileNum>—</TileNum>
-                  <TileLabel>접종 일정 추가</TileLabel>
-                </>
-              )}
-            </Tile>
-            <Tile
-              type="button"
-              $tone="plain"
-              onClick={() => navigate('/search')}
-            >
-              <TileNum>{favorites.length}</TileNum>
-              <TileLabel>단골 병원·약국</TileLabel>
-            </Tile>
-          </Tiles>
         </>
       ) : (
         <Invite>
@@ -223,7 +185,7 @@ function Home() {
                 : '로그인하면 우리 아이가 홈에 옵니다'}
             </InviteTitle>
             <InviteText>
-              접종 D-day, 단골 병원, 같은 분류 보호자들의 글을 한 화면에서
+              접종 D-day, 즐겨찾기한 병원, 같은 분류 보호자들의 글을 한 화면에서
               봅니다.
             </InviteText>
           </div>
@@ -236,32 +198,70 @@ function Home() {
         </Invite>
       )}
 
-      {/* ── 단골 ── */}
+      {/* ── 요약 타일 ──
+        반려동물을 등록하지 않아도 회원에게는 늘 보입니다. 즐겨찾기는 아이와 상관없이
+        쌓이고, 접종 칸은 아직 아무것도 없을 때 어디서 시작하는지 알려 줍니다.
+        (등록 전에는 누르면 반려동물 등록으로 갑니다 — 일정은 아이에게 붙습니다) */}
       {isLogin && (
+        <Tiles>
+          {/*
+            일정이 하나라도 있으면 목록으로, 없으면 등록·수정 화면으로 보냅니다.
+            일정은 아이에게 붙으므로 아직 아이가 없으면 등록부터입니다.
+          */}
+          <Tile
+            type="button"
+            $tone={dday != null && dday <= 7 ? 'hot' : 'plain'}
+            onClick={() =>
+              navigate(
+                hasVaccinations
+                  ? '/vaccinations'
+                  : pet
+                    ? `/pets/${pet.pet_id}/edit`
+                    : '/pets/new'
+              )
+            }
+          >
+            {nextVacc ? (
+              <>
+                <TileNum>{ddayLabel(dday!)}</TileNum>
+                <TileLabel>{nextVacc.name}</TileLabel>
+              </>
+            ) : (
+              <>
+                <TileNum>—</TileNum>
+                <TileLabel>접종 일정 추가</TileLabel>
+              </>
+            )}
+          </Tile>
+          {/*
+            즐겨찾기가 있으면 목록으로, 없으면 지도로 보냅니다.
+            빈 목록을 열어 봐야 할 일이 없고, 별을 누르는 곳은 지도입니다.
+          */}
+          <Tile
+            type="button"
+            $tone="plain"
+            onClick={() =>
+              navigate(favorites.length > 0 ? '/favorites' : '/search')
+            }
+          >
+            <TileNum>{favorites.length}</TileNum>
+            <TileLabel>즐겨찾기</TileLabel>
+          </Tile>
+        </Tiles>
+      )}
+
+      {/* ── 즐겨찾기 ──
+        비회원에게만 보이는 소개입니다. 지도에서 ★ 을 누르면 무엇이 생기는지
+        알려 주는 자리라, 이미 쓰고 있는 회원에게는 설명할 것이 없습니다. */}
+      {!isLogin && (
         <Section>
           <SectionHead>
-            <h2>단골</h2>
+            <h2>즐겨찾기</h2>
             <More type="button" onClick={() => navigate('/search')}>
               지도에서 찾기 <HiChevronRight aria-hidden="true" />
             </More>
           </SectionHead>
-          {favorites.length === 0 ? (
-            <Muted>지도 정보창의 ★ 을 누르면 여기에 모입니다.</Muted>
-          ) : (
-            favorites.slice(0, 2).map((f) => (
-              <Row
-                key={f.facility_id}
-                type="button"
-                onClick={() => navigate('/search')}
-              >
-                <Chip $type={f.type}>{f.type}</Chip>
-                <div>
-                  <RowTitle>{f.bplcnm}</RowTitle>
-                  <RowMeta>{f.rdnwhladdr || f.sitewhladdr || ''}</RowMeta>
-                </div>
-              </Row>
-            ))
-          )}
+          <Muted>지도 정보창의 ★ 을 누르면 여기에 모입니다.</Muted>
         </Section>
       )}
 
@@ -557,16 +557,6 @@ const RowMeta = styled.span`
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-`;
-
-const Chip = styled.span<{ $type: string }>`
-  padding: 1px 7px;
-  border-radius: 3px;
-  font-size: 11px;
-  font-weight: 600;
-  background-color: ${({ $type }) =>
-    $type === '병원' ? '#fdecec' : '#e2f5fc'};
-  color: ${({ $type }) => ($type === '병원' ? '#c94441' : '#0d3c52')};
 `;
 
 const SearchBt = styled.button`
