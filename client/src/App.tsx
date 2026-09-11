@@ -7,6 +7,7 @@ import {
 import Home from './pages/Home';
 import Search from './pages/Search';
 import Login from './pages/Login';
+import Signup from './pages/Signup';
 import Layout from './layout/Layout';
 import Error from './components/common/Error';
 import Posts from './pages/Posts';
@@ -20,6 +21,8 @@ import Review from './pages/Review';
 import CreatePost from './pages/CreatePost';
 import PostDetail from './pages/PostDetail';
 import PetForm from './pages/PetForm';
+import Favorites from './pages/Favorites';
+import Vaccinations from './pages/Vaccinations';
 
 const routeList = [
   {
@@ -33,6 +36,10 @@ const routeList = [
   {
     path: '/login',
     element: <Login />,
+  },
+  {
+    path: '/signup',
+    element: <Signup />,
   },
   {
     // 카테고리 화면은 게시판 탭으로 흡수됐습니다. 예전 주소는 통합(전체 글)로 보냅니다.
@@ -76,6 +83,22 @@ const routeList = [
     element: (
       <LoginProtect>
         <PetForm />
+      </LoginProtect>
+    ),
+  },
+  {
+    path: '/vaccinations',
+    element: (
+      <LoginProtect>
+        <Vaccinations />
+      </LoginProtect>
+    ),
+  },
+  {
+    path: '/favorites',
+    element: (
+      <LoginProtect>
+        <Favorites />
       </LoginProtect>
     ),
   },
