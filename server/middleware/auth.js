@@ -4,7 +4,7 @@ const authMiddleware = (req, res, next) => {
   const token = req.header('Authorization')?.replace('Bearer ', '');
 
   if (!token) {
-    return res.status(401).send({ error: '인증이 필요합니다.' });
+    return res.status(401).send({ message: '인증이 필요합니다.' });
   }
 
   try {
@@ -12,7 +12,7 @@ const authMiddleware = (req, res, next) => {
     req.user = decoded;
     next();
   } catch (error) {
-    res.status(401).send({ error: '유효하지 않은 토큰입니다.' });
+    res.status(401).send({ message: '유효하지 않은 토큰입니다.' });
   }
 };
 
