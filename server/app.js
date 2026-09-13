@@ -358,9 +358,30 @@ app.use((req, res) => {
  */
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
-    console.error('처리되지 않은 오류:', err);
     // 이미 응답이 나가기 시작했으면 손댈 수 없습니다. Express 기본 처리로 넘깁니다.
     if (res.headersSent) return next(err);
+
+    /*
+     * 본문이 상한(위의 3mb)을 넘은 경우입니다.
+     *
+     * 사진을 여러 장 붙인 글에서 실제로 납니다. 500 "서버 오류 발생" 으로 답하면
+     * 사용자는 원인을 몰라 같은 버튼을 계속 누릅니다. 무엇을 줄여야 하는지 알려줍니다.
+     */
+    if (err?.type === 'entity.too.large') {
+        return res.status(413).json({
+            message: '내용이 너무 큽니다. 사진 수를 줄이거나 크기가 작은 사진을 써주세요.',
+        });
+    }
+
+    /*
+     * 본문이 JSON 이 아닌 경우. 화면의 잘못이지 서버 문제가 아니라 400 으로 답합니다.
+     * 500 으로 두면 서버 장애로 오인해 원인을 엉뚱한 데서 찾게 됩니다.
+     */
+    if (err instanceof SyntaxError && 'body' in err) {
+        return res.status(400).json({ message: '요청 형식이 올바르지 않습니다.' });
+    }
+
+    console.error('처리되지 않은 오류:', err);
     return res.status(500).json({ message: '서버 오류 발생' });
 });
 
