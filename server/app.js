@@ -3,11 +3,39 @@ const express = require("express");
 const mysql = require("./mysql");
 const nodePath = require("path");
 const cors = require("cors");
+const helmet = require("helmet");
 
 const app = express();
 const port = Number(process.env.PORT) || 8080;
+const isProduction = process.env.NODE_ENV === 'production';
 
 console.log('Current directory:', __dirname);
+
+/*
+ * 프록시(nginx·플랫폼) 뒤에서는 req.ip 가 전부 프록시 주소가 됩니다.
+ * 그러면 요청 제한이 모든 사용자를 한 사람으로 묶어 버려, 누구 하나가 많이 쓰면
+ * 나머지가 같이 막힙니다. X-Forwarded-For 를 믿을지 환경변수로 정합니다.
+ */
+if (process.env.TRUST_PROXY) {
+  app.set('trust proxy', Number(process.env.TRUST_PROXY) || 1);
+}
+
+/*
+ * 보안 헤더.
+ *
+ * CSP 는 끕니다. 이 서버는 JSON 을 돌려주는 API 이고 화면은 다른 오리진(Vercel)에
+ * 있어서 여기 CSP 는 그 화면에 걸리지 않습니다. 반대로 기본 CSP 를 켜면 이 서버가
+ * 직접 띄우는 Swagger UI 가 인라인 스크립트를 못 써서 깨집니다.
+ *
+ * CORP 는 cross-origin 으로 둡니다. 기본값(same-origin)은 다른 오리진의 화면이
+ * 이 서버의 응답을 읽는 것을 막습니다.
+ */
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
 
 // 미들웨어 설정
 const allowedOrigins = (process.env.CORS_ORIGIN || "https://pet-medi-search.vercel.app")
@@ -18,10 +46,26 @@ app.use(cors({ origin: allowedOrigins, credentials: true }));
 // 반려동물 사진은 축소된 JPEG 를 data URL 로 본문에 실어 보냅니다. 기본 100kb 로는 모자랍니다.
 app.use(express.json({ limit: '3mb' }));
 
-// swagger 연동
-const { swaggerUi, specs } = require("./swagger/swagger");
-app.use("/api", swaggerUi.serve, swaggerUi.setup(specs));
+/*
+ * swagger 연동.
+ *
+ * 운영에서는 띄우지 않습니다. 엔드포인트와 요청·응답 모양이 전부 담겨 있어,
+ * 공개하면 어디를 두드려 봐야 하는지 알려주는 안내문이 됩니다.
+ */
+if (!isProduction) {
+  const { swaggerUi, specs } = require("./swagger/swagger");
+  app.use("/api", swaggerUi.serve, swaggerUi.setup(specs));
+}
 app.use(express.static("public"));
+
+/*
+ * 요청 제한. 로그인·가입은 routes/auth.js 에서 더 좁게 겁니다.
+ *
+ * 개발에서도 켜 둡니다. 한쪽에서만 도는 장치는 "개발에서는 됐는데" 를 만들고,
+ * 정작 운영에서 처음 걸릴 때 원인을 찾기 어렵습니다.
+ */
+const { generalLimiter } = require('./middleware/rateLimit');
+app.use(generalLimiter);
 
 app.get("/search", (req, res) => {
   res.sendFile(nodePath.join(__dirname, "public", "search.html"));
@@ -222,17 +266,17 @@ app.get("/facilities", (req, res) => {
 
   query += ` LIMIT ${rowLimit}`;
 
-  console.log("Executing query:", query);
-  console.log("Query values:", values);
+  /*
+   * 쿼리와 값은 찍지 않습니다. 검색어가 그대로 남는 데다, 매 요청마다
+   * 3만건짜리 표를 훑는 SQL 전문이 로그를 가득 채웁니다.
+   */
 
   mysql.query(query, values, (err, results) => {
     if (err) {
-      console.error('Database query error:', err);
-      console.error('Error details:', JSON.stringify(err, null, 2));
+      logError('search', err);
       return res.status(500).json({ message: '서버 오류 발생' });
     }
 
-    console.log(`Query returned ${results.length} results`);
     res.json(results);
   });
 });
@@ -302,7 +346,7 @@ app.get("/facilities/clusters", (req, res) => {
 
   mysql.query(query, values, (err, results) => {
     if (err) {
-      console.error("Cluster query error:", err);
+      logError('cluster', err);
       return res
         .status(500)
         .json({ message: '서버 오류 발생' });
@@ -381,7 +425,7 @@ app.use((err, req, res, next) => {
         return res.status(400).json({ message: '요청 형식이 올바르지 않습니다.' });
     }
 
-    console.error('처리되지 않은 오류:', err);
+    logError('unhandled', err);
     return res.status(500).json({ message: '서버 오류 발생' });
 });
 

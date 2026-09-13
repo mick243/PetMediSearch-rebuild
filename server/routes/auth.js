@@ -1,4 +1,5 @@
 const express = require('express');
+const { loginLimiter, signupLimiter } = require('../middleware/rateLimit');
 const router = express.Router();
 const authController = require('../controller/auth');
 
@@ -15,10 +16,10 @@ router.get('/naver', authController.naverLogin);
 router.post('/social-login', authController.socialLogin);
 
 // 일반 회원가입 (이름·전화번호·이메일·주소 + 비밀번호)
-router.post('/signup', authController.signup);
+router.post('/signup', signupLimiter, authController.signup);
 
 // 일반 로그인 (이메일 + 비밀번호)
-router.post('/login', authController.login);
+router.post('/login', loginLimiter, authController.login);
 
 /**
  * @swagger
