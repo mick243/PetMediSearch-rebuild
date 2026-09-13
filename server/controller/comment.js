@@ -1,4 +1,5 @@
 const conn = require('../mysql');
+const { logError } = require('../logError');
 const { verifyToken, IS_ADMIN } = require('./authUser');
 const { textField } = require('./validate');
 
@@ -91,7 +92,7 @@ const getCommentsByPostId = async (req, res) => {
 
         return res.send({ comments, total: counts.total, count: counts.count });
     } catch (error) {
-        console.error(error);
+        logError('comment', error);
         return res.status(500).send({ message: '서버 오류 발생' });
     }
 };
@@ -122,7 +123,7 @@ const addComment = (req, res) => {
 
     conn.query(query, [post_id, value, parent_comment_id || null, user_id], (err, results) => {
         if (err) {
-            console.error(err);
+            logError('comment', err);
             return res.status(500).send({ message: '서버 에러 발생' });
         }
 
@@ -156,7 +157,7 @@ const updateCommentById = (req, res) => {
 
     conn.query(query, [value, comment_id, user_id], (err, results) => {
         if (err) {
-            console.error(err);
+            logError('comment', err);
             return res.status(500).send({ message: '서버 에러 발생' });
         }
 
@@ -189,7 +190,7 @@ const deleteCommentById = (req, res) => {
 
     conn.query(permissionQuery, [user_id, user_id, comment_id], (err, rows) => {
         if (err) {
-            console.error(err);
+            logError('comment', err);
             return res.status(500).send({ message: '서버 에러 발생' });
         }
 
@@ -206,7 +207,7 @@ const deleteCommentById = (req, res) => {
             const query = 'UPDATE comments SET deleted_at = ? WHERE comment_id = ? AND deleted_at IS NULL';
             return conn.query(query, [new Date(), comment_id], (deleteErr) => {
                 if (deleteErr) {
-                    console.error(deleteErr);
+                    logError('comment', deleteErr);
                     return res.status(500).send({ message: '서버 에러 발생' });
                 }
 
@@ -230,7 +231,7 @@ const deleteCommentById = (req, res) => {
 
         conn.query(threadQuery, [comment_id], (threadErr, threadRows) => {
             if (threadErr) {
-                console.error(threadErr);
+                logError('comment', threadErr);
                 return res.status(500).send({ message: '서버 에러 발생' });
             }
 
@@ -239,7 +240,7 @@ const deleteCommentById = (req, res) => {
             const deleteQuery = 'UPDATE comments SET deleted_at = ? WHERE comment_id IN (?) AND deleted_at IS NULL';
             conn.query(deleteQuery, [new Date(), ids], (deleteErr, results) => {
                 if (deleteErr) {
-                    console.error(deleteErr);
+                    logError('comment', deleteErr);
                     return res.status(500).send({ message: '서버 에러 발생' });
                 }
 

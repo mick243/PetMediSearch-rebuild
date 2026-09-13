@@ -81,7 +81,8 @@ const getListByCategory = (req, res) => {
             }
             conn.query(countQuery, values, (countError, countRows) => {
                 if (countError) {
-                    return res.status(500).send({ message: '서버 오류 발생', error: countError });
+                    logError('category:count', countError);
+                    return res.status(500).send({ message: '서버 오류 발생' });
                 }
                 return res.send({ posts: results, total: countRows[0]?.total ?? results.length });
             });

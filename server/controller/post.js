@@ -1,4 +1,5 @@
 const conn = require('../mysql');
+const { logError } = require('../logError');
 const { verifyToken, OWNER_OR_ADMIN } = require('./authUser');
 const { textField, richTextHasContent } = require('./validate');
 
@@ -39,7 +40,7 @@ const getPostById = (req, res) => {
 
     conn.query(query, [post_id], (err, results) => {
         if (err) {
-            console.error(err);
+            logError('post', err);
             return res.status(500).send({ message: '서버 에러 발생' });
         }
 
@@ -81,7 +82,7 @@ const addPostById = (req, res) => {
 
     conn.query(query, [category_id, value.title, value.content, user_id], (err, results) => {
         if (err) {
-            console.error(err);
+            logError('post', err);
             return res.status(500).send({ message: '서버 에러 발생' });
         }
 
@@ -112,7 +113,7 @@ const updatePostById = (req, res) => {
 
     conn.query(query, [value.title, value.content, post_id, user_id], (err, results) => {
         if (err) {
-            console.error(err);
+            logError('post', err);
             return res.status(500).send({ message: '서버 에러 발생' });
         }
 
@@ -150,7 +151,7 @@ const deletePostById = (req, res) => {
 
     conn.query(query, [deletedAt, post_id, user_id, user_id], (err, results) => {
         if (err) {
-            console.error(err);
+            logError('post', err);
             return res.status(500).send({ message: '서버 에러 발생' });
         }
 
@@ -168,7 +169,7 @@ const deletePostById = (req, res) => {
             [deletedAt, post_id],
             (commentErr) => {
                 if (commentErr) {
-                    console.error(commentErr);
+                    logError('post', commentErr);
                     return res.status(500).send({ message: '서버 에러 발생' });
                 }
 

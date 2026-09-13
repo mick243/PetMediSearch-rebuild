@@ -1,4 +1,5 @@
 const conn = require('../mysql');
+const { logError } = require('../logError');
 const { verifyToken } = require('./authUser');
 const { textField, intField } = require('./validate');
 
@@ -78,11 +79,13 @@ const getReviewsByFacilityId = async (req, res) => {
 
     conn.query(listQuery, [facilityId, rowLimit, offset], (error, results) => {
         if (error) {
+            logError('review:list', error);
             return res.status(500).send({ message: '서버 오류 발생' });
         }
         conn.query('SELECT COUNT(*) AS total FROM reviews WHERE facility_id = ? AND deleted_at IS NULL', [facilityId], (countError, countRows) => {
             if (countError) {
-                return res.status(500).send({ message: '서버 오류 발생', error: countError });
+                logError('review:count', countError);
+                return res.status(500).send({ message: '서버 오류 발생' });
             }
             // 후기가 없는 것은 오류가 아닙니다. 예전에는 404 라서 화면이 콘솔에 에러를 찍었습니다.
             return res.send({ reviews: results, total: countRows[0]?.total ?? results.length });
@@ -96,6 +99,7 @@ const getReviewImages = async (req, res) => {
 
     conn.query('SELECT images FROM reviews WHERE review_id = ? AND deleted_at IS NULL', [reviewId], (error, results) => {
         if (error) {
+            logError('review:images', error);
             return res.status(500).send({ message: '서버 오류 발생' });
         }
         if (results.length === 0) {
@@ -140,7 +144,7 @@ const createReview = async (req, res) => {
 
     conn.query(query, [facility_id, score.value, body.value, photos, user_id], (error, results) => {
         if (error) {
-            console.error(error);
+            logError('review', error);
             return res.status(500).send({ message: '서버 오류 발생' });
         }
         if (results.affectedRows === 0) {
@@ -190,7 +194,7 @@ const updateReview = async (req, res) => {
 
     conn.query(query, values, (error, results) => {
         if (error) {
-            console.error(error);
+            logError('review', error);
             return res.status(500).send({ message: '서버 오류 발생' });
         }
         if (results.affectedRows === 0) {
@@ -224,7 +228,7 @@ const deleteReview = async (req, res) => {
 
     conn.query(query, [new Date(), reviewId, user_id], (error, results) => {
         if (error) {
-            console.error(error);
+            logError('review', error);
             return res.status(500).send({ message: '서버 오류 발생' });
         }
         if (results.affectedRows === 0) {

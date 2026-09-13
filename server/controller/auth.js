@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { logError } = require('../logError');
 const bcrypt = require('bcrypt');
 const axios = require('axios');
 const conn = require('../mysql');
@@ -25,7 +26,6 @@ exports.kakaoLogin = async (req, res) => {
       headers: { Authorization: `Bearer ${access_token}` },
     });
 
-    console.log('Kakao user info:', userResponse.data); 
 
     const { id: socialId } = userResponse.data;
     const username = userResponse.data.properties?.nickname || userResponse.data.kakao_account?.profile?.nickname || `KakaoUser_${socialId}`;
@@ -36,7 +36,7 @@ exports.kakaoLogin = async (req, res) => {
 
     res.json({ token, user: toClientUser(user) });
   } catch (error) {
-    console.error('Kakao login error:', error);
+    logError('Kakao login error', error);
     res.status(500).json({ message: '카카오 로그인 처리 중 오류가 발생했습니다.' });
   }
 };
@@ -69,7 +69,7 @@ exports.googleLogin = async (req, res) => {
 
     res.json({ token, user: toClientUser(user) });
   } catch (error) {
-    console.error('Google login error:', error);
+    logError('Google login error', error);
     res.status(500).json({ message: '구글 로그인 처리 중 오류가 발생했습니다.' });
   }
 };
@@ -104,7 +104,7 @@ exports.naverLogin = async (req, res) => {
 
     res.json({ token, user: toClientUser(user) });
   } catch (error) {
-    console.error('Naver login error:', error);
+    logError('Naver login error', error);
     res.status(500).json({ message: '네이버 로그인 처리 중 오류가 발생했습니다.' });
   }
 };
@@ -118,7 +118,7 @@ exports.socialLogin = async (req, res) => {
 
     res.json({ token, user: toClientUser(user) });
   } catch (error) {
-    console.error('Social login error:', error);
+    logError('Social login error', error);
     res.status(500).json({ message: '소셜 로그인 처리 중 오류가 발생했습니다.' });
   }
 };
@@ -163,18 +163,18 @@ const getUserBySocialId = (socialId, socialType) => {
 const createUser = (socialId, socialType, username) => {
   return new Promise((resolve, reject) => {
     const safeUsername = username || `User_${socialId.substr(0, 8)}`;
-    console.log('Creating user with:', { socialId, socialType, safeUsername });
     conn.query(
       'INSERT INTO users (social_id, social_type, username) VALUES (?, ?, ?)',
       [socialId, socialType, safeUsername],
       (error, results) => {
         if (error) {
-          console.error('Error creating user:', error);
+          logError('Error creating user', error);
           reject(error);
         } else if (results && results.insertId) {
           resolve({ user_id: results.insertId, username: safeUsername });
         } else {
-          console.error('Unexpected result from insert query:', results);
+          // results 에는 사용자 행이 통째로 들어올 수 있어 내용은 남기지 않습니다.
+          console.error('[auth:createUser] insertId 가 없습니다.');
           reject(new Error('Failed to create user: No insert ID returned'));
         }
       }
@@ -262,7 +262,7 @@ exports.signup = async (req, res) => {
     if (err.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({ message: '이미 가입된 이메일입니다.' });
     }
-    console.error('Signup error:', err);
+    logError('Signup error', err);
     res.status(500).json({ message: '회원가입 처리 중 오류가 발생했습니다.' });
   }
 };
@@ -294,7 +294,7 @@ exports.login = async (req, res) => {
 
     res.json({ token: generateToken(user), user: toClientUser(user) });
   } catch (err) {
-    console.error('Login error:', err);
+    logError('Login error', err);
     res.status(500).json({ message: '로그인 처리 중 오류가 발생했습니다.' });
   }
 };
@@ -357,7 +357,7 @@ exports.withdraw = async (req, res) => {
 
     return res.json({ message: '탈퇴가 완료되었습니다.' });
   } catch (err) {
-    console.error('Withdraw error:', err.code, err.message);
+    logError('auth:withdraw', err);
     return res.status(500).json({ message: '탈퇴 처리 중 오류가 발생했습니다.' });
   }
 };

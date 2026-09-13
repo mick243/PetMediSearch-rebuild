@@ -1,4 +1,5 @@
 const conn = require('../mysql');
+const { logError } = require('../logError');
 const { verifyToken } = require("./authUser");
 
 // 유저 id 에 따른 게시글 조회
@@ -17,7 +18,7 @@ const getPostsByUserId = (req, res) => {
 
     conn.query(query, [user_id], (err, results) => {
         if (err) {
-            console.error(err);
+            logError('mypage', err);
             return res.status(500).send({ message: '서버 에러 발생' });
         }
 
@@ -43,7 +44,7 @@ const getReviewsByUserId = (req, res) => {
 
     conn.query(query, [user_id], (err, results) => {
         if (err) {
-            console.error(err);
+            logError('mypage', err);
             return res.status(500).send({ message: '서버 에러 발생' });
         }
 
@@ -86,7 +87,7 @@ const getCommentsByUserId = (req, res) => {
 
     conn.query(query, [user_id, RECENT_LIMIT], (err, results) => {
         if (err) {
-            console.error(err);
+            logError('mypage', err);
             return res.status(500).send({ message: '서버 에러 발생' });
         }
 

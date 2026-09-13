@@ -1,4 +1,5 @@
 const conn = require('../mysql');
+const { logError } = require('../logError');
 const { verifyToken } = require('./authUser');
 
 function requireUser(req, res) {
@@ -25,7 +26,7 @@ const getFavorites = (req, res) => {
         ORDER BY f.created_at DESC`;
     conn.query(query, [user_id], (err, rows) => {
         if (err) {
-            console.error(err);
+            logError('favorites', err);
             return res.status(500).send({ message: '서버 에러 발생' });
         }
         return res.send(rows);
@@ -42,7 +43,7 @@ const addFavorite = (req, res) => {
         [user_id, req.params.facility_id],
         (err) => {
             if (err) {
-                console.error(err);
+                logError('favorites', err);
                 // 없는 시설 id 면 FK 에러
                 if (err.code === 'ER_NO_REFERENCED_ROW_2') {
                     return res.status(404).send({ message: '해당 시설을 찾을 수 없습니다.' });
@@ -64,7 +65,7 @@ const removeFavorite = (req, res) => {
         [user_id, req.params.facility_id],
         (err) => {
             if (err) {
-                console.error(err);
+                logError('favorites', err);
                 return res.status(500).send({ message: '서버 에러 발생' });
             }
             return res.send({ message: '즐겨찾기에서 뺐습니다.' });

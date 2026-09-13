@@ -1,4 +1,5 @@
 const conn = require('../mysql');
+const { logError } = require('../logError');
 const { verifyToken } = require('./authUser');
 const { textField, decimalField, dateField } = require('./validate');
 
@@ -73,7 +74,7 @@ const getMyPets = (req, res) => {
 
     conn.query(query, [user_id], (err, pets) => {
         if (err) {
-            console.error(err);
+            logError('pets', err);
             return res.status(500).send({ message: '서버 에러 발생' });
         }
         if (pets.length === 0) return res.send([]);
@@ -86,7 +87,7 @@ const getMyPets = (req, res) => {
             ORDER BY due_date ASC`;
         conn.query(vq, [ids], (verr, vacc) => {
             if (verr) {
-                console.error(verr);
+                logError('pets:vaccinations', verr);
                 return res.status(500).send({ message: '서버 에러 발생' });
             }
             const byPet = new Map(ids.map((id) => [id, []]));
@@ -114,7 +115,7 @@ const addPet = (req, res) => {
 
     conn.query(query, values, (err, result) => {
         if (err) {
-            console.error(err);
+            logError('pets', err);
             return res.status(500).send({ message: '서버 에러 발생' });
         }
         return res.send({ message: '반려동물이 등록되었습니다.', petId: result.insertId });
@@ -140,7 +141,7 @@ const updatePet = (req, res) => {
 
     conn.query(query, values, (err, result) => {
         if (err) {
-            console.error(err);
+            logError('pets', err);
             return res.status(500).send({ message: '서버 에러 발생' });
         }
         if (result.affectedRows === 0) {
@@ -160,7 +161,7 @@ const deletePet = (req, res) => {
         [req.params.pet_id, user_id],
         (err, result) => {
             if (err) {
-                console.error(err);
+                logError('pets', err);
                 return res.status(500).send({ message: '서버 에러 발생' });
             }
             if (result.affectedRows === 0) {
@@ -188,7 +189,7 @@ const addVaccination = (req, res) => {
         SELECT pet_id, ?, ? FROM pets WHERE pet_id = ? AND user_id = ?`;
     conn.query(query, [name.value, dueDate.value, req.params.pet_id, user_id], (err, result) => {
         if (err) {
-            console.error(err);
+            logError('pets', err);
             return res.status(500).send({ message: '서버 에러 발생' });
         }
         if (result.affectedRows === 0) {
@@ -211,7 +212,7 @@ const setVaccinationDone = (req, res) => {
         WHERE v.vaccination_id = ? AND p.user_id = ?`;
     conn.query(query, [done, req.params.vaccination_id, user_id], (err, result) => {
         if (err) {
-            console.error(err);
+            logError('pets', err);
             return res.status(500).send({ message: '서버 에러 발생' });
         }
         if (result.affectedRows === 0) return res.status(404).send({ message: '일정을 찾을 수 없습니다.' });
@@ -230,7 +231,7 @@ const deleteVaccination = (req, res) => {
         WHERE v.vaccination_id = ? AND p.user_id = ?`;
     conn.query(query, [req.params.vaccination_id, user_id], (err, result) => {
         if (err) {
-            console.error(err);
+            logError('pets', err);
             return res.status(500).send({ message: '서버 에러 발생' });
         }
         if (result.affectedRows === 0) return res.status(404).send({ message: '일정을 찾을 수 없습니다.' });
