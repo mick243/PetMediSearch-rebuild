@@ -4,6 +4,7 @@ import { RootState } from '../store';
 import MyReview from '../components/myProfile/MyReview';
 import MyPosts from '../components/myProfile/MyPosts';
 import MyComments from '../components/myProfile/MyComments';
+import WithdrawSection from '../components/myProfile/WithdrawSection';
 import { SiNaver } from 'react-icons/si';
 import { FcGoogle } from 'react-icons/fc';
 import { RiKakaoTalkFill } from 'react-icons/ri';
@@ -63,6 +64,7 @@ function MyProfile() {
           </div>
         </div>
       </div>
+      <WithdrawSection />
     </MyProfileStyle>
   );
 }
