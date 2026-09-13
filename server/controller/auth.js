@@ -163,9 +163,14 @@ const getUserBySocialId = (socialId, socialType) => {
 const createUser = (socialId, socialType, username) => {
   return new Promise((resolve, reject) => {
     const safeUsername = username || `User_${socialId.substr(0, 8)}`;
+    /*
+     * 소셜 계정은 가입 폼을 거치지 않아 체크박스를 보여 줄 자리가 없습니다.
+     * 로그인 화면의 소셜 버튼 아래에 "누르면 동의한 것으로 봅니다" 를 적어 두고,
+     * 계정이 처음 만들어지는 이 시점을 동의 시각으로 남깁니다.
+     */
     conn.query(
-      'INSERT INTO users (social_id, social_type, username) VALUES (?, ?, ?)',
-      [socialId, socialType, safeUsername],
+      'INSERT INTO users (social_id, social_type, username, terms_agreed_at) VALUES (?, ?, ?, ?)',
+      [socialId, socialType, safeUsername, new Date()],
       (error, results) => {
         if (error) {
           logError('Error creating user', error);
@@ -234,6 +239,14 @@ const validateSignup = (body) => {
   if (!address) return { error: '주소를 입력해주세요.' };
   if (address.length > 255) return { error: '주소는 255자까지 입력할 수 있습니다.' };
 
+  /*
+   * 필수 동의(만 14세 이상 · 이용약관 · 개인정보 수집·이용)를 서버에서도 확인합니다.
+   * 화면의 체크박스만 두면 요청을 직접 만들어 보내는 쪽은 그냥 지나갑니다.
+   */
+  if (body.agreed !== true) {
+    return { error: '필수 항목에 동의해야 가입할 수 있습니다.' };
+  }
+
   return { value: { username, email, password, phone, address } };
 };
 
@@ -244,9 +257,9 @@ exports.signup = async (req, res) => {
   try {
     const hashed = await bcrypt.hash(value.password, SALT_ROUNDS);
     const result = await query(
-      `INSERT INTO users (username, email, password, phone, address, role)
-       VALUES (?, ?, ?, ?, ?, 'user')`,
-      [value.username, value.email, hashed, value.phone, value.address]
+      `INSERT INTO users (username, email, password, phone, address, role, terms_agreed_at)
+       VALUES (?, ?, ?, ?, ?, 'user', ?)`,
+      [value.username, value.email, hashed, value.phone, value.address, new Date()]
     );
 
     const user = {

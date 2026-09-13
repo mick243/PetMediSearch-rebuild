@@ -23,6 +23,8 @@ CREATE TABLE `users` (
    `address` varchar(255) NULL,
    `role` varchar(20) NOT NULL DEFAULT 'user',
    `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+   -- 필수 약관에 동의한 시각. 화면의 체크만으로는 동의를 받았다는 것을 증명할 수 없습니다.
+   `terms_agreed_at` timestamp(3) NULL DEFAULT NULL,
    -- 탈퇴는 행을 지우지 않고 이 값을 채웁니다. FK 5개가 ON DELETE SET NULL 이라
    -- 지우면 글은 남고 작성자만 사라집니다.
    `deleted_at` timestamp(3) NULL DEFAULT NULL,
