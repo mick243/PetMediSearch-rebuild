@@ -165,6 +165,34 @@ if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: '이�
 이메일이 없는 것과 비밀번호가 틀린 것을 같은 문구로 답합니다. 나누면 그 이메일로
 가입했는지가 새어 나갑니다.
 
+### 2.10 받은 값은 DB 에 닿기 전에 검사한다
+
+`server/controller/validate.js` 를 씁니다. 그대로 INSERT 하면 빈 제목도 70KB
+댓글도 통과한 뒤 DB 제약에서 500 으로 죽고, 로그에는 쿼리 전문이 남습니다.
+
+에디터 본문은 `trim` 으로 부족합니다. ReactQuill 이 빈 글을 `<p><br></p>` 로
+보내서 `!content` 에 걸리지 않습니다 — `richTextHasContent` 로 봅니다.
+
+### 2.11 오류는 `logError` 로 남긴다
+
+```js
+logError('addPostById', err);   // console.error(err) 금지
+```
+
+mysql2 오류는 `err.sql` 에 쿼리 전문을 들고 있습니다. 사진이 붙은 글 하나가
+실패하면 100KB base64 가 로그에 남고, 값으로 들어간 개인정보도 같이 남습니다.
+axios 오류를 통째로 찍으면 요청 config 에 실린 `client_secret` 까지 남습니다.
+
+같은 이유로 **쿼리·요청 본문·외부 API 응답을 `console.log` 하지 않습니다.**
+
+### 2.12 인증 경로에는 요청 제한을 건다
+
+`server/middleware/rateLimit.js` — 로그인 15분에 실패 10번, 가입 1시간에 5개,
+그 밖은 1분에 300번. 개발에서도 켜 둡니다.
+
+프록시 뒤에 두면 `TRUST_PROXY` 를 설정해야 합니다. 없으면 모든 사용자가
+프록시 주소 하나로 묶여, 한 사람 때문에 전부 막힙니다.
+
 ---
 
 ## 3. 데이터베이스
@@ -408,6 +436,9 @@ docker exec -i petmedisearch-mysql mysql -uroot -p<암호> --default-character-s
 | JWT 페이로드 | `{ id, role }`, 유효기간 1일 |
 | 비밀번호 해시 | bcrypt cost 12 |
 | 요청 본문 상한 | 3mb (`server/app.js`) |
-| 관리자 계정 만들기 | `cd server && npm run create-admin` |
+| 관리자 계정 만들기 | `cd server && ADMIN_PASSWORD='...' npm run create-admin` (비밀번호 필수) |
+| 보안 헤더 | helmet (CSP 는 끔 — API 서버이고 Swagger UI 가 깨짐) |
+| Swagger | 개발에서만. `NODE_ENV=production` 이면 `/api` 미등록 |
+| 소셜 로그인 state | `client/src/utils/oauthState.ts` — 나갈 때 발급, 돌아올 때 검증 |
 | 회원가입 수집 항목 | 이름·전화번호·이메일·주소 |
 | 지도 | Kakao Maps SDK, 클러스터링은 서버에서 격자로 |
