@@ -6,9 +6,10 @@
   "scripts": {
     "start": "node app.js",
     "dev": "nodemon app.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test",
     "sync-data": "node scripts/syncData.js",
-    "create-admin": "node scripts/createAdmin.js"
+    "create-admin": "node scripts/createAdmin.js",
+    "lint": "eslint . --ext .js"
   },
   "author": "",
   "license": "ISC",
@@ -25,5 +26,8 @@
     "proj4": "^2.12.1",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.1"
   }
 }

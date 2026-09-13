@@ -11,10 +11,6 @@ const MAX_PAGE_SIZE = 50;
  * createTables.sql 시드에서 첫 번째로 들어가는 카테고리라 1 로 고정입니다.
  */
 const ALL_CATEGORY_ID = 1;
-const getCategories = (req, res) => {
-
-}
-
 const getListByCategory = (req, res) => {
     const categoryId = req.query.category;
     if (!categoryId) {
@@ -92,6 +88,5 @@ const getListByCategory = (req, res) => {
 }
 
 module.exports = {
-    getCategories,
     getListByCategory
 }
