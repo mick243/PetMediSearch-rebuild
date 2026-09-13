@@ -1,15 +1,27 @@
+import { MouseEvent } from 'react';
 import styled from 'styled-components';
 import { SiNaver } from 'react-icons/si';
+import { issueOAuthState } from '../../utils/oauthState';
 
 const N_CLIENT_ID = import.meta.env.VITE_N_REST_API_KEY;
 const N_REDIRECT_URI = import.meta.env.VITE_N_REDIRECT_URL;
 
-const NAVER_AUTH_URL = `https://nid.naver.com/oauth2.0/authorize?response_type=code&client_id=${N_CLIENT_ID}&redirect_uri=${N_REDIRECT_URI}&state=${Math.random().toString(36).substr(2, 11)}`;
+const NAVER_AUTH_URL = `https://nid.naver.com/oauth2.0/authorize?response_type=code&client_id=${N_CLIENT_ID}&redirect_uri=${N_REDIRECT_URI}`;
+
+/*
+ * state 는 여기서 만들어 sessionStorage 에 넣고 함께 보냅니다.
+ * 모듈이 읽힐 때 한 번 만들면 탭을 열어 둔 내내 같은 값이 쓰입니다.
+ */
+function go(event: MouseEvent<HTMLAnchorElement>) {
+  event.preventDefault();
+  const state = issueOAuthState('naver');
+  window.location.href = `${NAVER_AUTH_URL}&state=${state}`;
+}
 
 function LoginNaver() {
   return (
     <LoginNaverStyle>
-      <a href={NAVER_AUTH_URL}>
+      <a href={NAVER_AUTH_URL} onClick={go}>
         <div className="naverbttn">
           <SiNaver className="icon" />
           <p className="messge">네이버 로그인</p>

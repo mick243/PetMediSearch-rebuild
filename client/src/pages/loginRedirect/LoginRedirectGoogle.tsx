@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import Spinner from '../../components/common/Spinner';
 import { setLogin } from '../../store/slices/authSlice';
+import { verifyOAuthState } from '../../utils/oauthState';
 import { useDispatch } from 'react-redux';
 
 const BASE_URL = import.meta.env.VITE_BASE_URL;
@@ -10,8 +11,20 @@ function LoginRedirectGoogle() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const code = new URL(window.location.href).searchParams.get('code');
+  const state = new URL(window.location.href).searchParams.get('state');
 
   useEffect(() => {
+    /*
+     * 나갈 때 만든 state 와 같은 값이 돌아왔는지 봅니다.
+     * 다르면 내가 시작한 로그인이 아니므로 코드를 서버에 넘기지 않습니다.
+     */
+    if (!verifyOAuthState('google', state)) {
+      console.error('google: state 가 맞지 않습니다.');
+      alert('로그인을 다시 시도해주세요.');
+      navigate('/login', { replace: true });
+      return;
+    }
+
     fetch(`${BASE_URL}/auth/google?code=${code}`, {
       method: 'GET',
       headers: {
@@ -36,7 +49,7 @@ function LoginRedirectGoogle() {
         console.error('Google login failed:', error);
         navigate('/login');
       });
-  }, [code, dispatch, navigate]);
+  }, [code, state, dispatch, navigate]);
 
   return (
     <LoginRedirectGoogleStyle>
