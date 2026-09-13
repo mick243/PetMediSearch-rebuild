@@ -8,6 +8,8 @@ import Home from './pages/Home';
 import Search from './pages/Search';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+import Terms from './pages/Terms';
+import Privacy from './pages/Privacy';
 import Layout from './layout/Layout';
 import Error from './components/common/Error';
 import Posts from './pages/Posts';
@@ -40,6 +42,15 @@ const routeList = [
   {
     path: '/signup',
     element: <Signup />,
+  },
+  // 약관·방침은 가입 전에도 읽을 수 있어야 해서 LoginProtect 로 감싸지 않습니다.
+  {
+    path: '/terms',
+    element: <Terms />,
+  },
+  {
+    path: '/privacy',
+    element: <Privacy />,
   },
   {
     // 카테고리 화면은 게시판 탭으로 흡수됐습니다. 예전 주소는 통합(전체 글)로 보냅니다.
