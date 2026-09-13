@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const axios = require('axios');
 const conn = require('../mysql');
+const { verifyToken } = require('./authUser');
 
 exports.kakaoLogin = async (req, res) => {
   const { code } = req.query;
@@ -149,7 +150,7 @@ const toClientUser = (user) => ({
 const getUserBySocialId = (socialId, socialType) => {
   return new Promise((resolve, reject) => {
     conn.query(
-      'SELECT * FROM users WHERE social_id = ? AND social_type = ?',
+      'SELECT * FROM users WHERE social_id = ? AND social_type = ? AND deleted_at IS NULL',
       [socialId, socialType],
       (error, results) => {
         if (error) reject(error);
@@ -277,7 +278,11 @@ exports.login = async (req, res) => {
   }
 
   try {
-    const rows = await query('SELECT * FROM users WHERE email = ?', [email]);
+    // 탈퇴한 계정은 이메일이 비워지므로 이 조회에 걸리지 않지만, 뜻을 코드에 남겨 둡니다.
+    const rows = await query(
+      'SELECT * FROM users WHERE email = ? AND deleted_at IS NULL',
+      [email]
+    );
     const user = rows[0];
 
     // 없는 이메일인지 비밀번호가 틀렸는지 구분해서 알려주면 가입 여부가 새어 나갑니다.
@@ -291,5 +296,68 @@ exports.login = async (req, res) => {
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ message: '로그인 처리 중 오류가 발생했습니다.' });
+  }
+};
+
+/* ------------------------------------------------------------------ *
+ * 회원 탈퇴
+ *
+ * 정책은 두 가지를 함께 씁니다.
+ *   ① 쓴 글·댓글·후기는 soft delete 로 함께 감춥니다 (deleted_at)
+ *   ③ users 행은 남기고 deleted_at 으로 계정만 비활성화합니다
+ *
+ * 행을 지우지 않는 이유는 posts·comments·reviews 의 FK 가 ON DELETE SET NULL 이라,
+ * 지우면 글은 남고 작성자만 사라져 author JOIN 이 깨지기 때문입니다.
+ * 행을 남겨 두면 FK 가 성하고 잘못 눌렀을 때 deleted_at 만 지워 되살릴 수도 있습니다.
+ *
+ * 다만 개인정보는 되돌리지 않습니다. 이메일·비밀번호·전화번호·주소·소셜 식별자를
+ * 비우고 표시 이름만 남깁니다. 탈퇴는 "더 이상 보관하지 말라" 는 뜻이고,
+ * 이메일을 비워야 같은 주소로 다시 가입할 수도 있습니다(UNIQUE 는 NULL 을 안 봅니다).
+ *
+ * 반려동물과 즐겨찾기는 공개된 글이 아니라 본인만 보는 기록이라 실제로 지웁니다.
+ * 접종 일정은 pets 의 FK(ON DELETE CASCADE)가 함께 지웁니다.
+ * ------------------------------------------------------------------ */
+exports.withdraw = async (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  const decoded = verifyToken(token);
+
+  if (!decoded) {
+    return res.status(401).json({ message: '유효하지 않은 토큰입니다.' });
+  }
+
+  const userId = decoded.id;
+  /*
+   * 시각을 SQL 의 NOW() 대신 여기서 만들어 네 문장에 같은 값을 씁니다.
+   * 그래야 나중에 "이 탈퇴로 함께 감춰진 글" 을 시각 하나로 정확히 골라낼 수 있습니다.
+   */
+  const deletedAt = new Date();
+
+  try {
+    // 계정을 먼저 닫습니다. 여기서 걸리면 이미 탈퇴한 계정이라 글은 건드리지 않습니다.
+    const closed = await query(
+      `UPDATE users
+          SET deleted_at = ?, username = '탈퇴한 사용자',
+              email = NULL, password = NULL, phone = NULL, address = NULL,
+              social_id = NULL, social_type = NULL
+        WHERE user_id = ? AND deleted_at IS NULL`,
+      [deletedAt, userId]
+    );
+
+    if (closed.affectedRows === 0) {
+      return res.status(404).json({ message: '이미 탈퇴한 계정입니다.' });
+    }
+
+    // 이미 지워져 있던 글은 건드리지 않아, 되살려도 그대로 지워진 채 남습니다.
+    await query('UPDATE posts SET deleted_at = ? WHERE user_id = ? AND deleted_at IS NULL', [deletedAt, userId]);
+    await query('UPDATE comments SET deleted_at = ? WHERE user_id = ? AND deleted_at IS NULL', [deletedAt, userId]);
+    await query('UPDATE reviews SET deleted_at = ? WHERE user_id = ? AND deleted_at IS NULL', [deletedAt, userId]);
+
+    await query('DELETE FROM favorite_facilities WHERE user_id = ?', [userId]);
+    await query('DELETE FROM pets WHERE user_id = ?', [userId]);
+
+    return res.json({ message: '탈퇴가 완료되었습니다.' });
+  } catch (err) {
+    console.error('Withdraw error:', err.code, err.message);
+    return res.status(500).json({ message: '탈퇴 처리 중 오류가 발생했습니다.' });
   }
 };
