@@ -399,22 +399,29 @@ Windows + Git Bash 조합에서 실제로 여러 번 당한 것들입니다.
 
 → UTF-8 JSON 파일로 쓰고 `curl --data-binary @file.json` 으로 보냅니다.
 
-### 6.2.1 mysql 클라이언트에 charset 을 안 주면 SQL 파일의 한글이 깨진다
+### 6.2.1 SQL 파일의 한글이 깨진다
 
-`.sql` 파일을 파이프로 넣을 때 `--default-character-set=utf8mb4` 를 빼면 클라이언트가
-파일을 latin1 로 읽습니다. 문법 오류가 아니라 **조용히 깨진 값이 들어갑니다.**
+`.sql` 을 파이프로 넣을 때 클라이언트가 파일을 latin1 로 읽으면 문법 오류가 아니라
+**조용히 깨진 값이 들어갑니다.**
 
 ```
 enum('약국','병원')  →  enum('ì•½êµ­','ë³‘ì›')
 분류 이름 '강아지'    →  'ê°•ì•„ì§€'
 ```
 
-실제로 `createTables.sql` 로 새로 설치하면 users·categories 시드와 enum, 컬럼 주석이
-전부 이렇게 됐습니다. 모든 `.sql` 적용 명령에 플래그가 들어 있는지 확인하세요.
+**새 `.sql` 파일에는 반드시 맨 위에 `SET NAMES utf8mb4;` 를 넣습니다.** 그러면
+어떻게 실행하든 안전합니다 — `docker-entrypoint-initdb.d` 로 도는 초기화에는
+플래그를 붙일 자리가 아예 없습니다(실제로 배포 검증에서 여기 걸렸습니다).
+
+손으로 넣을 때는 플래그도 함께 주는 편이 좋습니다.
 
 ```bash
 docker exec -i petmedisearch-mysql mysql -uroot -p<암호> --default-character-set=utf8mb4 petmedisearch < scripts/<파일>.sql
 ```
+
+MySQL 설정 파일(`my.cnf`)로 푸는 방법은 **Windows 에서 통하지 않습니다.**
+바인드 마운트든 compose `configs` 든 파일이 0777 이 되고, MySQL 은
+`World-writable config file ... is ignored` 경고만 남기고 무시합니다.
 
 ### 6.3 일괄 치환이 한국어 조사를 깬다
 
@@ -431,6 +438,21 @@ docker exec -i petmedisearch-mysql mysql -uroot -p<암호> --default-character-s
 작업은 `.claude/worktrees/...` 안에서만 합니다. 베이스 체크아웃을 고치면 훅이
 막습니다. 워크트리에는 `.env` 를 복사하고 `node_modules` 를 연결해 둡니다
 (단, Turbopack 처럼 정션을 거부하는 도구는 실제 `npm ci` 가 필요합니다).
+
+---
+
+## 6.6 배포 관련 규약
+
+- **DB 는 풀로 씁니다** (`server/mysql.js`). 커넥션 하나로 쓰면 쿼리가 한 줄로 서고,
+  MySQL 의 `wait_timeout`(8시간)에 끊긴 뒤 되살아나지 않습니다.
+- **`/health` 는 실제로 쿼리를 던져 봅니다.** 프로세스만 떠 있고 DB 에 못 닿는
+  상태가 가장 흔한데, 그때 200 을 주면 감시 도구가 멀쩡하다고 봅니다.
+- **`SIGTERM` 을 처리합니다** (`app.js` 아래쪽). `docker stop` 은 10초 뒤 강제로
+  죽이므로, 처리 없이는 배포할 때마다 진행 중이던 요청이 끊깁니다.
+- **Dockerfile 의 `CMD` 는 `npm start` 가 아니라 `node app.js`** 입니다.
+  npm 을 거치면 SIGTERM 이 node 까지 가지 않아 위 처리가 동작하지 않습니다.
+- **환경변수를 늘리면 `server/.env.example` 에도 적습니다.** 실제 `.env` 는
+  git 에 없어서, 그 파일이 유일한 목록입니다.
 
 ---
 
