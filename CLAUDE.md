@@ -456,15 +456,42 @@ MySQL 설정 파일(`my.cnf`)로 푸는 방법은 **Windows 에서 통하지 않
 
 ---
 
+## 6.7 테스트
+
+테스트는 **한 번에 다 붙이지 않고, 고치는 것마다 하나씩** 붙입니다.
+지금 있는 것도 전부 이번에 실제로 문제가 났던 자리입니다.
+
+| 대상 | 도구 | 왜 |
+|---|---|---|
+| `server/search.js` | `node --test` | 검색 규칙이 눈으로 읽어서는 맞는지 모릅니다 |
+| `server/controller/validate.js` | `node --test` | 여기가 뚫리면 DB 제약에서 500 이 납니다 |
+| `client/src/utils/*.ts` | Vitest | 순수 함수라 값싸게 고정할 수 있습니다 |
+
+```bash
+cd server && npm test     # node --test, 의존성 없음
+cd client && npm test     # vitest run
+```
+
+**`app.js` 에 순수 함수를 두지 않습니다.** `require` 하는 순간 서버가 떠서
+테스트에서 부를 수 없습니다. 검색 로직을 `server/search.js` 로 뺀 이유입니다.
+
+서버에도 ESLint 가 있습니다(`server/.eslintrc.cjs`). `no-undef` 가 "부르는데
+`require` 하지 않은 식별자" 를 잡습니다 — 실제로 그 버그가 두 파일에 있었습니다.
+
+CI 는 `.github/workflows/ci.yml` 에서 밀어 넣을 때마다 위를 전부 돕니다.
+
+---
+
 ## 7. 끝났다고 말하기 전 점검표
 
 1. `cd client && npm run build` — `tsc -b` 통과
-2. `cd client && npm run lint` — 경고 0
-3. 브라우저에서 **실제로 그 동작**을 해 봄 (로그인 → 클릭 → 화면 → 새로고침)
-4. 네트워크 탭에서 요청/응답 확인
-5. 시험하며 바꾼 데이터 원상복구
-6. 성능에 관한 변경이면 **전/후 수치**를 같이 보고
-7. 보고에는 한 것, 안 한 것, 확인 못 한 것을 나눠서 씀
+2. `cd client && npm run lint` · `cd server && npm run lint` — 경고 0
+3. `cd client && npm test` · `cd server && npm test` — 전부 통과
+4. 브라우저에서 **실제로 그 동작**을 해 봄 (로그인 → 클릭 → 화면 → 새로고침)
+5. 네트워크 탭에서 요청/응답 확인
+6. 시험하며 바꾼 데이터 원상복구
+7. 성능에 관한 변경이면 **전/후 수치**를 같이 보고
+8. 보고에는 한 것, 안 한 것, 확인 못 한 것을 나눠서 씀
 
 ---
 
