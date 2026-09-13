@@ -1,7 +1,7 @@
 import { httpClient } from './http';
-import { AuthResponse, LoginInput, SignupInput } from '../types/auth.type';
+import { AuthResponse, LoginInput, SignupRequest } from '../types/auth.type';
 
-export const signup = async (input: SignupInput) => {
+export const signup = async (input: SignupRequest) => {
   const res = await httpClient.post<AuthResponse>('/auth/signup', input);
   return res.data;
 };

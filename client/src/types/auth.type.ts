@@ -22,6 +22,15 @@ export interface SignupInput {
   address: string;
 }
 
+/**
+ * 가입 요청. 필수 동의 여부를 함께 보냅니다.
+ * 서버도 이 값을 확인합니다 — 화면의 체크박스만 두면 요청을 직접 만들어
+ * 보내는 쪽은 그냥 지나갑니다.
+ */
+export interface SignupRequest extends SignupInput {
+  agreed: true;
+}
+
 export interface LoginInput {
   email: string;
   password: string;

@@ -7,6 +7,11 @@ import { apiErrorMessage } from '../utils/apiError';
 import { setLogin } from '../store/slices/authSlice';
 import { SignupInput } from '../types/auth.type';
 import { Actions, CancelBt, SubmitBt } from '../components/board/postEditor';
+import ConsentBox, {
+  Consents,
+  EMPTY_CONSENTS,
+  allAgreed,
+} from '../components/legal/ConsentBox';
 
 const EMPTY: SignupInput = {
   username: '',
@@ -31,6 +36,7 @@ function Signup() {
 
   const [form, setForm] = useState<SignupInput>(EMPTY);
   const [confirm, setConfirm] = useState('');
+  const [consents, setConsents] = useState<Consents>(EMPTY_CONSENTS);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -47,6 +53,7 @@ function Signup() {
     if (form.password !== confirm) return '비밀번호가 서로 다릅니다.';
     if (!form.phone.trim()) return '전화번호를 입력해주세요.';
     if (!form.address.trim()) return '주소를 입력해주세요.';
+    if (!allAgreed(consents)) return '필수 항목에 모두 동의해주세요.';
     return '';
   };
 
@@ -60,7 +67,7 @@ function Signup() {
     setSaving(true);
     setError('');
     try {
-      const data = await signup(form);
+      const data = await signup({ ...form, agreed: true });
       dispatch(setLogin({ token: data.token, user: data.user }));
       navigate('/', { replace: true });
     } catch (err) {
@@ -150,6 +157,8 @@ function Signup() {
             autoComplete="street-address"
           />
         </Field>
+
+        <ConsentBox value={consents} onChange={setConsents} />
 
         {error && <ErrorText role="alert">{error}</ErrorText>}
 
