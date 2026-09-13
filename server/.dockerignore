@@ -1,0 +1,16 @@
+# 이미지에 들어가면 안 되거나, 들어갈 이유가 없는 것들.
+
+# 비밀값. 실행할 때 환경변수로 넘깁니다.
+.env
+*.env
+!.env.example
+
+# 컨테이너 안에서 다시 설치합니다. 호스트 것을 넣으면 OS 가 달라 네이티브 모듈이 깨집니다.
+node_modules
+
+# 빌드 문맥만 키우는 것들
+.git
+.gitignore
+Dockerfile
+.dockerignore
+npm-debug.log*
