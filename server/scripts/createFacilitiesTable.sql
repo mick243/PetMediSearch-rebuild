@@ -10,6 +10,11 @@
 -- --default-character-set=utf8mb4 를 빼면 type 의 enum('약국','병원') 이 깨져
 -- 적재(syncData.js)가 값을 못 넣습니다.
 
+-- 이 파일은 UTF-8 로 쓰여 있습니다. 아래 한 줄이 없으면 mysql 클라이언트가
+-- latin1 로 읽어 한글이 조용히 깨집니다 ('통합' → 'í†µí•©').
+-- 특히 docker-entrypoint-initdb.d 로 도는 초기화에는 charset 플래그를 붙일 자리가 없습니다.
+SET NAMES utf8mb4;
+
 CREATE TABLE IF NOT EXISTS `medical_facilities` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `mgtno` VARCHAR(255) NOT NULL COMMENT '관리번호',

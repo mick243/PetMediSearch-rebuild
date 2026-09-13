@@ -9,6 +9,11 @@
 -- 읽어서 한글이 전부 깨집니다 — 분류 이름이 'ê°•ì•„ì§€' 가 되고 enum('약국','병원') 도
 -- 못 쓰는 값이 됩니다.
 
+-- 이 파일은 UTF-8 로 쓰여 있습니다. 아래 한 줄이 없으면 mysql 클라이언트가
+-- latin1 로 읽어 한글이 조용히 깨집니다 ('통합' → 'í†µí•©').
+-- 특히 docker-entrypoint-initdb.d 로 도는 초기화에는 charset 플래그를 붙일 자리가 없습니다.
+SET NAMES utf8mb4;
+
 CREATE TABLE `users` (
    `user_id` int NOT NULL AUTO_INCREMENT,
    -- 화면에 보이는 이름입니다. 소셜은 제공자가 준 이름, 일반 가입은 입력한 이름을 씁니다.

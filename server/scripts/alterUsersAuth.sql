@@ -10,6 +10,11 @@
 -- posts·comments·reviews·pets·favorite_facilities 다섯 테이블이 users.user_id 를
 -- 참조하고 있어서, 그대로는 이 컬럼에 손댈 수 없습니다(ERROR 1833).
 -- int 그대로 두고 AUTO_INCREMENT 속성만 얹는 것이라 잠깐 꺼도 데이터는 안전합니다.
+-- 이 파일은 UTF-8 로 쓰여 있습니다. 아래 한 줄이 없으면 mysql 클라이언트가
+-- latin1 로 읽어 한글이 조용히 깨집니다 ('통합' → 'í†µí•©').
+-- 특히 docker-entrypoint-initdb.d 로 도는 초기화에는 charset 플래그를 붙일 자리가 없습니다.
+SET NAMES utf8mb4;
+
 SET foreign_key_checks = 0;
 
 -- 소셜이든 일반이든 가입하면 새 행이 생기므로 번호를 자동으로 매깁니다.
