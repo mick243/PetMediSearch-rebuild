@@ -38,8 +38,13 @@ export function issueOAuthState(provider: OAuthProvider): string {
 /**
  * 돌아왔을 때 부릅니다. 맞으면 true 이고, 한 번 쓴 값은 지웁니다.
  *
- * 저장해 둔 값이 아예 없으면 통과시킵니다. 저장이 막힌 브라우저에서 로그인이
- * 영영 안 되는 쪽이 더 나쁩니다. 값이 있는데 다르면 막습니다 — 그건 실수가 아닙니다.
+ * **저장해 둔 값이 없으면 막습니다.** 처음에는 "없으면 통과" 로 뒀는데, 그게
+ * 바로 막으려던 공격 그 자체였습니다. 공격자가 자기 인가 코드를 담은 링크를
+ * 피해자에게 열게 하는 경우, 피해자는 로그인을 시작한 적이 없으니 저장된 값도
+ * 없습니다. 통과시키면 검사를 하나 마나입니다.
+ *
+ * 저장이 막힌 브라우저에서는 소셜 로그인이 안 되지만, 그쪽이 맞는 선택입니다.
+ * 안전하게 만들 수 없는 로그인을 되게 하는 것보다 낫습니다.
  */
 export function verifyOAuthState(
   provider: OAuthProvider,
@@ -50,9 +55,9 @@ export function verifyOAuthState(
     saved = sessionStorage.getItem(key(provider));
     sessionStorage.removeItem(key(provider));
   } catch {
-    return true;
+    return false;
   }
 
-  if (!saved) return true;
+  if (!saved || !received) return false;
   return saved === received;
 }
