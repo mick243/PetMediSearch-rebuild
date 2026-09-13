@@ -1,4 +1,5 @@
 const conn = require('../mysql');
+const { logError } = require('../logError');
 
 /** 한 번에 보낼 글 수. 화면 기본값과 맞춰 둡니다. */
 const DEFAULT_PAGE_SIZE = 10;
