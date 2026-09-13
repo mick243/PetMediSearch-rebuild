@@ -107,6 +107,22 @@ const dateField = (raw, { label, required = true, future = true }) => {
     if (Number.isNaN(parsed.getTime())) {
         return { error: `${eun(label)} 올바른 날짜가 아닙니다.` };
     }
+
+    /*
+     * 되돌려 보고 같은 날짜인지 확인합니다.
+     *
+     * 형식만 보면 2020-02-31 이 통과합니다. Date 는 그것을 3월 2일로 넘겨 버려서
+     * 오류가 나지 않기 때문입니다. 그대로 두면 MySQL 의 STRICT 모드가 거부해
+     * 사용자는 "서버 에러 발생" 만 보게 됩니다.
+     */
+    const [y, m, d] = value.split('-').map(Number);
+    if (
+        parsed.getFullYear() !== y ||
+        parsed.getMonth() + 1 !== m ||
+        parsed.getDate() !== d
+    ) {
+        return { error: `${eun(label)} 올바른 날짜가 아닙니다.` };
+    }
     if (!future) {
         const today = new Date();
         today.setHours(23, 59, 59, 999);
