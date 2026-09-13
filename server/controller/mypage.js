@@ -1,4 +1,5 @@
 const conn = require('../mysql');
+const { logError } = require('../logError');
 const { verifyToken } = require("./authUser");
 
 // 유저 id 에 따른 게시글 조회
@@ -17,7 +18,7 @@ const getPostsByUserId = (req, res) => {
 
     conn.query(query, [user_id], (err, results) => {
         if (err) {
-            console.error(err);
+            logError('mypage', err);
             return res.status(500).send({ message: '서버 에러 발생' });
         }
 
@@ -38,11 +39,12 @@ const getReviewsByUserId = (req, res) => {
     const user_id = decoded.id;
 
     // 후기에는 사진이 붙어 있어 더더욱 전부 내려보내면 안 됩니다.
-    const query = 'SELECT * FROM reviews WHERE user_id = ? ORDER BY created_at DESC LIMIT 20';
+    const query = `SELECT * FROM reviews WHERE user_id = ? AND deleted_at IS NULL
+                    ORDER BY created_at DESC, review_id DESC LIMIT 20`;
 
     conn.query(query, [user_id], (err, results) => {
         if (err) {
-            console.error(err);
+            logError('mypage', err);
             return res.status(500).send({ message: '서버 에러 발생' });
         }
 
@@ -85,7 +87,7 @@ const getCommentsByUserId = (req, res) => {
 
     conn.query(query, [user_id, RECENT_LIMIT], (err, results) => {
         if (err) {
-            console.error(err);
+            logError('mypage', err);
             return res.status(500).send({ message: '서버 에러 발생' });
         }
 

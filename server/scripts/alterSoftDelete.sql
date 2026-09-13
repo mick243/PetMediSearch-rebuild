@@ -9,5 +9,10 @@
 
 -- 밀리초까지 남깁니다. 글을 지우면 그 글의 댓글도 같은 값으로 함께 표시하는데,
 -- 초 단위로는 마침 같은 초에 따로 지워진 댓글과 구분되지 않습니다.
+-- 이 파일은 UTF-8 로 쓰여 있습니다. 아래 한 줄이 없으면 mysql 클라이언트가
+-- latin1 로 읽어 한글이 조용히 깨집니다 ('통합' → 'í†µí•©').
+-- 특히 docker-entrypoint-initdb.d 로 도는 초기화에는 charset 플래그를 붙일 자리가 없습니다.
+SET NAMES utf8mb4;
+
 ALTER TABLE `posts`    ADD COLUMN `deleted_at` timestamp(3) NULL DEFAULT NULL;
 ALTER TABLE `comments` ADD COLUMN `deleted_at` timestamp(3) NULL DEFAULT NULL;

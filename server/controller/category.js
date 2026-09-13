@@ -1,4 +1,5 @@
 const conn = require('../mysql');
+const { logError } = require('../logError');
 
 /** 한 번에 보낼 글 수. 화면 기본값과 맞춰 둡니다. */
 const DEFAULT_PAGE_SIZE = 10;
@@ -10,10 +11,6 @@ const MAX_PAGE_SIZE = 50;
  * createTables.sql 시드에서 첫 번째로 들어가는 카테고리라 1 로 고정입니다.
  */
 const ALL_CATEGORY_ID = 1;
-const getCategories = (req, res) => {
-
-}
-
 const getListByCategory = (req, res) => {
     const categoryId = req.query.category;
     if (!categoryId) {
@@ -81,7 +78,8 @@ const getListByCategory = (req, res) => {
             }
             conn.query(countQuery, values, (countError, countRows) => {
                 if (countError) {
-                    return res.status(500).send({ message: '서버 오류 발생', error: countError });
+                    logError('category:count', countError);
+                    return res.status(500).send({ message: '서버 오류 발생' });
                 }
                 return res.send({ posts: results, total: countRows[0]?.total ?? results.length });
             });
@@ -90,6 +88,5 @@ const getListByCategory = (req, res) => {
 }
 
 module.exports = {
-    getCategories,
     getListByCategory
 }

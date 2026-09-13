@@ -165,6 +165,34 @@ if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: '이�
 이메일이 없는 것과 비밀번호가 틀린 것을 같은 문구로 답합니다. 나누면 그 이메일로
 가입했는지가 새어 나갑니다.
 
+### 2.10 받은 값은 DB 에 닿기 전에 검사한다
+
+`server/controller/validate.js` 를 씁니다. 그대로 INSERT 하면 빈 제목도 70KB
+댓글도 통과한 뒤 DB 제약에서 500 으로 죽고, 로그에는 쿼리 전문이 남습니다.
+
+에디터 본문은 `trim` 으로 부족합니다. ReactQuill 이 빈 글을 `<p><br></p>` 로
+보내서 `!content` 에 걸리지 않습니다 — `richTextHasContent` 로 봅니다.
+
+### 2.11 오류는 `logError` 로 남긴다
+
+```js
+logError('addPostById', err);   // console.error(err) 금지
+```
+
+mysql2 오류는 `err.sql` 에 쿼리 전문을 들고 있습니다. 사진이 붙은 글 하나가
+실패하면 100KB base64 가 로그에 남고, 값으로 들어간 개인정보도 같이 남습니다.
+axios 오류를 통째로 찍으면 요청 config 에 실린 `client_secret` 까지 남습니다.
+
+같은 이유로 **쿼리·요청 본문·외부 API 응답을 `console.log` 하지 않습니다.**
+
+### 2.12 인증 경로에는 요청 제한을 건다
+
+`server/middleware/rateLimit.js` — 로그인 15분에 실패 10번, 가입 1시간에 5개,
+그 밖은 1분에 300번. 개발에서도 켜 둡니다.
+
+프록시 뒤에 두면 `TRUST_PROXY` 를 설정해야 합니다. 없으면 모든 사용자가
+프록시 주소 하나로 묶여, 한 사람 때문에 전부 막힙니다.
+
 ---
 
 ## 3. 데이터베이스
@@ -314,6 +342,23 @@ useEffect(() => {
 
 ---
 
+## 4.11 법적 고지는 코드와 함께 고친다
+
+`client/src/pages/Privacy.tsx` · `Terms.tsx` 는 **이 앱이 실제로 하는 일**을 적은
+문서입니다. 아래를 고치면 문서도 같이 고쳐야 합니다.
+
+| 코드 | 문서 |
+|---|---|
+| `validateSignup` 의 수집 항목 | 방침 1장 "수집하는 개인정보" |
+| `withdraw` 의 파기 범위 | 방침 2장 "보유 기간과 파기" |
+| 외부 서비스 추가 (분석 도구 등) | 방침 3장 "제3자 제공과 처리 위탁" |
+| 시설 데이터 출처·주기 | 약관 제9조, 푸터 출처 표기 |
+
+`<Todo>` 로 감싼 칸은 노란 배경으로 눈에 띄게 두었습니다. 서비스 시작 전에
+채워야 하고, 흐린 회색 자리표시자로 바꾸지 마세요 — 그대로 배포됩니다.
+
+---
+
 ## 5. 주석
 
 주석은 **무엇을 하는지가 아니라 왜 그렇게 했는지**를 씁니다. 코드를 읽으면 아는
@@ -354,22 +399,29 @@ Windows + Git Bash 조합에서 실제로 여러 번 당한 것들입니다.
 
 → UTF-8 JSON 파일로 쓰고 `curl --data-binary @file.json` 으로 보냅니다.
 
-### 6.2.1 mysql 클라이언트에 charset 을 안 주면 SQL 파일의 한글이 깨진다
+### 6.2.1 SQL 파일의 한글이 깨진다
 
-`.sql` 파일을 파이프로 넣을 때 `--default-character-set=utf8mb4` 를 빼면 클라이언트가
-파일을 latin1 로 읽습니다. 문법 오류가 아니라 **조용히 깨진 값이 들어갑니다.**
+`.sql` 을 파이프로 넣을 때 클라이언트가 파일을 latin1 로 읽으면 문법 오류가 아니라
+**조용히 깨진 값이 들어갑니다.**
 
 ```
 enum('약국','병원')  →  enum('ì•½êµ­','ë³‘ì›')
 분류 이름 '강아지'    →  'ê°•ì•„ì§€'
 ```
 
-실제로 `createTables.sql` 로 새로 설치하면 users·categories 시드와 enum, 컬럼 주석이
-전부 이렇게 됐습니다. 모든 `.sql` 적용 명령에 플래그가 들어 있는지 확인하세요.
+**새 `.sql` 파일에는 반드시 맨 위에 `SET NAMES utf8mb4;` 를 넣습니다.** 그러면
+어떻게 실행하든 안전합니다 — `docker-entrypoint-initdb.d` 로 도는 초기화에는
+플래그를 붙일 자리가 아예 없습니다(실제로 배포 검증에서 여기 걸렸습니다).
+
+손으로 넣을 때는 플래그도 함께 주는 편이 좋습니다.
 
 ```bash
 docker exec -i petmedisearch-mysql mysql -uroot -p<암호> --default-character-set=utf8mb4 petmedisearch < scripts/<파일>.sql
 ```
+
+MySQL 설정 파일(`my.cnf`)로 푸는 방법은 **Windows 에서 통하지 않습니다.**
+바인드 마운트든 compose `configs` 든 파일이 0777 이 되고, MySQL 은
+`World-writable config file ... is ignored` 경고만 남기고 무시합니다.
 
 ### 6.3 일괄 치환이 한국어 조사를 깬다
 
@@ -389,15 +441,57 @@ docker exec -i petmedisearch-mysql mysql -uroot -p<암호> --default-character-s
 
 ---
 
+## 6.6 배포 관련 규약
+
+- **DB 는 풀로 씁니다** (`server/mysql.js`). 커넥션 하나로 쓰면 쿼리가 한 줄로 서고,
+  MySQL 의 `wait_timeout`(8시간)에 끊긴 뒤 되살아나지 않습니다.
+- **`/health` 는 실제로 쿼리를 던져 봅니다.** 프로세스만 떠 있고 DB 에 못 닿는
+  상태가 가장 흔한데, 그때 200 을 주면 감시 도구가 멀쩡하다고 봅니다.
+- **`SIGTERM` 을 처리합니다** (`app.js` 아래쪽). `docker stop` 은 10초 뒤 강제로
+  죽이므로, 처리 없이는 배포할 때마다 진행 중이던 요청이 끊깁니다.
+- **Dockerfile 의 `CMD` 는 `npm start` 가 아니라 `node app.js`** 입니다.
+  npm 을 거치면 SIGTERM 이 node 까지 가지 않아 위 처리가 동작하지 않습니다.
+- **환경변수를 늘리면 `server/.env.example` 에도 적습니다.** 실제 `.env` 는
+  git 에 없어서, 그 파일이 유일한 목록입니다.
+
+---
+
+## 6.7 테스트
+
+테스트는 **한 번에 다 붙이지 않고, 고치는 것마다 하나씩** 붙입니다.
+지금 있는 것도 전부 이번에 실제로 문제가 났던 자리입니다.
+
+| 대상 | 도구 | 왜 |
+|---|---|---|
+| `server/search.js` | `node --test` | 검색 규칙이 눈으로 읽어서는 맞는지 모릅니다 |
+| `server/controller/validate.js` | `node --test` | 여기가 뚫리면 DB 제약에서 500 이 납니다 |
+| `client/src/utils/*.ts` | Vitest | 순수 함수라 값싸게 고정할 수 있습니다 |
+
+```bash
+cd server && npm test     # node --test, 의존성 없음
+cd client && npm test     # vitest run
+```
+
+**`app.js` 에 순수 함수를 두지 않습니다.** `require` 하는 순간 서버가 떠서
+테스트에서 부를 수 없습니다. 검색 로직을 `server/search.js` 로 뺀 이유입니다.
+
+서버에도 ESLint 가 있습니다(`server/.eslintrc.cjs`). `no-undef` 가 "부르는데
+`require` 하지 않은 식별자" 를 잡습니다 — 실제로 그 버그가 두 파일에 있었습니다.
+
+CI 는 `.github/workflows/ci.yml` 에서 밀어 넣을 때마다 위를 전부 돕니다.
+
+---
+
 ## 7. 끝났다고 말하기 전 점검표
 
 1. `cd client && npm run build` — `tsc -b` 통과
-2. `cd client && npm run lint` — 경고 0
-3. 브라우저에서 **실제로 그 동작**을 해 봄 (로그인 → 클릭 → 화면 → 새로고침)
-4. 네트워크 탭에서 요청/응답 확인
-5. 시험하며 바꾼 데이터 원상복구
-6. 성능에 관한 변경이면 **전/후 수치**를 같이 보고
-7. 보고에는 한 것, 안 한 것, 확인 못 한 것을 나눠서 씀
+2. `cd client && npm run lint` · `cd server && npm run lint` — 경고 0
+3. `cd client && npm test` · `cd server && npm test` — 전부 통과
+4. 브라우저에서 **실제로 그 동작**을 해 봄 (로그인 → 클릭 → 화면 → 새로고침)
+5. 네트워크 탭에서 요청/응답 확인
+6. 시험하며 바꾼 데이터 원상복구
+7. 성능에 관한 변경이면 **전/후 수치**를 같이 보고
+8. 보고에는 한 것, 안 한 것, 확인 못 한 것을 나눠서 씀
 
 ---
 
@@ -408,6 +502,9 @@ docker exec -i petmedisearch-mysql mysql -uroot -p<암호> --default-character-s
 | JWT 페이로드 | `{ id, role }`, 유효기간 1일 |
 | 비밀번호 해시 | bcrypt cost 12 |
 | 요청 본문 상한 | 3mb (`server/app.js`) |
-| 관리자 계정 만들기 | `cd server && npm run create-admin` |
+| 관리자 계정 만들기 | `cd server && ADMIN_PASSWORD='...' npm run create-admin` (비밀번호 필수) |
+| 보안 헤더 | helmet (CSP 는 끔 — API 서버이고 Swagger UI 가 깨짐) |
+| Swagger | 개발에서만. `NODE_ENV=production` 이면 `/api` 미등록 |
+| 소셜 로그인 state | `client/src/utils/oauthState.ts` — 나갈 때 발급, 돌아올 때 검증 |
 | 회원가입 수집 항목 | 이름·전화번호·이메일·주소 |
 | 지도 | Kakao Maps SDK, 클러스터링은 서버에서 격자로 |

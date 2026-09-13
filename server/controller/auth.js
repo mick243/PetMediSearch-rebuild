@@ -1,7 +1,9 @@
 const jwt = require('jsonwebtoken');
+const { logError } = require('../logError');
 const bcrypt = require('bcrypt');
 const axios = require('axios');
 const conn = require('../mysql');
+const { verifyToken } = require('./authUser');
 
 exports.kakaoLogin = async (req, res) => {
   const { code } = req.query;
@@ -24,7 +26,6 @@ exports.kakaoLogin = async (req, res) => {
       headers: { Authorization: `Bearer ${access_token}` },
     });
 
-    console.log('Kakao user info:', userResponse.data); 
 
     const { id: socialId } = userResponse.data;
     const username = userResponse.data.properties?.nickname || userResponse.data.kakao_account?.profile?.nickname || `KakaoUser_${socialId}`;
@@ -35,7 +36,7 @@ exports.kakaoLogin = async (req, res) => {
 
     res.json({ token, user: toClientUser(user) });
   } catch (error) {
-    console.error('Kakao login error:', error);
+    logError('Kakao login error', error);
     res.status(500).json({ message: '카카오 로그인 처리 중 오류가 발생했습니다.' });
   }
 };
@@ -68,7 +69,7 @@ exports.googleLogin = async (req, res) => {
 
     res.json({ token, user: toClientUser(user) });
   } catch (error) {
-    console.error('Google login error:', error);
+    logError('Google login error', error);
     res.status(500).json({ message: '구글 로그인 처리 중 오류가 발생했습니다.' });
   }
 };
@@ -103,7 +104,7 @@ exports.naverLogin = async (req, res) => {
 
     res.json({ token, user: toClientUser(user) });
   } catch (error) {
-    console.error('Naver login error:', error);
+    logError('Naver login error', error);
     res.status(500).json({ message: '네이버 로그인 처리 중 오류가 발생했습니다.' });
   }
 };
@@ -117,7 +118,7 @@ exports.socialLogin = async (req, res) => {
 
     res.json({ token, user: toClientUser(user) });
   } catch (error) {
-    console.error('Social login error:', error);
+    logError('Social login error', error);
     res.status(500).json({ message: '소셜 로그인 처리 중 오류가 발생했습니다.' });
   }
 };
@@ -149,7 +150,7 @@ const toClientUser = (user) => ({
 const getUserBySocialId = (socialId, socialType) => {
   return new Promise((resolve, reject) => {
     conn.query(
-      'SELECT * FROM users WHERE social_id = ? AND social_type = ?',
+      'SELECT * FROM users WHERE social_id = ? AND social_type = ? AND deleted_at IS NULL',
       [socialId, socialType],
       (error, results) => {
         if (error) reject(error);
@@ -162,18 +163,23 @@ const getUserBySocialId = (socialId, socialType) => {
 const createUser = (socialId, socialType, username) => {
   return new Promise((resolve, reject) => {
     const safeUsername = username || `User_${socialId.substr(0, 8)}`;
-    console.log('Creating user with:', { socialId, socialType, safeUsername });
+    /*
+     * 소셜 계정은 가입 폼을 거치지 않아 체크박스를 보여 줄 자리가 없습니다.
+     * 로그인 화면의 소셜 버튼 아래에 "누르면 동의한 것으로 봅니다" 를 적어 두고,
+     * 계정이 처음 만들어지는 이 시점을 동의 시각으로 남깁니다.
+     */
     conn.query(
-      'INSERT INTO users (social_id, social_type, username) VALUES (?, ?, ?)',
-      [socialId, socialType, safeUsername],
+      'INSERT INTO users (social_id, social_type, username, terms_agreed_at) VALUES (?, ?, ?, ?)',
+      [socialId, socialType, safeUsername, new Date()],
       (error, results) => {
         if (error) {
-          console.error('Error creating user:', error);
+          logError('Error creating user', error);
           reject(error);
         } else if (results && results.insertId) {
           resolve({ user_id: results.insertId, username: safeUsername });
         } else {
-          console.error('Unexpected result from insert query:', results);
+          // results 에는 사용자 행이 통째로 들어올 수 있어 내용은 남기지 않습니다.
+          console.error('[auth:createUser] insertId 가 없습니다.');
           reject(new Error('Failed to create user: No insert ID returned'));
         }
       }
@@ -233,6 +239,14 @@ const validateSignup = (body) => {
   if (!address) return { error: '주소를 입력해주세요.' };
   if (address.length > 255) return { error: '주소는 255자까지 입력할 수 있습니다.' };
 
+  /*
+   * 필수 동의(만 14세 이상 · 이용약관 · 개인정보 수집·이용)를 서버에서도 확인합니다.
+   * 화면의 체크박스만 두면 요청을 직접 만들어 보내는 쪽은 그냥 지나갑니다.
+   */
+  if (body.agreed !== true) {
+    return { error: '필수 항목에 동의해야 가입할 수 있습니다.' };
+  }
+
   return { value: { username, email, password, phone, address } };
 };
 
@@ -243,9 +257,9 @@ exports.signup = async (req, res) => {
   try {
     const hashed = await bcrypt.hash(value.password, SALT_ROUNDS);
     const result = await query(
-      `INSERT INTO users (username, email, password, phone, address, role)
-       VALUES (?, ?, ?, ?, ?, 'user')`,
-      [value.username, value.email, hashed, value.phone, value.address]
+      `INSERT INTO users (username, email, password, phone, address, role, terms_agreed_at)
+       VALUES (?, ?, ?, ?, ?, 'user', ?)`,
+      [value.username, value.email, hashed, value.phone, value.address, new Date()]
     );
 
     const user = {
@@ -261,7 +275,7 @@ exports.signup = async (req, res) => {
     if (err.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({ message: '이미 가입된 이메일입니다.' });
     }
-    console.error('Signup error:', err);
+    logError('Signup error', err);
     res.status(500).json({ message: '회원가입 처리 중 오류가 발생했습니다.' });
   }
 };
@@ -277,7 +291,11 @@ exports.login = async (req, res) => {
   }
 
   try {
-    const rows = await query('SELECT * FROM users WHERE email = ?', [email]);
+    // 탈퇴한 계정은 이메일이 비워지므로 이 조회에 걸리지 않지만, 뜻을 코드에 남겨 둡니다.
+    const rows = await query(
+      'SELECT * FROM users WHERE email = ? AND deleted_at IS NULL',
+      [email]
+    );
     const user = rows[0];
 
     // 없는 이메일인지 비밀번호가 틀렸는지 구분해서 알려주면 가입 여부가 새어 나갑니다.
@@ -289,7 +307,70 @@ exports.login = async (req, res) => {
 
     res.json({ token: generateToken(user), user: toClientUser(user) });
   } catch (err) {
-    console.error('Login error:', err);
+    logError('Login error', err);
     res.status(500).json({ message: '로그인 처리 중 오류가 발생했습니다.' });
+  }
+};
+
+/* ------------------------------------------------------------------ *
+ * 회원 탈퇴
+ *
+ * 정책은 두 가지를 함께 씁니다.
+ *   ① 쓴 글·댓글·후기는 soft delete 로 함께 감춥니다 (deleted_at)
+ *   ③ users 행은 남기고 deleted_at 으로 계정만 비활성화합니다
+ *
+ * 행을 지우지 않는 이유는 posts·comments·reviews 의 FK 가 ON DELETE SET NULL 이라,
+ * 지우면 글은 남고 작성자만 사라져 author JOIN 이 깨지기 때문입니다.
+ * 행을 남겨 두면 FK 가 성하고 잘못 눌렀을 때 deleted_at 만 지워 되살릴 수도 있습니다.
+ *
+ * 다만 개인정보는 되돌리지 않습니다. 이메일·비밀번호·전화번호·주소·소셜 식별자를
+ * 비우고 표시 이름만 남깁니다. 탈퇴는 "더 이상 보관하지 말라" 는 뜻이고,
+ * 이메일을 비워야 같은 주소로 다시 가입할 수도 있습니다(UNIQUE 는 NULL 을 안 봅니다).
+ *
+ * 반려동물과 즐겨찾기는 공개된 글이 아니라 본인만 보는 기록이라 실제로 지웁니다.
+ * 접종 일정은 pets 의 FK(ON DELETE CASCADE)가 함께 지웁니다.
+ * ------------------------------------------------------------------ */
+exports.withdraw = async (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  const decoded = verifyToken(token);
+
+  if (!decoded) {
+    return res.status(401).json({ message: '유효하지 않은 토큰입니다.' });
+  }
+
+  const userId = decoded.id;
+  /*
+   * 시각을 SQL 의 NOW() 대신 여기서 만들어 네 문장에 같은 값을 씁니다.
+   * 그래야 나중에 "이 탈퇴로 함께 감춰진 글" 을 시각 하나로 정확히 골라낼 수 있습니다.
+   */
+  const deletedAt = new Date();
+
+  try {
+    // 계정을 먼저 닫습니다. 여기서 걸리면 이미 탈퇴한 계정이라 글은 건드리지 않습니다.
+    const closed = await query(
+      `UPDATE users
+          SET deleted_at = ?, username = '탈퇴한 사용자',
+              email = NULL, password = NULL, phone = NULL, address = NULL,
+              social_id = NULL, social_type = NULL
+        WHERE user_id = ? AND deleted_at IS NULL`,
+      [deletedAt, userId]
+    );
+
+    if (closed.affectedRows === 0) {
+      return res.status(404).json({ message: '이미 탈퇴한 계정입니다.' });
+    }
+
+    // 이미 지워져 있던 글은 건드리지 않아, 되살려도 그대로 지워진 채 남습니다.
+    await query('UPDATE posts SET deleted_at = ? WHERE user_id = ? AND deleted_at IS NULL', [deletedAt, userId]);
+    await query('UPDATE comments SET deleted_at = ? WHERE user_id = ? AND deleted_at IS NULL', [deletedAt, userId]);
+    await query('UPDATE reviews SET deleted_at = ? WHERE user_id = ? AND deleted_at IS NULL', [deletedAt, userId]);
+
+    await query('DELETE FROM favorite_facilities WHERE user_id = ?', [userId]);
+    await query('DELETE FROM pets WHERE user_id = ?', [userId]);
+
+    return res.json({ message: '탈퇴가 완료되었습니다.' });
+  } catch (err) {
+    logError('auth:withdraw', err);
+    return res.status(500).json({ message: '탈퇴 처리 중 오류가 발생했습니다.' });
   }
 };

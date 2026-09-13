@@ -1,15 +1,27 @@
+import { MouseEvent } from 'react';
 import styled from 'styled-components';
 import { FcGoogle } from 'react-icons/fc';
+import { issueOAuthState } from '../../utils/oauthState';
 
 const G_CLIENT_ID = import.meta.env.VITE_G_REST_API_KEY;
 const G_REDIRECT_URI = import.meta.env.VITE_G_REDIRECT_URL;
 
 const GOOGLE_AUTH_URL = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${G_CLIENT_ID}&redirect_uri=${G_REDIRECT_URI}&response_type=code&scope=email profile`;
 
+/*
+ * state 는 여기서 만들어 sessionStorage 에 넣고 함께 보냅니다.
+ * 모듈이 읽힐 때 한 번 만들면 탭을 열어 둔 내내 같은 값이 쓰입니다.
+ */
+function go(event: MouseEvent<HTMLAnchorElement>) {
+  event.preventDefault();
+  const state = issueOAuthState('google');
+  window.location.href = `${GOOGLE_AUTH_URL}&state=${state}`;
+}
+
 function LoginGoogle() {
   return (
     <LoginGoogleStyle>
-      <a href={GOOGLE_AUTH_URL}>
+      <a href={GOOGLE_AUTH_URL} onClick={go}>
         <div className="googlebttn">
           <FcGoogle className="icon" />
           <p className="messge">구글 로그인</p>

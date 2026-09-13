@@ -1,5 +1,49 @@
 const conn = require('../mysql');
+const { logError } = require('../logError');
 const { verifyToken } = require('./authUser');
+const { textField, decimalField, dateField } = require('./validate');
+
+/** pets.weight_kg 는 decimal(5,2) 라 999.99 까지 들어가지만, 실제로 가능한 범위로 좁힙니다. */
+const MAX_WEIGHT_KG = 200;
+
+/**
+ * 반려동물 입력값 검사. 등록과 수정이 같이 씁니다.
+ * 이름 말고는 비워 둘 수 있습니다 — 품종이나 생일을 모르는 경우가 흔합니다.
+ */
+const validatePet = (body) => {
+    const name = textField(body.name, { label: '이름', max: 50 });
+    if (name.error) return { error: name.error };
+
+    const breed = textField(body.breed, { label: '품종', max: 50, required: false });
+    if (breed.error) return { error: breed.error };
+
+    // 미래 생일은 홈의 나이 계산을 음수로 만듭니다.
+    const birthDate = dateField(body.birth_date, {
+        label: '생일',
+        required: false,
+        future: false,
+    });
+    if (birthDate.error) return { error: birthDate.error };
+
+    const weight = decimalField(body.weight_kg, {
+        label: '몸무게',
+        min: 0,
+        max: MAX_WEIGHT_KG,
+        required: false,
+    });
+    if (weight.error) return { error: weight.error };
+
+    return {
+        value: {
+            name: name.value,
+            breed: breed.value,
+            birth_date: birthDate.value,
+            weight_kg: weight.value,
+            category_id: body.category_id || null,
+            photo: body.photo || null,
+        },
+    };
+};
 
 /** 토큰에서 사용자 id 를 꺼냅니다. 없으면 401 을 보내고 null 을 돌려줍니다. */
 function requireUser(req, res) {
@@ -30,7 +74,7 @@ const getMyPets = (req, res) => {
 
     conn.query(query, [user_id], (err, pets) => {
         if (err) {
-            console.error(err);
+            logError('pets', err);
             return res.status(500).send({ message: '서버 에러 발생' });
         }
         if (pets.length === 0) return res.send([]);
@@ -43,7 +87,7 @@ const getMyPets = (req, res) => {
             ORDER BY due_date ASC`;
         conn.query(vq, [ids], (verr, vacc) => {
             if (verr) {
-                console.error(verr);
+                logError('pets:vaccinations', verr);
                 return res.status(500).send({ message: '서버 에러 발생' });
             }
             const byPet = new Map(ids.map((id) => [id, []]));
@@ -58,22 +102,20 @@ const addPet = (req, res) => {
     const user_id = requireUser(req, res);
     if (!user_id) return;
 
-    const { name, category_id, breed, birth_date, weight_kg, photo } = req.body;
-    if (!name || !String(name).trim()) {
-        return res.status(400).send({ message: '이름을 입력해주세요.' });
-    }
+    const { error, value } = validatePet(req.body);
+    if (error) return res.status(400).send({ message: error });
 
     const query = `
         INSERT INTO pets (user_id, name, category_id, breed, birth_date, weight_kg, photo)
         VALUES (?, ?, ?, ?, ?, ?, ?)`;
     const values = [
-        user_id, String(name).trim(), category_id || null, breed || null,
-        birth_date || null, weight_kg || null, photo || null,
+        user_id, value.name, value.category_id, value.breed,
+        value.birth_date, value.weight_kg, value.photo,
     ];
 
     conn.query(query, values, (err, result) => {
         if (err) {
-            console.error(err);
+            logError('pets', err);
             return res.status(500).send({ message: '서버 에러 발생' });
         }
         return res.send({ message: '반려동물이 등록되었습니다.', petId: result.insertId });
@@ -85,19 +127,21 @@ const updatePet = (req, res) => {
     const user_id = requireUser(req, res);
     if (!user_id) return;
 
-    const { name, category_id, breed, birth_date, weight_kg, photo } = req.body;
+    const { error, value } = validatePet(req.body);
+    if (error) return res.status(400).send({ message: error });
+
     const query = `
         UPDATE pets
         SET name = ?, category_id = ?, breed = ?, birth_date = ?, weight_kg = ?, photo = ?
         WHERE pet_id = ? AND user_id = ?`;
     const values = [
-        String(name || '').trim(), category_id || null, breed || null,
-        birth_date || null, weight_kg || null, photo || null, req.params.pet_id, user_id,
+        value.name, value.category_id, value.breed,
+        value.birth_date, value.weight_kg, value.photo, req.params.pet_id, user_id,
     ];
 
     conn.query(query, values, (err, result) => {
         if (err) {
-            console.error(err);
+            logError('pets', err);
             return res.status(500).send({ message: '서버 에러 발생' });
         }
         if (result.affectedRows === 0) {
@@ -117,7 +161,7 @@ const deletePet = (req, res) => {
         [req.params.pet_id, user_id],
         (err, result) => {
             if (err) {
-                console.error(err);
+                logError('pets', err);
                 return res.status(500).send({ message: '서버 에러 발생' });
             }
             if (result.affectedRows === 0) {
@@ -133,17 +177,19 @@ const addVaccination = (req, res) => {
     const user_id = requireUser(req, res);
     if (!user_id) return;
 
-    const { name, due_date } = req.body;
-    if (!name || !due_date) {
-        return res.status(400).send({ message: '이름과 날짜가 필요합니다.' });
-    }
+    const name = textField(req.body.name, { label: '일정 이름', max: 80 });
+    if (name.error) return res.status(400).send({ message: name.error });
+
+    // 접종·검진은 앞날 일정이라 미래 날짜를 막지 않습니다.
+    const dueDate = dateField(req.body.due_date, { label: '날짜' });
+    if (dueDate.error) return res.status(400).send({ message: dueDate.error });
 
     const query = `
         INSERT INTO pet_vaccinations (pet_id, name, due_date)
         SELECT pet_id, ?, ? FROM pets WHERE pet_id = ? AND user_id = ?`;
-    conn.query(query, [String(name).trim(), due_date, req.params.pet_id, user_id], (err, result) => {
+    conn.query(query, [name.value, dueDate.value, req.params.pet_id, user_id], (err, result) => {
         if (err) {
-            console.error(err);
+            logError('pets', err);
             return res.status(500).send({ message: '서버 에러 발생' });
         }
         if (result.affectedRows === 0) {
@@ -166,7 +212,7 @@ const setVaccinationDone = (req, res) => {
         WHERE v.vaccination_id = ? AND p.user_id = ?`;
     conn.query(query, [done, req.params.vaccination_id, user_id], (err, result) => {
         if (err) {
-            console.error(err);
+            logError('pets', err);
             return res.status(500).send({ message: '서버 에러 발생' });
         }
         if (result.affectedRows === 0) return res.status(404).send({ message: '일정을 찾을 수 없습니다.' });
@@ -185,7 +231,7 @@ const deleteVaccination = (req, res) => {
         WHERE v.vaccination_id = ? AND p.user_id = ?`;
     conn.query(query, [req.params.vaccination_id, user_id], (err, result) => {
         if (err) {
-            console.error(err);
+            logError('pets', err);
             return res.status(500).send({ message: '서버 에러 발생' });
         }
         if (result.affectedRows === 0) return res.status(404).send({ message: '일정을 찾을 수 없습니다.' });

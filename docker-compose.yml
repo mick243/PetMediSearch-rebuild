@@ -1,0 +1,63 @@
+# PetMediSearch 운영 구성 (API + MySQL).
+#
+# 화면(client)은 Vercel 에 올라가므로 여기 없습니다. 이 파일은 서버 한 대에
+# API 와 DB 를 같이 띄우는 구성입니다.
+#
+# 처음 띄우기:
+#   cp server/.env.example server/.env   # 값을 채운 뒤
+#   docker compose up -d
+#   docker compose exec api node scripts/importData.js   # 시설 데이터 적재
+#   docker compose exec -e ADMIN_PASSWORD='고른-비밀번호' api node scripts/createAdmin.js
+#
+# 관리형 DB(RDS·PlanetScale 등)를 쓴다면 db 서비스를 지우고 server/.env 의
+# DB_HOST 만 그쪽으로 바꾸면 됩니다. api 서비스는 그대로 씁니다.
+
+services:
+  db:
+    image: mysql:8
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:?server/.env 에 DB_PASSWORD 를 넣으세요}
+      MYSQL_DATABASE: ${DB_NAME:-petmedisearch}
+      TZ: Asia/Seoul
+    volumes:
+      # 데이터는 이름 있는 볼륨에 둡니다. 컨테이너를 지워도 남습니다.
+      - db-data:/var/lib/mysql
+      # 처음 뜰 때(볼륨이 비어 있을 때)만 실행됩니다. 이름 순서대로 도므로 접두사를 붙였습니다.
+      - ./server/scripts/createFacilitiesTable.sql:/docker-entrypoint-initdb.d/01-facilities.sql:ro
+      - ./server/scripts/createTables.sql:/docker-entrypoint-initdb.d/02-tables.sql:ro
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', '127.0.0.1', '-p${DB_PASSWORD}']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    # 바깥으로 열지 않습니다. api 만 같은 네트워크에서 닿으면 됩니다.
+    # 바깥에서 접속해야 하면 아래를 127.0.0.1 에 묶어 여세요.
+    # ports:
+    #   - '127.0.0.1:3306:3306'
+
+  api:
+    build:
+      context: ./server
+    restart: unless-stopped
+    env_file:
+      - ./server/.env
+    environment:
+      NODE_ENV: production
+      # compose 안에서는 서비스 이름이 곧 호스트 이름입니다.
+      DB_HOST: db
+      DB_PORT: '3306'
+      # 프록시 뒤에 두면 X-Forwarded-For 를 믿어야 요청 제한이 사용자별로 셉니다.
+      TRUST_PROXY: '1'
+    depends_on:
+      db:
+        # DB 가 "떠 있는" 것이 아니라 "받을 준비가 된" 뒤에 시작합니다.
+        condition: service_healthy
+    ports:
+      - '${PORT:-8081}:8081'
+    # 정상 종료(SIGTERM)를 처리하므로 넉넉히 기다려 줍니다.
+    stop_grace_period: 15s
+
+volumes:
+  db-data:

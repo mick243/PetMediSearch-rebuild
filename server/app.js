@@ -3,11 +3,40 @@ const express = require("express");
 const mysql = require("./mysql");
 const nodePath = require("path");
 const cors = require("cors");
+const { logError } = require('./logError');
+const helmet = require("helmet");
 
 const app = express();
 const port = Number(process.env.PORT) || 8080;
+const isProduction = process.env.NODE_ENV === 'production';
 
 console.log('Current directory:', __dirname);
+
+/*
+ * 프록시(nginx·플랫폼) 뒤에서는 req.ip 가 전부 프록시 주소가 됩니다.
+ * 그러면 요청 제한이 모든 사용자를 한 사람으로 묶어 버려, 누구 하나가 많이 쓰면
+ * 나머지가 같이 막힙니다. X-Forwarded-For 를 믿을지 환경변수로 정합니다.
+ */
+if (process.env.TRUST_PROXY) {
+  app.set('trust proxy', Number(process.env.TRUST_PROXY) || 1);
+}
+
+/*
+ * 보안 헤더.
+ *
+ * CSP 는 끕니다. 이 서버는 JSON 을 돌려주는 API 이고 화면은 다른 오리진(Vercel)에
+ * 있어서 여기 CSP 는 그 화면에 걸리지 않습니다. 반대로 기본 CSP 를 켜면 이 서버가
+ * 직접 띄우는 Swagger UI 가 인라인 스크립트를 못 써서 깨집니다.
+ *
+ * CORP 는 cross-origin 으로 둡니다. 기본값(same-origin)은 다른 오리진의 화면이
+ * 이 서버의 응답을 읽는 것을 막습니다.
+ */
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
 
 // 미들웨어 설정
 const allowedOrigins = (process.env.CORS_ORIGIN || "https://pet-medi-search.vercel.app")
@@ -18,124 +47,57 @@ app.use(cors({ origin: allowedOrigins, credentials: true }));
 // 반려동물 사진은 축소된 JPEG 를 data URL 로 본문에 실어 보냅니다. 기본 100kb 로는 모자랍니다.
 app.use(express.json({ limit: '3mb' }));
 
-// swagger 연동
-const { swaggerUi, specs } = require("./swagger/swagger");
-app.use("/api", swaggerUi.serve, swaggerUi.setup(specs));
+/*
+ * swagger 연동.
+ *
+ * 운영에서는 띄우지 않습니다. 엔드포인트와 요청·응답 모양이 전부 담겨 있어,
+ * 공개하면 어디를 두드려 봐야 하는지 알려주는 안내문이 됩니다.
+ */
+if (!isProduction) {
+  const { swaggerUi, specs } = require("./swagger/swagger");
+  app.use("/api", swaggerUi.serve, swaggerUi.setup(specs));
+}
 app.use(express.static("public"));
+
+/*
+ * 요청 제한. 로그인·가입은 routes/auth.js 에서 더 좁게 겁니다.
+ *
+ * 개발에서도 켜 둡니다. 한쪽에서만 도는 장치는 "개발에서는 됐는데" 를 만들고,
+ * 정작 운영에서 처음 걸릴 때 원인을 찾기 어렵습니다.
+ */
+const { generalLimiter } = require('./middleware/rateLimit');
+app.use(generalLimiter);
+
+/*
+ * 상태 확인.
+ *
+ * 서버가 살아 있다는 것만으로는 모자랍니다. 프로세스는 떠 있는데 DB 에 닿지
+ * 못하는 상태가 가장 흔하고, 그때도 200 을 주면 배포 도구와 감시 도구는
+ * 멀쩡하다고 봅니다. 실제로 쿼리를 한 번 던져 보고 답합니다.
+ *
+ * 응답을 캐시하지 않도록 막습니다 — 중간에 캐시가 끼면 죽은 뒤에도 200 이 남습니다.
+ */
+app.get('/health', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+
+  mysql.query('SELECT 1', (err) => {
+    if (err) {
+      logError('health', err);
+      return res.status(503).json({ status: 'error', db: 'down' });
+    }
+    return res.json({ status: 'ok', db: 'up', uptime: Math.round(process.uptime()) });
+  });
+});
 
 app.get("/search", (req, res) => {
   res.sendFile(nodePath.join(__dirname, "public", "search.html"));
 });
 
-// 지도에 위치 표시 
-/**
- * 지역명 검색어를 실제 저장된 표기로 확장합니다.
- *
- * 주소는 공공데이터 원본 표기(예: "세종특별자치시")로 저장돼 있어서
- * 사람들이 흔히 쓰는 "세종시" 로는 LIKE 매칭이 되지 않았습니다.
- * ("세종"+"시" 가 연속되지 않으므로 부분 문자열로 잡히지 않음)
- */
-const REGION_ALIASES = {
-  '세종시': '세종특별자치시',
-  '세종특별시': '세종특별자치시',
-  '강원도': '강원특별자치도',
-  '전라북도': '전북특별자치도',
-  '전북도': '전북특별자치도',
-  '제주도': '제주특별자치도',
-  '제주시': '제주특별자치도 제주시',
-};
-
-/** 검색어를 [원본, 별칭] 형태로 확장합니다. 별칭이 없으면 원본만. */
-function expandKeyword(keyword) {
-  const trimmed = String(keyword).trim();
-  const alias = REGION_ALIASES[trimmed];
-  return alias ? [trimmed, alias] : [trimmed];
-}
-
-/** LIKE 의 와일드카드(% _ \)를 글자 그대로 찾도록 막습니다. */
-function escapeLike(text) {
-  return String(text).replace(/[\\%_]/g, '\\$&');
-}
-
-/** 검색어를 공백으로 나눕니다. "춘천 소망병원" -> ["춘천", "소망병원"] */
-function tokenize(keyword) {
-  return String(keyword).trim().split(/\s+/).filter(Boolean);
-}
-
-/**
- * 상호에서 중간 낱말이 빠진 경우를 잡는 느슨한 패턴.
- *
- * "소망병원" -> "%소%망%병%원%" 이 되어 "소망동물병원" 에 걸립니다.
- * 사람들이 "동물"·"의료재단" 같은 중간 낱말을 빼고 치기 때문에 필요합니다.
- * 한 글자짜리는 그냥 부분 문자열과 같아져서 만들지 않습니다.
- */
-function loosePattern(token) {
-  const chars = [...token];
-  if (chars.length < 2) return null;
-  return `%${chars.map(escapeLike).join('%')}%`;
-}
-
-/**
- * 검색 조건. 공백으로 나눈 토큰을 모두 만족해야 합니다(AND).
- *
- * 한 토큰은 둘 중 하나로 맞으면 통과합니다.
- *   1) 상호·주소 어딘가에 그대로 들어 있음   ("춘천" -> "강원특별자치도 춘천시 ...")
- *   2) 상호에 글자가 순서대로 들어 있음      ("소망병원" -> "소망동물병원")
- *
- * 2번은 느슨해서 상호에만 겁니다. 주소까지 열어주면 "강원" 이 "강...원" 으로
- * 엉뚱한 곳에 붙습니다. 주소는 행정구역이 붙어 있는 표기라 1번으로 충분합니다.
- * ("춘천" 은 "춘천시" 의 부분 문자열)
- */
-function keywordClause(keyword, values) {
-  const tokens = tokenize(keyword);
-  if (tokens.length === 0) return '';
-
-  const perToken = tokens.map((token) => {
-    const parts = [];
-
-    expandKeyword(token).forEach((variant) => {
-      parts.push('(bplcnm LIKE ? OR rdnwhladdr LIKE ? OR sitewhladdr LIKE ?)');
-      const like = `%${escapeLike(variant)}%`;
-      values.push(like, like, like);
-    });
-
-    const loose = loosePattern(token);
-    if (loose) {
-      parts.push('bplcnm LIKE ?');
-      values.push(loose);
-    }
-
-    return `(${parts.join(' OR ')})`;
-  });
-
-  return ` AND ${perToken.join(' AND ')}`;
-}
-
-/**
- * 검색 적합도. 큰 값이 먼저 옵니다.
- *
- * 느슨한 조건을 열어 준 만큼, 검색어가 상호에 그대로 들어 있는 쪽을 위로 올립니다.
- * 검색 결과의 첫 줄로 지도를 옮기기 때문에 순서가 곧 "어디로 가는지" 입니다.
- */
-function keywordScoreExpr(keyword, values) {
-  const tokens = tokenize(keyword);
-  if (tokens.length === 0) return null;
-
-  const parts = tokens.map((token) => {
-    const like = `%${escapeLike(token)}%`;
-    const loose = loosePattern(token);
-
-    // 상호에 그대로 > 상호에 글자만 순서대로 > 주소에 그대로
-    if (loose) {
-      values.push(like, loose, like);
-      return '(bplcnm LIKE ?) * 3 + (bplcnm LIKE ?) * 2 + (rdnwhladdr LIKE ?)';
-    }
-    values.push(like, like);
-    return '(bplcnm LIKE ?) * 3 + (rdnwhladdr LIKE ?)';
-  });
-
-  return `(${parts.join(' + ')})`;
-}
+// 시설 검색 조건·정렬 (테스트를 위해 분리했습니다)
+const {
+  keywordClause,
+  keywordScoreExpr,
+} = require('./search');
 
 app.get("/facilities", (req, res) => {
   const {
@@ -222,17 +184,17 @@ app.get("/facilities", (req, res) => {
 
   query += ` LIMIT ${rowLimit}`;
 
-  console.log("Executing query:", query);
-  console.log("Query values:", values);
+  /*
+   * 쿼리와 값은 찍지 않습니다. 검색어가 그대로 남는 데다, 매 요청마다
+   * 3만건짜리 표를 훑는 SQL 전문이 로그를 가득 채웁니다.
+   */
 
   mysql.query(query, values, (err, results) => {
     if (err) {
-      console.error('Database query error:', err);
-      console.error('Error details:', JSON.stringify(err, null, 2));
+      logError('search', err);
       return res.status(500).json({ message: '서버 오류 발생' });
     }
 
-    console.log(`Query returned ${results.length} results`);
     res.json(results);
   });
 });
@@ -302,7 +264,7 @@ app.get("/facilities/clusters", (req, res) => {
 
   mysql.query(query, values, (err, results) => {
     if (err) {
-      console.error("Cluster query error:", err);
+      logError('cluster', err);
       return res
         .status(500)
         .json({ message: '서버 오류 발생' });
@@ -358,13 +320,67 @@ app.use((req, res) => {
  */
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
-    console.error('처리되지 않은 오류:', err);
     // 이미 응답이 나가기 시작했으면 손댈 수 없습니다. Express 기본 처리로 넘깁니다.
     if (res.headersSent) return next(err);
+
+    /*
+     * 본문이 상한(위의 3mb)을 넘은 경우입니다.
+     *
+     * 사진을 여러 장 붙인 글에서 실제로 납니다. 500 "서버 오류 발생" 으로 답하면
+     * 사용자는 원인을 몰라 같은 버튼을 계속 누릅니다. 무엇을 줄여야 하는지 알려줍니다.
+     */
+    if (err?.type === 'entity.too.large') {
+        return res.status(413).json({
+            message: '내용이 너무 큽니다. 사진 수를 줄이거나 크기가 작은 사진을 써주세요.',
+        });
+    }
+
+    /*
+     * 본문이 JSON 이 아닌 경우. 화면의 잘못이지 서버 문제가 아니라 400 으로 답합니다.
+     * 500 으로 두면 서버 장애로 오인해 원인을 엉뚱한 데서 찾게 됩니다.
+     */
+    if (err instanceof SyntaxError && 'body' in err) {
+        return res.status(400).json({ message: '요청 형식이 올바르지 않습니다.' });
+    }
+
+    logError('unhandled', err);
     return res.status(500).json({ message: '서버 오류 발생' });
 });
 
 // 서버 시작
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log(`Server running at http://0.0.0.0:${port}`);
+});
+
+/*
+ * 정상 종료.
+ *
+ * docker stop 과 대부분의 배포 도구는 SIGTERM 을 보내고 10초쯤 기다렸다가
+ * 강제로 죽입니다. 아무 처리도 하지 않으면 그 순간 처리 중이던 요청이 끊기고,
+ * 배포할 때마다 몇 건은 오류로 끝납니다.
+ *
+ * 새 요청을 받지 않고, 돌고 있는 것을 마친 뒤, DB 풀을 닫고 나갑니다.
+ */
+const SHUTDOWN_TIMEOUT_MS = 10_000;
+
+const shutdown = (signal) => {
+  console.log(`${signal} 수신, 종료합니다.`);
+
+  // 시간 안에 끝나지 않으면 그냥 나갑니다. 여기서 멈춰 있으면 배포가 막힙니다.
+  const forceExit = setTimeout(() => {
+    console.error('제때 끝내지 못해 강제로 종료합니다.');
+    process.exit(1);
+  }, SHUTDOWN_TIMEOUT_MS);
+  forceExit.unref();
+
+  server.close(() => {
+    mysql.end((error) => {
+      if (error) logError('shutdown', error);
+      process.exit(0);
+    });
+  });
+};
+
+['SIGTERM', 'SIGINT'].forEach((signal) => {
+  process.on(signal, () => shutdown(signal));
 });

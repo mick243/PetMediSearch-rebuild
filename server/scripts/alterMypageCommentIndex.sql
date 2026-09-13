@@ -11,5 +11,10 @@
 -- 적용:
 --   docker exec -i petmedisearch-mysql mysql -uroot -p<암호> --default-character-set=utf8mb4 petmedisearch < alterMypageCommentIndex.sql
 
+-- 이 파일은 UTF-8 로 쓰여 있습니다. 아래 한 줄이 없으면 mysql 클라이언트가
+-- latin1 로 읽어 한글이 조용히 깨집니다 ('통합' → 'í†µí•©').
+-- 특히 docker-entrypoint-initdb.d 로 도는 초기화에는 charset 플래그를 붙일 자리가 없습니다.
+SET NAMES utf8mb4;
+
 ALTER TABLE `comments`
   ADD KEY `idx_comments_user_recent` (`user_id`, `deleted_at`, `created_at`);

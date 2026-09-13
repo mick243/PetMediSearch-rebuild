@@ -95,6 +95,15 @@ function Login() {
         <LoginNaver />
         <LoginGoogle />
       </Socials>
+
+      {/*
+        소셜 로그인은 가입 폼을 거치지 않아 동의 체크박스를 보여 줄 자리가 없습니다.
+        무엇에 동의하게 되는지 버튼을 누르기 전에 읽을 수 있어야 합니다.
+      */}
+      <SocialConsent>
+        소셜 계정으로 계속하면 <Link to="/terms">이용약관</Link>과{' '}
+        <Link to="/privacy">개인정보처리방침</Link>에 동의한 것으로 봅니다.
+      </SocialConsent>
     </LoginStyle>
   );
 }
@@ -203,4 +212,17 @@ const Socials = styled.div`
   display: flex;
   flex-direction: column;
   gap: ${({ theme }) => theme.space.md};
+`;
+
+const SocialConsent = styled.p`
+  margin: ${({ theme }) => theme.space.md} 0 0;
+  font-size: 11px;
+  line-height: 1.6;
+  color: ${({ theme }) => theme.color.textMuted};
+  text-align: center;
+
+  a {
+    color: ${({ theme }) => theme.color.text};
+    font-weight: 600;
+  }
 `;

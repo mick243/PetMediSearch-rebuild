@@ -9,6 +9,11 @@
 -- 읽어서 한글이 전부 깨집니다 — 분류 이름이 'ê°•ì•„ì§€' 가 되고 enum('약국','병원') 도
 -- 못 쓰는 값이 됩니다.
 
+-- 이 파일은 UTF-8 로 쓰여 있습니다. 아래 한 줄이 없으면 mysql 클라이언트가
+-- latin1 로 읽어 한글이 조용히 깨집니다 ('통합' → 'í†µí•©').
+-- 특히 docker-entrypoint-initdb.d 로 도는 초기화에는 charset 플래그를 붙일 자리가 없습니다.
+SET NAMES utf8mb4;
+
 CREATE TABLE `users` (
    `user_id` int NOT NULL AUTO_INCREMENT,
    -- 화면에 보이는 이름입니다. 소셜은 제공자가 준 이름, 일반 가입은 입력한 이름을 씁니다.
@@ -23,6 +28,11 @@ CREATE TABLE `users` (
    `address` varchar(255) NULL,
    `role` varchar(20) NOT NULL DEFAULT 'user',
    `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+   -- 필수 약관에 동의한 시각. 화면의 체크만으로는 동의를 받았다는 것을 증명할 수 없습니다.
+   `terms_agreed_at` timestamp(3) NULL DEFAULT NULL,
+   -- 탈퇴는 행을 지우지 않고 이 값을 채웁니다. FK 5개가 ON DELETE SET NULL 이라
+   -- 지우면 글은 남고 작성자만 사라집니다.
+   `deleted_at` timestamp(3) NULL DEFAULT NULL,
    PRIMARY KEY (`user_id`),
    -- UNIQUE 는 NULL 을 서로 다른 값으로 보므로, 소셜 칸이 빈 일반 계정이 여럿이어도 됩니다.
    UNIQUE KEY `uq_users_social` (`social_id`, `social_type`),
@@ -58,7 +68,8 @@ INSERT INTO `categories` (`category_name`) VALUES ('기타');
    `category_id` int DEFAULT NULL,
    `user_id` int DEFAULT NULL,
    `title` varchar(255) NOT NULL,
-   `content` text NOT NULL,
+   -- 본문 에디터가 사진을 data URL 로 박아 넣습니다. text(64KB)로는 사진 한 장도 못 담습니다.
+   `content` mediumtext NOT NULL,
    `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
    `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
    -- 삭제는 실제로 지우지 않고 이 값을 채웁니다. NULL 이면 살아 있는 글입니다.
@@ -106,12 +117,14 @@ CREATE TABLE `comments` (
    `review_content` text,
    `images` json DEFAULT NULL COMMENT '축소된 JPEG data URL 목록',
    `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+   -- 삭제는 실제로 지우지 않고 이 값을 채웁니다. NULL 이면 살아 있는 글입니다.
+   `deleted_at` timestamp(3) NULL DEFAULT NULL,
    PRIMARY KEY (`review_id`),
    KEY `reviews_ibfk_1` (`user_id`),
    KEY `reviews_ibfk_2` (`facility_id`),
-   -- 시설별 후기 목록 / 마이페이지의 내가 쓴 후기. 후기에는 soft delete 가 없습니다.
-   KEY `idx_reviews_facility_recent` (`facility_id`, `created_at`),
-   KEY `idx_reviews_user_recent` (`user_id`, `created_at`),
+   -- 시설별 후기 목록 / 마이페이지의 내가 쓴 후기
+   KEY `idx_reviews_facility_recent` (`facility_id`, `deleted_at`, `created_at`),
+   KEY `idx_reviews_user_recent` (`user_id`, `deleted_at`, `created_at`),
    CONSTRAINT `reviews_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL ON UPDATE CASCADE,
    CONSTRAINT `reviews_ibfk_2` FOREIGN KEY (`facility_id`) REFERENCES `medical_facilities` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
    CONSTRAINT `reviews_chk_1` CHECK ((`rating` between 1 and 5))

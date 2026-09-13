@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import Spinner from '../../components/common/Spinner';
 import { useDispatch } from 'react-redux';
 import { setLogin } from '../../store/slices/authSlice';
+import { verifyOAuthState } from '../../utils/oauthState';
 
 const BASE_URL = import.meta.env.VITE_BASE_URL;
 function LoginRedirectNaver() {
@@ -13,6 +14,17 @@ function LoginRedirectNaver() {
   const state = new URL(window.location.href).searchParams.get('state');
 
   useEffect(() => {
+    /*
+     * 나갈 때 만든 state 와 같은 값이 돌아왔는지 봅니다.
+     * 다르면 내가 시작한 로그인이 아니므로 코드를 서버에 넘기지 않습니다.
+     */
+    if (!verifyOAuthState('naver', state)) {
+      console.error('naver: state 가 맞지 않습니다.');
+      alert('로그인을 다시 시도해주세요.');
+      navigate('/login', { replace: true });
+      return;
+    }
+
     fetch(`${BASE_URL}/auth/naver?code=${code}&state=${state}`, {
       method: 'GET',
       headers: {

@@ -1,5 +1,7 @@
 const conn = require('../mysql');
+const { logError } = require('../logError');
 const { verifyToken } = require('./authUser');
+const { textField, intField } = require('./validate');
 
 /*
  * 붙임 사진은 브라우저에서 줄인 JPEG 를 data URL 로 받습니다 (pets.photo 와 같은 방식).
@@ -35,6 +37,13 @@ const normalizeImages = (value) => {
     return JSON.stringify(kept);
 };
 
+/**
+ * 후기 본문 길이 상한.
+ * reviews.review_content 는 text 이고 사진은 images 칸에 따로 들어갑니다.
+ * 본문은 평문이라 칸을 넓히는 대신 입력을 제한합니다.
+ */
+const MAX_CONTENT_LENGTH = 2000;
+
 /** 한 번에 보낼 후기 수. 화면의 쪽 크기와 맞춰 둡니다. */
 const DEFAULT_PAGE_SIZE = 5;
 const MAX_PAGE_SIZE = 20;
@@ -65,15 +74,18 @@ const getReviewsByFacilityId = async (req, res) => {
     const listQuery = `
         SELECT review_id, user_id, facility_id, rating, review_content, created_at,
                COALESCE(JSON_LENGTH(images), 0) AS image_count
-        FROM reviews WHERE facility_id = ? ORDER BY created_at DESC, review_id DESC LIMIT ? OFFSET ?`;
+        FROM reviews WHERE facility_id = ? AND deleted_at IS NULL
+         ORDER BY created_at DESC, review_id DESC LIMIT ? OFFSET ?`;
 
     conn.query(listQuery, [facilityId, rowLimit, offset], (error, results) => {
         if (error) {
+            logError('review:list', error);
             return res.status(500).send({ message: '서버 오류 발생' });
         }
-        conn.query('SELECT COUNT(*) AS total FROM reviews WHERE facility_id = ?', [facilityId], (countError, countRows) => {
+        conn.query('SELECT COUNT(*) AS total FROM reviews WHERE facility_id = ? AND deleted_at IS NULL', [facilityId], (countError, countRows) => {
             if (countError) {
-                return res.status(500).send({ message: '서버 오류 발생', error: countError });
+                logError('review:count', countError);
+                return res.status(500).send({ message: '서버 오류 발생' });
             }
             // 후기가 없는 것은 오류가 아닙니다. 예전에는 404 라서 화면이 콘솔에 에러를 찍었습니다.
             return res.send({ reviews: results, total: countRows[0]?.total ?? results.length });
@@ -85,8 +97,9 @@ const getReviewsByFacilityId = async (req, res) => {
 const getReviewImages = async (req, res) => {
     const reviewId = req.params.review_id;
 
-    conn.query('SELECT images FROM reviews WHERE review_id = ?', [reviewId], (error, results) => {
+    conn.query('SELECT images FROM reviews WHERE review_id = ? AND deleted_at IS NULL', [reviewId], (error, results) => {
         if (error) {
+            logError('review:images', error);
             return res.status(500).send({ message: '서버 오류 발생' });
         }
         if (results.length === 0) {
@@ -108,23 +121,34 @@ const createReview = async (req, res) => {
 
     const user_id = decoded.id;
 
-    if (!user_id || !facility_id || !rating || !review_content) {
-        return res.status(400).send({ message: '필드가 누락되었습니다.' });
+    if (!facility_id) {
+        return res.status(400).send({ message: '어느 곳의 후기인지 알 수 없습니다.' });
     }
+
+    const score = intField(rating, { label: '평점', min: 1, max: 5 });
+    if (score.error) return res.status(400).send({ message: score.error });
+
+    const body = textField(review_content, { label: '후기', max: MAX_CONTENT_LENGTH });
+    if (body.error) return res.status(400).send({ message: body.error });
 
     const photos = normalizeImages(images);
     if (photos === false) {
         return res.status(400).send({ message: '사진을 읽을 수 없습니다.' });
     }
 
+    // 탈퇴한 계정의 남은 토큰으로 쓸 수 없게 users 에서 골라 넣습니다 (post.js 와 같은 방식).
     const query = `
-        INSERT INTO reviews (user_id, facility_id, rating, review_content, images, created_at) 
-        VALUES (?, ?, ?, ?, ?, NOW())
-    `;
+        INSERT INTO reviews (user_id, facility_id, rating, review_content, images, created_at)
+        SELECT user_id, ?, ?, ?, ?, NOW()
+          FROM users WHERE user_id = ? AND deleted_at IS NULL`;
 
-    conn.query(query, [user_id, facility_id, rating, review_content, photos], (error, results) => {
+    conn.query(query, [facility_id, score.value, body.value, photos, user_id], (error, results) => {
         if (error) {
+            logError('review', error);
             return res.status(500).send({ message: '서버 오류 발생' });
+        }
+        if (results.affectedRows === 0) {
+            return res.status(401).send({ message: '사용할 수 없는 계정입니다.' });
         }
         return res.status(201).send({ message: '리뷰가 성공적으로 등록되었습니다' });
     });
@@ -147,23 +171,30 @@ const updateReview = async (req, res) => {
      * images 를 아예 보내지 않으면 사진은 건드리지 않고, 빈 배열을 보내면 다 뺐다는 뜻입니다.
      * 둘을 구분하지 않으면, 사진을 다룰 줄 모르는 화면이 수정 한 번에 사진을 날립니다.
      */
+    const score = intField(rating, { label: '평점', min: 1, max: 5 });
+    if (score.error) return res.status(400).send({ message: score.error });
+
+    const body = textField(review_content, { label: '후기', max: MAX_CONTENT_LENGTH });
+    if (body.error) return res.status(400).send({ message: body.error });
+
     const photos = images === undefined ? undefined : normalizeImages(images);
     if (photos === false) {
         return res.status(400).send({ message: '사진을 읽을 수 없습니다.' });
     }
 
     const query = `
-        UPDATE reviews 
-        SET rating = ?, review_content = ?${photos === undefined ? '' : ', images = ?'} 
-        WHERE review_id = ? and user_id = ?
+        UPDATE reviews
+        SET rating = ?, review_content = ?${photos === undefined ? '' : ', images = ?'}
+        WHERE review_id = ? and user_id = ? and deleted_at IS NULL
     `;
     const values =
         photos === undefined
-            ? [rating, review_content, reviewId, user_id]
-            : [rating, review_content, photos, reviewId, user_id];
+            ? [score.value, body.value, reviewId, user_id]
+            : [score.value, body.value, photos, reviewId, user_id];
 
     conn.query(query, values, (error, results) => {
         if (error) {
+            logError('review', error);
             return res.status(500).send({ message: '서버 오류 발생' });
         }
         if (results.affectedRows === 0) {
@@ -185,13 +216,19 @@ const deleteReview = async (req, res) => {
 
     const user_id = decoded.id;
 
+    /*
+     * 글·댓글과 같이 표시만 남깁니다(soft delete).
+     * 예전에는 DELETE 라서 잘못 지우면 되돌릴 방법이 없었고, 탈퇴할 때 후기만
+     * 영영 사라져 다른 글과 처리가 달랐습니다.
+     */
     const query = `
-        DELETE FROM reviews 
-        WHERE review_id = ? and user_id = ?
+        UPDATE reviews SET deleted_at = ?
+        WHERE review_id = ? and user_id = ? and deleted_at IS NULL
     `;
 
-    conn.query(query, [reviewId, user_id], (error, results) => {
+    conn.query(query, [new Date(), reviewId, user_id], (error, results) => {
         if (error) {
+            logError('review', error);
             return res.status(500).send({ message: '서버 오류 발생' });
         }
         if (results.affectedRows === 0) {

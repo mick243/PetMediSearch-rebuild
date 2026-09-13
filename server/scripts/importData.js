@@ -43,7 +43,6 @@ async function insertData(filePath, type) {
 
     let insertedCount = 0;
     let updatedCount = 0;
-    let errorCount = 0;
 
     for (const item of jsonData.DATA) {
       const query = `
@@ -91,8 +90,13 @@ async function insertData(filePath, type) {
     console.log(`Total affected records: ${insertedCount + updatedCount}`);
   } catch (error) {
     await connection.rollback();
-    console.error('An error occurred:', error);
-    errorCount++;
+    /*
+     * errorCount++ 가 있었는데 그 변수는 위 try 블록 안에서 선언돼 여기서는
+     * 보이지 않았습니다. 적재가 실패하면 이 catch 자체가 ReferenceError 로 터져
+     * 진짜 원인이 가려졌습니다. 세기만 하고 아무도 읽지 않던 값이라 지웁니다.
+     */
+    console.error('적재 실패:', error.message);
+    process.exitCode = 1;
   } finally {
     await connection.end();
   }
