@@ -1,5 +1,15 @@
 const conn = require('../mysql');
 const { verifyToken, IS_ADMIN } = require('./authUser');
+const { textField } = require('./validate');
+
+/**
+ * 댓글 길이 상한.
+ *
+ * comments.content 는 text(65,535바이트)입니다. 한글은 한 자에 3바이트라
+ * 1,000자면 3KB 로 한참 여유가 있습니다. 댓글은 평문이라 칸을 넓히는 대신
+ * 입력을 제한하는 쪽이 맞습니다 — 목록에 그대로 실려 나가기 때문입니다.
+ */
+const MAX_CONTENT_LENGTH = 1000;
 
 /** 한 쪽에 보여 줄 스레드(원댓글) 수. 화면 기본값과 맞춰 둡니다. */
 const DEFAULT_PAGE_SIZE = 5;
@@ -88,7 +98,7 @@ const getCommentsByPostId = async (req, res) => {
 
 // 댓글 작성
 const addComment = (req, res) => {
-    const { post_id, content, parent_comment_id } = req.body;
+    const { post_id, parent_comment_id } = req.body;
     const token = req.headers.authorization?.split(' ')[1];
     const decoded = verifyToken(token);
 
@@ -96,14 +106,28 @@ const addComment = (req, res) => {
         return res.status(401).send({ message: '유효하지 않은 토큰입니다.' });
     }
 
+    const { error, value } = textField(req.body.content, {
+        label: '댓글',
+        max: MAX_CONTENT_LENGTH,
+    });
+    if (error) return res.status(400).send({ message: error });
+
     const user_id = decoded.id;
 
-    const query = 'INSERT INTO comments (post_id, user_id, content, parent_comment_id, created_at) VALUES (?, ?, ?, ?, NOW())';
+    // 탈퇴한 계정의 남은 토큰으로 달 수 없게 users 에서 골라 넣습니다 (post.js 와 같은 방식).
+    const query = `
+        INSERT INTO comments (post_id, user_id, content, parent_comment_id, created_at)
+        SELECT ?, user_id, ?, ?, NOW()
+          FROM users WHERE user_id = ? AND deleted_at IS NULL`;
 
-    conn.query(query, [post_id, user_id, content, parent_comment_id || null], (err, results) => {
+    conn.query(query, [post_id, value, parent_comment_id || null, user_id], (err, results) => {
         if (err) {
             console.error(err);
             return res.status(500).send({ message: '서버 에러 발생' });
+        }
+
+        if (results.affectedRows === 0) {
+            return res.status(401).send({ message: '사용할 수 없는 계정입니다.' });
         }
 
         return res.send({ message: '새로운 댓글이 등록되었습니다.', commentId: results.insertId });
@@ -113,7 +137,6 @@ const addComment = (req, res) => {
 // 댓글 수정
 const updateCommentById = (req, res) => {
     const comment_id = req.params.comment_id;
-    const { content } = req.body;
     const token = req.headers.authorization?.split(' ')[1];
     const decoded = verifyToken(token);
 
@@ -121,11 +144,17 @@ const updateCommentById = (req, res) => {
         return res.status(401).send({ message: '유효하지 않은 토큰입니다.' });
     }
 
+    const { error, value } = textField(req.body.content, {
+        label: '댓글',
+        max: MAX_CONTENT_LENGTH,
+    });
+    if (error) return res.status(400).send({ message: error });
+
     const user_id = decoded.id;
 
     const query = 'UPDATE comments SET content = ?, created_at = NOW() WHERE comment_id = ? and user_id = ? and deleted_at IS NULL';
 
-    conn.query(query, [content, comment_id, user_id], (err, results) => {
+    conn.query(query, [value, comment_id, user_id], (err, results) => {
         if (err) {
             console.error(err);
             return res.status(500).send({ message: '서버 에러 발생' });
