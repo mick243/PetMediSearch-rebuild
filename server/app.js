@@ -3,6 +3,7 @@ const express = require("express");
 const mysql = require("./mysql");
 const nodePath = require("path");
 const cors = require("cors");
+const { logError } = require('./logError');
 const helmet = require("helmet");
 
 const app = express();
@@ -66,6 +67,27 @@ app.use(express.static("public"));
  */
 const { generalLimiter } = require('./middleware/rateLimit');
 app.use(generalLimiter);
+
+/*
+ * 상태 확인.
+ *
+ * 서버가 살아 있다는 것만으로는 모자랍니다. 프로세스는 떠 있는데 DB 에 닿지
+ * 못하는 상태가 가장 흔하고, 그때도 200 을 주면 배포 도구와 감시 도구는
+ * 멀쩡하다고 봅니다. 실제로 쿼리를 한 번 던져 보고 답합니다.
+ *
+ * 응답을 캐시하지 않도록 막습니다 — 중간에 캐시가 끼면 죽은 뒤에도 200 이 남습니다.
+ */
+app.get('/health', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+
+  mysql.query('SELECT 1', (err) => {
+    if (err) {
+      logError('health', err);
+      return res.status(503).json({ status: 'error', db: 'down' });
+    }
+    return res.json({ status: 'ok', db: 'up', uptime: Math.round(process.uptime()) });
+  });
+});
 
 app.get("/search", (req, res) => {
   res.sendFile(nodePath.join(__dirname, "public", "search.html"));
@@ -430,6 +452,39 @@ app.use((err, req, res, next) => {
 });
 
 // 서버 시작
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log(`Server running at http://0.0.0.0:${port}`);
+});
+
+/*
+ * 정상 종료.
+ *
+ * docker stop 과 대부분의 배포 도구는 SIGTERM 을 보내고 10초쯤 기다렸다가
+ * 강제로 죽입니다. 아무 처리도 하지 않으면 그 순간 처리 중이던 요청이 끊기고,
+ * 배포할 때마다 몇 건은 오류로 끝납니다.
+ *
+ * 새 요청을 받지 않고, 돌고 있는 것을 마친 뒤, DB 풀을 닫고 나갑니다.
+ */
+const SHUTDOWN_TIMEOUT_MS = 10_000;
+
+const shutdown = (signal) => {
+  console.log(`${signal} 수신, 종료합니다.`);
+
+  // 시간 안에 끝나지 않으면 그냥 나갑니다. 여기서 멈춰 있으면 배포가 막힙니다.
+  const forceExit = setTimeout(() => {
+    console.error('제때 끝내지 못해 강제로 종료합니다.');
+    process.exit(1);
+  }, SHUTDOWN_TIMEOUT_MS);
+  forceExit.unref();
+
+  server.close(() => {
+    mysql.end((error) => {
+      if (error) logError('shutdown', error);
+      process.exit(0);
+    });
+  });
+};
+
+['SIGTERM', 'SIGINT'].forEach((signal) => {
+  process.on(signal, () => shutdown(signal));
 });
