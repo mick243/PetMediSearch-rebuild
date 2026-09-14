@@ -18,4 +18,11 @@ export interface PlaceState {
   searchPlaceResults: PlaceData[]; // 장소 검색 결과
   searchInputPlace: string; // 검색하려는 장소명
   selectedPlace: PlaceData | null; // 선택된 장소
+  /**
+   * 검색 버튼(Enter 포함)을 누른 횟수.
+   *
+   * searchPlaceResults 는 검색으로도, 지도 화면 범위 조회로도 바뀝니다.
+   * 지도를 옮겨야 하는 건 검색뿐이라 그 둘을 가르는 신호가 따로 필요합니다.
+   */
+  searchSeq: number;
 }

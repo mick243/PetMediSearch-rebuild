@@ -8,6 +8,7 @@ import {
 import styled from 'styled-components';
 import Loading from '../common/Loading';
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -84,6 +85,15 @@ const CLIENT_CLUSTER_STYLE: CSSProperties = {
   fontWeight: 700,
 };
 
+/*
+ * MarkerClusterer 에 넘길 배열. 컴포넌트 밖에 둬야 합니다.
+ *
+ * JSX 안에서 styles={[CLIENT_CLUSTER_STYLE]} 로 쓰면 배열 신원이 매 렌더 바뀌어
+ * SDK 가 setStyles 를 다시 걸고, 그때마다 클러스터를 전부 다시 그립니다.
+ * 업종 버튼 6번 클릭에 setStyles 18번 / redraw 18번이 나왔습니다.
+ */
+const CLIENT_CLUSTER_STYLES: CSSProperties[] = [CLIENT_CLUSTER_STYLE];
+
 function SearchMap() {
   const dispatch = useDispatch();
   const [searchParams] = useSearchParams();
@@ -94,7 +104,7 @@ function SearchMap() {
     // 기본값이 http 라서 HTTPS 로 배포하면 mixed content 로 차단됩니다.
     url: 'https://dapi.kakao.com/v2/maps/sdk.js',
   });
-  const { searchPlaceResults, searchInputPlace } = useSelector(
+  const { searchPlaceResults, searchInputPlace, searchSeq } = useSelector(
     (state: RootState) => state.place
   );
 
@@ -107,6 +117,14 @@ function SearchMap() {
    */
   const lastBoundsRef = useRef<string | null>(null);
   /*
+   * 마지막으로 내보낸 조회의 순번.
+   *
+   * 업종을 빠르게 바꾸면 요청 서너 개가 동시에 떠 있게 되는데, 먼저 보낸 것이
+   * 늦게 도착하면 나중에 고른 업종의 화면을 덮어썼습니다. 마지막 요청의 응답만
+   * 반영합니다.
+   */
+  const requestSeqRef = useRef(0);
+  /*
    * 검색 결과로 옮겨간 지도 중심.
    * 검색은 전국을 대상으로 하는데 지도가 그대로 있으면 결과가 화면 밖에 남습니다.
    * center 가 제어 프롭이라 imperative 하게 setCenter 하면 리렌더에 되돌아가므로 상태로 둡니다.
@@ -117,8 +135,6 @@ function SearchMap() {
     lat: number;
     lng: number;
   } | null>(null);
-  /** 어떤 검색어의 어떤 결과로 이미 옮겼는지. 같은 검색에 반복 이동하지 않도록. */
-  const centeredForRef = useRef<string | null>(null);
   const [mapLevel, setMapLevel] = useState(7);
   const [map, setMap] = useState<kakao.maps.Map | null>(null);
   // const [onlyOpened, setOnlyIsOpened] = useState(false);
@@ -155,73 +171,116 @@ function SearchMap() {
   /**
    * 지도 이동·확대가 멈추면 보이는 영역의 시설만 다시 불러옵니다.
    * 전국을 한 번에 받으면 응답이 13MB, 마커가 2만개가 되어 첫 렌더에 15초가 걸렸습니다.
-   * 키워드 검색 중에는 결과가 덮이지 않도록 건너뜁니다.
+   *
+   * useCallback 으로 묶어 둡니다. 이 함수가 매 렌더 새로 만들어지면 Map 의
+   * onCreate·onIdle 이 그때마다 다시 걸립니다. (아래 handleMapCreate 주석 참고)
    */
-  const handleMapIdle = async (target: kakao.maps.Map) => {
-    try {
-      const bounds = target.getBounds();
-      const sw = bounds.getSouthWest();
-      const ne = bounds.getNorthEast();
+  const handleMapIdle = useCallback(
+    async (target: kakao.maps.Map) => {
+      try {
+        const bounds = target.getBounds();
+        const sw = bounds.getSouthWest();
+        const ne = bounds.getNorthEast();
 
-      /*
-       * 소수 4자리(약 10m)까지 같으면 같은 화면으로 봅니다.
-       * 검색어·업종이 바뀌면 같은 화면이라도 다시 조회해야 하므로 키에 함께 넣습니다.
-       */
-      const boundsKey = [
-        ...[sw.getLat(), sw.getLng(), ne.getLat(), ne.getLng()].map((v) =>
-          v.toFixed(4)
-        ),
-        target.getLevel(),
-        searchInputPlace,
-        selectedCategory,
-      ].join(',');
-      if (lastBoundsRef.current === boundsKey) return;
-      lastBoundsRef.current = boundsKey;
+        /*
+         * 소수 4자리(약 10m)까지 같으면 같은 화면으로 봅니다.
+         * 검색어·업종이 바뀌면 같은 화면이라도 다시 조회해야 하므로 키에 함께 넣습니다.
+         */
+        const boundsKey = [
+          ...[sw.getLat(), sw.getLng(), ne.getLat(), ne.getLng()].map((v) =>
+            v.toFixed(4)
+          ),
+          target.getLevel(),
+          searchInputPlace,
+          selectedCategory,
+        ].join(',');
+        if (lastBoundsRef.current === boundsKey) return;
+        lastBoundsRef.current = boundsKey;
 
-      /*
-       * 검색어와 업종을 화면 범위 조회에도 함께 넘깁니다.
-       *
-       * 예전에는 검색어가 있으면 재조회를 아예 건너뛰었습니다. 그 탓에 검색창에 글자가
-       * 남은 상태로 지도를 옮기면 데이터가 갱신되지 않아, 옮겨간 지역에 시설이 있어도
-       * 아무것도 표시되지 않았습니다. (세종시가 비어 보였던 원인)
-       */
-      const box = {
-        swLat: sw.getLat(),
-        swLng: sw.getLng(),
-        neLat: ne.getLat(),
-        neLng: ne.getLng(),
-        ...(searchInputPlace ? { keyword: searchInputPlace } : {}),
-        ...(selectedCategory === 'onlyHospital'
-          ? { type: '병원' }
-          : selectedCategory === 'onlyPharmacy'
-            ? { type: '약국' }
-            : {}),
-      };
+        const seq = ++requestSeqRef.current;
 
-      // 넓게 보고 있으면 서버 집계, 확대했으면 개별 마커
-      if (target.getLevel() >= CLUSTER_FROM_LEVEL) {
-        const cells = await fetchPlaceClusters({
-          ...box,
-          precision: clusterPrecision(target.getLevel()),
-        });
-        setClusters(cells);
-        dispatch(setResults([]));
-        return;
+        /*
+         * 검색어와 업종을 화면 범위 조회에도 함께 넘깁니다.
+         *
+         * 예전에는 검색어가 있으면 재조회를 아예 건너뛰었습니다. 그 탓에 검색창에 글자가
+         * 남은 상태로 지도를 옮기면 데이터가 갱신되지 않아, 옮겨간 지역에 시설이 있어도
+         * 아무것도 표시되지 않았습니다. (세종시가 비어 보였던 원인)
+         */
+        const box = {
+          swLat: sw.getLat(),
+          swLng: sw.getLng(),
+          neLat: ne.getLat(),
+          neLng: ne.getLng(),
+          ...(searchInputPlace ? { keyword: searchInputPlace } : {}),
+          ...(selectedCategory === 'onlyHospital'
+            ? { type: '병원' }
+            : selectedCategory === 'onlyPharmacy'
+              ? { type: '약국' }
+              : {}),
+        };
+
+        // 넓게 보고 있으면 서버 집계, 확대했으면 개별 마커
+        if (target.getLevel() >= CLUSTER_FROM_LEVEL) {
+          const cells = await fetchPlaceClusters({
+            ...box,
+            precision: clusterPrecision(target.getLevel()),
+          });
+          // 그 사이 더 최신 조회가 나갔으면 이 응답은 버립니다.
+          if (seq !== requestSeqRef.current) return;
+          setClusters(cells);
+          dispatch(setResults([]));
+          return;
+        }
+
+        const data = await fetchPlaces({ ...box, limit: MAX_MARKERS });
+        if (seq !== requestSeqRef.current) return;
+        /*
+         * 집계 풍선은 마커가 도착한 뒤에 치웁니다.
+         * 먼저 비우면 응답을 기다리는 동안 아무것도 없는 지도가 잠깐 보입니다.
+         */
+        setClusters([]);
+        dispatch(setResults(data));
+      } catch (err) {
+        /*
+         * 실패한 화면은 다시 조회할 수 있어야 합니다.
+         * 기록을 남겨 두면 같은 자리에서는 영영 건너뛰어 빈 지도가 됩니다.
+         */
+        lastBoundsRef.current = null;
+        console.error('화면 범위의 시설을 불러오던 중 오류 발생:', err);
       }
+    },
+    [dispatch, searchInputPlace, selectedCategory]
+  );
 
-      setClusters([]);
-      const data = await fetchPlaces({ ...box, limit: MAX_MARKERS });
-      dispatch(setResults(data));
-    } catch (err) {
-      console.error('화면 범위의 시설을 불러오던 중 오류 발생:', err);
-    }
-  };
+  /*
+   * onCreate 에는 신원이 고정된 함수만 넘깁니다.
+   *
+   * SDK 의 Map 은 onCreate 를 `useLayoutEffect(..., [map, onCreate])` 로 부릅니다.
+   * 여기에 매 렌더 새로 만들어지는 함수를 주면 이름과 달리 "매 렌더" 가 됩니다.
+   * 예전에는 이 함수 안에서 첫 조회까지 했던 탓에, 지도가 가만히 있어도 렌더 수만큼
+   * 조회가 나갔습니다 — 업종 버튼 6번 클릭에 요청 6번, 지도 idle 은 0번이었습니다.
+   * 첫 조회는 아래 효과가 맡습니다.
+   */
+  const handleMapCreate = useCallback(
+    (created: kakao.maps.Map) => setMap(created),
+    []
+  );
 
-  const handleMapCreate = (map: kakao.maps.Map) => {
-    setMap(map);
-    // idle 은 지도가 움직인 뒤에만 발생해서, 첫 진입에는 여기서 한 번 불러옵니다.
-    handleMapIdle(map);
-  };
+  /*
+   * 첫 진입과 업종 변경 때 화면 범위를 조회합니다.
+   *
+   * idle 은 지도가 움직인 뒤에만 발생하므로 이 둘은 따로 불러 줘야 합니다.
+   * handleMapIdle 은 ref 로 집어 이 효과가 함수 신원 때문에 다시 돌지 않게 합니다
+   * (검색창에 한 글자 칠 때마다 신원이 바뀝니다).
+   */
+  const idleRef = useRef(handleMapIdle);
+  useEffect(() => {
+    idleRef.current = handleMapIdle;
+  });
+  useEffect(() => {
+    if (!map) return;
+    idleRef.current(map);
+  }, [map, selectedCategory]);
 
   // const handleOnlyOpenedToggle = (toggleOnlyOpened: boolean) => {
   //   setOnlyIsOpened(toggleOnlyOpened);
@@ -312,8 +371,22 @@ function SearchMap() {
    */
   const movedForRef = useRef<string | null>(null);
   useEffect(() => {
-    const lat = Number(searchParams.get('lat'));
-    const lng = Number(searchParams.get('lng'));
+    const latParam = searchParams.get('lat');
+    const lngParam = searchParams.get('lng');
+
+    /*
+     * 좌표가 실려 있지 않으면 지도를 건드리지 않습니다.
+     *
+     * 예전에는 곧바로 Number() 로 바꿔서 봤습니다. 파라미터가 없으면 get 이 null 을
+     * 주고 Number(null) 은 0 이라, "없음" 이 "유한한 0" 으로 통과했습니다.
+     * 그래서 /search 로 그냥 들어오면 지도가 (0,0) 으로 갔습니다 — 카카오가 투영
+     * 범위 밖으로 밀어내 중심이 (-9.688, 4655241) 이 되고 타일이 아예 안 그려집니다.
+     * 빈 문자열(?lat=)도 Number 로는 0 이라 같이 걸러냅니다.
+     */
+    if (!latParam || !lngParam) return;
+
+    const lat = Number(latParam);
+    const lng = Number(lngParam);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
     if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return;
 
@@ -326,30 +399,33 @@ function SearchMap() {
     setMapLevel(3);
   }, [searchParams]);
 
-  /* 검색하면 첫 결과로 지도를 옮깁니다. 검색어를 비우면 다시 화면 범위 조회로 돌아갑니다. */
+  /*
+   * 검색 버튼을 누르면 첫 결과로 지도를 옮깁니다.
+   *
+   * 예전에는 filteredResults 가 바뀔 때마다 옮겼습니다. 그런데 그 값은 업종을 바꿔도,
+   * 화면 범위 조회 결과가 도착해도 바뀝니다. 옮기면 조회가 또 돌고, 그 결과가 첫 항목을
+   * 또 바꿔서 지도가 결과 사이를 계속 튀어 다녔습니다 — 마포에서 군산까지 40ms 였습니다.
+   * 업종을 빠르게 반복해 누르면 이 고리가 겹쳐 화면이 요동쳤습니다.
+   *
+   * 그래서 "검색을 실행했다" 는 신호(searchSeq)에만 반응합니다. 검색어 문자열은
+   * 한 글자 칠 때마다 바뀌므로 그것으로는 가를 수 없습니다.
+   */
   useEffect(() => {
-    if (!searchInputPlace) {
-      /*
-       * 검색어를 비웠다고 중심을 되돌리면 안 됩니다.
-       * center 는 제어 프롭이라 null 로 바꾸면 기본 좌표로 튕기고,
-       * 집계 풍선 클릭으로 옮긴 위치도 즉시 취소됩니다.
-       * 다음 검색에서 다시 이동할 수 있도록 기록만 초기화합니다.
-       */
-      centeredForRef.current = null;
-      return;
-    }
+    if (searchSeq === 0) return;
 
     const first = filteredResults[0];
     if (!first) return;
 
-    const key = `${searchInputPlace}:${first.id}`;
-    if (centeredForRef.current === key) return;
-    centeredForRef.current = key;
-
     setSearchCenter({ lat: first.x as number, lng: first.y as number });
     // 너무 넓게 보고 있으면 결과가 보이도록 당겨줍니다. (숫자가 작을수록 확대)
     setMapLevel((level) => (level > 5 ? 5 : level));
-  }, [searchInputPlace, filteredResults]);
+    /*
+     * filteredResults 는 일부러 의존성에서 뺐습니다 — 그게 이 효과를 다시 돌리는
+     * 것이 바로 위에서 없앤 고리입니다. 검색 결과는 searchSeq 와 같은 갱신에
+     * 담겨 오므로 여기서 읽는 값은 그 검색의 결과가 맞습니다.
+     */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchSeq]);
 
   /* 지도 SDK 로드 실패는 화면이 조용히 비어 보이므로 콘솔에 남깁니다. */
   useEffect(() => {
@@ -454,7 +530,7 @@ function SearchMap() {
               <MarkerClusterer
                 averageCenter={true}
                 minLevel={5}
-                styles={[CLIENT_CLUSTER_STYLE]}
+                styles={CLIENT_CLUSTER_STYLES}
               >
                 {filteredResults.map((place) => (
                   <MapMarker

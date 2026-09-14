@@ -292,6 +292,7 @@ const authRouter = require('./routes/auth');
 const mypageRouter = require('./routes/mypage');
 const petsRouter = require('./routes/pets');
 const favoritesRouter = require('./routes/favorites');
+const pushRouter = require('./routes/push');
 
 app.use('/category', categoryRouter);
 app.use('/posts', postRouter);
@@ -301,6 +302,7 @@ app.use('/auth', authRouter);
 app.use('/mypage', mypageRouter);
 app.use('/pets', petsRouter);
 app.use('/favorites', favoritesRouter);
+app.use('/push', pushRouter);
 
 /*
  * 어느 라우트에도 걸리지 않은 주소.
@@ -346,6 +348,44 @@ app.use((err, req, res, next) => {
     logError('unhandled', err);
     return res.status(500).json({ message: '서버 오류 발생' });
 });
+
+/*
+ * 접종·검진 알림 배치.
+ *
+ * REMINDER_CRON 이 있을 때만 돕니다. 기본은 꺼짐입니다 — 개발하면서 서버를 켤
+ * 때마다 진짜 알림이 나가면 안 됩니다. 운영에서는 server/.env 에 '0 9 * * *'
+ * 처럼 넣습니다.
+ *
+ * 시각은 컨테이너의 시간대를 따릅니다. docker-compose 의 api 에 TZ 가 없으면
+ * UTC 로 잡혀 한국 오후 6시에 나갑니다.
+ *
+ * 앱을 여러 개 띄워도 vaccination_reminders 의 기본키가 중복 발송을 막으므로
+ * 인스턴스마다 걸어도 같은 알림이 두 번 가지 않습니다.
+ */
+if (process.env.REMINDER_CRON) {
+  const cron = require('node-cron');
+  const { execFile } = require('child_process');
+
+  if (!cron.validate(process.env.REMINDER_CRON)) {
+    logError('reminder:cron', new Error('REMINDER_CRON 형식이 올바르지 않습니다.'));
+  } else {
+    cron.schedule(process.env.REMINDER_CRON, () => {
+      /*
+       * 같은 프로세스에서 돌리지 않고 따로 띄웁니다. 발송이 오래 걸리거나 죽어도
+       * API 가 함께 멈추지 않고, 손으로 돌릴 때와 똑같은 경로를 탑니다.
+       */
+      execFile(
+        process.execPath,
+        [nodePath.join(__dirname, 'scripts', 'sendReminders.js'), '--send', '--summary-only'],
+        (error, stdout) => {
+          if (error) return logError('reminder:run', error);
+          console.log(stdout.trim());
+        }
+      );
+    });
+    console.log(`접종 알림 배치 예약됨: ${process.env.REMINDER_CRON}`);
+  }
+}
 
 // 서버 시작
 const server = app.listen(port, () => {

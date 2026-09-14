@@ -5,8 +5,8 @@ import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '../../store';
 import {
   clearSelectedPlace,
-  setResults,
   setSearchInputPlace,
+  setSearchResults,
 } from '../../store/slices/placeSlice';
 import { fetchPlaces } from '../../apis/place.api';
 
@@ -35,7 +35,7 @@ function SearchBox() {
         limit: SEARCH_RESULT_LIMIT,
       });
 
-      dispatch(setResults(results));
+      dispatch(setSearchResults(results));
       dispatch(clearSelectedPlace());
     } catch (error) {
       console.error('검색 결과를 불러오던 중 오류 발생:', error);

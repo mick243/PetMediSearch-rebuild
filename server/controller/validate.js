@@ -131,10 +131,36 @@ const dateField = (raw, { label, required = true, future = true }) => {
     return { value };
 };
 
+/*
+ * HH:MM. 브라우저의 <input type="time"> 이 보내는 모양입니다.
+ * 초까지 오는 경우(HH:MM:SS)도 받아 앞 다섯 글자만 씁니다 — 분 단위면 충분하고,
+ * 초를 그대로 두면 화면마다 '15:00' 과 '15:00:00' 이 섞입니다.
+ */
+const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)(:[0-5]\d)?$/;
+
+/**
+ * HH:MM 시각. 비워 두는 것이 정상인 값이라 기본은 required: false 입니다.
+ *
+ * 정규식만으로 거르고 Date 로 되돌려 보지 않습니다. 날짜와 달리 24:00 이나
+ * 2월 31일 같은 "형식은 맞지만 없는 값" 이 시각에는 없습니다.
+ */
+const timeField = (raw, { label, required = false }) => {
+    if (raw === undefined || raw === null || raw === '') {
+        return required ? { error: `${eul(label)} 입력해주세요.` } : { value: null };
+    }
+
+    const value = String(raw).trim();
+    if (!TIME_RE.test(value)) {
+        return { error: `${eun(label)} HH:MM 형식이어야 합니다.` };
+    }
+    return { value: value.slice(0, 5) };
+};
+
 module.exports = {
     textField,
     intField,
     decimalField,
     dateField,
+    timeField,
     richTextHasContent,
 };

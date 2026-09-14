@@ -11,6 +11,7 @@ import { fetchMyPets } from '../apis/pets.api';
 import { daysUntil, ddayLabel } from '../utils/format';
 import { fetchFavorites } from '../apis/favorites.api';
 import { timeAgo } from '../utils/postContent';
+import SlideTabs from '../components/common/SlideTabs';
 
 const BASE_URL = import.meta.env.VITE_BASE_URL;
 
@@ -125,7 +126,8 @@ function Home() {
       {/* ── 주인공 ── */}
       {pet ? (
         <>
-          <PetTabs role="tablist" aria-label="내 반려동물">
+          {/* 아이가 늘면 한 줄을 넘칩니다. 넘기는 화살표는 SlideTabs 에 있습니다. */}
+          <SlideTabs label="내 반려동물" activeKey={petIndex}>
             {pets.map((p, i) => (
               <PetTab
                 key={p.pet_id}
@@ -146,7 +148,7 @@ function Home() {
             >
               <HiPlus aria-hidden="true" /> 추가
             </PetTab>
-          </PetTabs>
+          </SlideTabs>
 
           <PetCard
             type="button"
@@ -333,18 +335,9 @@ const Muted = styled.p`
   color: ${({ theme }) => theme.color.textMuted};
 `;
 
-const PetTabs = styled.div`
-  display: flex;
-  gap: ${({ theme }) => theme.space.sm};
-  overflow-x: auto;
-  scrollbar-width: none;
-  &::-webkit-scrollbar {
-    display: none;
-  }
-`;
-
 const PetTab = styled.button<{ $on: boolean }>`
   flex: none;
+  white-space: nowrap;
   padding: 5px 12px;
   border-radius: ${({ theme }) => theme.radius.pill};
   border: 1px solid

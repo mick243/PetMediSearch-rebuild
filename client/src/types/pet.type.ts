@@ -4,6 +4,11 @@ export interface Vaccination {
   name: string;
   /** YYYY-MM-DD */
   due_date: string;
+  /**
+   * HH:MM. 시각을 모르는 일정이 대부분이라 비어 있는 것이 정상입니다.
+   * 서버가 TIME 컬럼을 'HH:MM:SS' 로 보내므로 화면에서는 앞 다섯 글자만 씁니다.
+   */
+  due_time: string | null;
   done: 0 | 1 | boolean;
 }
 

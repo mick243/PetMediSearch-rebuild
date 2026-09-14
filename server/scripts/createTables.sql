@@ -153,10 +153,44 @@ CREATE TABLE IF NOT EXISTS `pet_vaccinations` (
   `pet_id` int NOT NULL,
   `name` varchar(80) NOT NULL,
   `due_date` date NOT NULL,
+  -- 예약 시각. 선택입니다 — 날짜만 아는 일정이 대부분이라 NULL 을 허용합니다.
+  -- 알림 배치와 D-day 는 날짜만 보므로 이 값은 화면 표시에만 씁니다.
+  `due_time` time NULL DEFAULT NULL,
   `done` tinyint(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`vaccination_id`),
   KEY `vacc_pet` (`pet_id`),
+  -- 알림 배치는 pet_id 가 아니라 "완료 안 했고 마감이 며칠 뒤" 로 고릅니다.
+  -- 이 인덱스가 없으면 매일 표를 통째로 읽습니다. (scripts/sendReminders.js)
+  KEY `idx_vacc_due` (`done`, `due_date`),
   CONSTRAINT `vacc_ibfk_1` FOREIGN KEY (`pet_id`) REFERENCES `pets` (`pet_id`) ON DELETE CASCADE
+);
+
+-- 웹 푸시 구독. 기기 하나에 한 행입니다. 자세한 사정은 scripts/alterPushSubscriptions.sql 에.
+CREATE TABLE IF NOT EXISTS `push_subscriptions` (
+  `subscription_id` int NOT NULL AUTO_INCREMENT,
+  `user_id` int NOT NULL,
+  `endpoint` varchar(512) NOT NULL,
+  `p256dh` varchar(255) NOT NULL,
+  `auth` varchar(255) NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `last_sent_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`subscription_id`),
+  -- 같은 기기가 다시 구독하면 같은 endpoint 가 옵니다. 행이 늘면 알림이 여러 번 갑니다.
+  UNIQUE KEY `uq_push_endpoint` (`endpoint`),
+  KEY `push_user` (`user_id`),
+  CONSTRAINT `push_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE
+);
+
+-- 접종·검진 알림을 이미 보냈는지. 같은 알림이 두 번 가지 않게 DB 가 막아 줍니다.
+-- 배치가 하루에 두 번 돌아도(배포·재시작·수동 실행) 두 번째 INSERT 가 기본키에 걸립니다.
+CREATE TABLE IF NOT EXISTS `vaccination_reminders` (
+  `vaccination_id` int NOT NULL,
+  -- 마감 며칠 전 알림인지. 3·2·1 을 각각 한 번씩만 보냅니다.
+  `days_before` tinyint unsigned NOT NULL,
+  `sent_at` timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`vaccination_id`, `days_before`),
+  CONSTRAINT `vacc_reminder_ibfk_1` FOREIGN KEY (`vaccination_id`)
+    REFERENCES `pet_vaccinations` (`vaccination_id`) ON DELETE CASCADE
 );
 
 -- 단골 병원·약국. 지도 정보창의 ★ 로 넣고 뺍니다.
