@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { HiChevronRight } from 'react-icons/hi2';
 import { fetchMyPets, setVaccinationDone } from '../apis/pets.api';
 import { Pet, Vaccination } from '../types/pet.type';
-import { daysUntil, ddayLabel, formatDate } from '../utils/format';
+import { daysUntil, ddayLabel, formatDate, hhmm } from '../utils/format';
 import { apiErrorMessage } from '../utils/apiError';
 import PushToggle from '../components/common/PushToggle';
 
@@ -152,6 +152,10 @@ function Vaccinations() {
                   <RowMeta>
                     {pet.name} ·{' '}
                     {formatDate(vaccination.due_date, 'YYYY.MM.DD')}
+                    {/* 시각은 넣어 둔 일정에만 붙습니다. */}
+                    {vaccination.due_time
+                      ? ` ${hhmm(vaccination.due_time)}`
+                      : ''}
                   </RowMeta>
                 </div>
                 {done ? (

@@ -153,6 +153,9 @@ CREATE TABLE IF NOT EXISTS `pet_vaccinations` (
   `pet_id` int NOT NULL,
   `name` varchar(80) NOT NULL,
   `due_date` date NOT NULL,
+  -- 예약 시각. 선택입니다 — 날짜만 아는 일정이 대부분이라 NULL 을 허용합니다.
+  -- 알림 배치와 D-day 는 날짜만 보므로 이 값은 화면 표시에만 씁니다.
+  `due_time` time NULL DEFAULT NULL,
   `done` tinyint(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`vaccination_id`),
   KEY `vacc_pet` (`pet_id`),

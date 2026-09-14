@@ -6,6 +6,7 @@ const {
     intField,
     decimalField,
     dateField,
+    timeField,
     richTextHasContent,
 } = require('./validate');
 
@@ -177,4 +178,39 @@ test('richTextHasContent: 글자가 없어도 사진이 있으면 통과', () =>
         true
     );
     assert.equal(richTextHasContent('<IMG SRC="x">'), true);
+});
+
+/*
+ * 시각.
+ *
+ * 비어 있는 것이 정상인 값이라, "안 넣음" 과 "잘못 넣음" 을 가르는 것이 핵심입니다.
+ * 둘을 뭉치면 시각을 지우려는 사용자가 오류 문구만 보게 됩니다.
+ */
+
+test('timeField: 비워 두면 null (오류가 아니다)', () => {
+    assert.deepEqual(timeField('', { label: '시각' }), { value: null });
+    assert.deepEqual(timeField(null, { label: '시각' }), { value: null });
+    assert.deepEqual(timeField(undefined, { label: '시각' }), { value: null });
+});
+
+test('timeField: HH:MM 을 그대로 받는다', () => {
+    assert.deepEqual(timeField('09:05', { label: '시각' }), { value: '09:05' });
+    assert.deepEqual(timeField('00:00', { label: '시각' }), { value: '00:00' });
+    assert.deepEqual(timeField('23:59', { label: '시각' }), { value: '23:59' });
+});
+
+test('timeField: 초가 붙어 와도 분까지만 남긴다', () => {
+    // DB 의 TIME 은 'HH:MM:SS' 로 돌아옵니다. 그대로 두면 화면마다 형식이 섞입니다.
+    assert.deepEqual(timeField('15:30:00', { label: '시각' }), { value: '15:30' });
+});
+
+test('timeField: 없는 시각은 거부한다', () => {
+    assert.ok(timeField('24:00', { label: '시각' }).error);
+    assert.ok(timeField('25:99', { label: '시각' }).error);
+    assert.ok(timeField('9:05', { label: '시각' }).error);
+    assert.ok(timeField('오후 3시', { label: '시각' }).error);
+});
+
+test('timeField: required 면 빈 값을 막는다', () => {
+    assert.ok(timeField('', { label: '시각', required: true }).error);
 });

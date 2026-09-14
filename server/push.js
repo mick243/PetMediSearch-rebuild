@@ -77,13 +77,18 @@ const send = async (subscription, payload) => {
  * 제목에 아이 이름을 먼저 둡니다. 여러 마리를 키우면 누구 일정인지가 먼저
  * 궁금하고, 잠금화면에서는 제목만 보이는 경우가 많습니다.
  */
-const reminderPayload = ({ petName, scheduleName, daysLeft, dueDate }) => ({
-  title: `${petName} ${scheduleName} D-${daysLeft}`,
-  body:
-    daysLeft === 1
-      ? `내일(${dueDate}) 예정이에요.`
-      : `${daysLeft}일 뒤 ${dueDate} 예정이에요.`,
-  url: '/vaccinations',
-});
+const reminderPayload = ({ petName, scheduleName, daysLeft, dueDate, dueTime }) => {
+  /*
+   * 시각은 있을 때만 붙입니다. 모르는 일정에 00:00 을 채워 넣으면 "자정 예정" 으로
+   * 읽히는데, 그건 알려 준 것이 아니라 틀린 것을 알려 준 것입니다.
+   */
+  const when = dueTime ? `${dueDate} ${dueTime}` : dueDate;
+  return {
+    title: `${petName} ${scheduleName} D-${daysLeft}`,
+    body:
+      daysLeft === 1 ? `내일(${when}) 예정이에요.` : `${daysLeft}일 뒤 ${when} 예정이에요.`,
+    url: '/vaccinations',
+  };
+};
 
 module.exports = { send, reminderPayload, isConfigured, publicKey, TTL_SECONDS };

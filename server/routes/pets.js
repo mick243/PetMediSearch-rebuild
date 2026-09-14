@@ -1,7 +1,8 @@
 const express = require('express');
 const {
     getMyPets, addPet, updatePet, deletePet,
-    addVaccination, setVaccinationDone, deleteVaccination,
+    addVaccination,
+  updateVaccination, setVaccinationDone, deleteVaccination,
 } = require('../controller/pets');
 const router = express.Router();
 
@@ -75,12 +76,30 @@ router.delete('/:pet_id', deletePet);
  *             properties:
  *               name: { type: string, example: '종합백신 5차' }
  *               due_date: { type: string, example: '2026-09-22' }
+ *               due_time: { type: string, example: '15:30', description: '선택. 모르면 비웁니다' }
  */
 router.post('/:pet_id/vaccinations', addVaccination);
 
 /**
  * @swagger
  * /pets/vaccinations/{vaccination_id}:
+ *   put:
+ *     tags: [Pets]
+ *     summary: 접종·검진 일정 수정 (이름·날짜·시각)
+ *     description: >
+ *       done 은 바꾸지 않습니다. 완료 체크는 PATCH 로 따로 다룹니다 —
+ *       수정 화면이 그 값을 덮어쓰면 사용자가 모르는 사이에 완료가 풀립니다.
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name: { type: string, example: '종합백신 5차' }
+ *               due_date: { type: string, example: '2026-09-22' }
+ *               due_time: { type: string, example: '15:30', description: '선택. 모르면 비웁니다' }
  *   patch:
  *     tags: [Pets]
  *     summary: 접종 완료 여부 변경
@@ -92,6 +111,7 @@ router.post('/:pet_id/vaccinations', addVaccination);
  *     security:
  *       - BearerAuth: []
  */
+router.put('/vaccinations/:vaccination_id', updateVaccination);
 router.patch('/vaccinations/:vaccination_id', setVaccinationDone);
 router.delete('/vaccinations/:vaccination_id', deleteVaccination);
 

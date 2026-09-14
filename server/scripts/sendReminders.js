@@ -168,7 +168,11 @@ async function main() {
       throw new Error(`--date 는 YYYY-MM-DD 모양이어야 합니다: '${baseDate}'`);
     }
 
-    console.log('접종·검진 알림 대상 (보내지 않고 확인만 합니다)');
+    console.log(
+      args.dryRun
+        ? '접종·검진 알림 대상 (보내지 않고 확인만 합니다)'
+        : '접종·검진 알림 발송'
+    );
     console.log('');
     console.log('[시각]');
     console.log(`  DB    time_zone=${clock.tz}  NOW()=${clock.now}  CURDATE()=${clock.today}`);
@@ -229,7 +233,7 @@ async function main() {
     const params = hasDedupeTable ? [baseDate, dueDates] : [dueDates];
 
     const [rows] = await conn.query(
-      `SELECT v.vaccination_id, v.name AS schedule_name, v.due_date,
+      `SELECT v.vaccination_id, v.name AS schedule_name, v.due_date, v.due_time,
               p.pet_id, p.name AS pet_name,
               u.user_id, u.username, u.email, u.phone, u.social_type
          FROM pet_vaccinations v
@@ -290,7 +294,7 @@ async function main() {
         const day = daysByDueDate.get(row.due_date);
         const devices = (subsByUser.get(row.user_id) ?? []).length;
         console.log(
-          `  ${String(day).padStart(2)}일 전  ${row.due_date}  ${row.pet_name} / ${row.schedule_name}` +
+          `  ${String(day).padStart(2)}일 전  ${row.due_date}${row.due_time ? ' ' + String(row.due_time).slice(0, 5) : ''}  ${row.pet_name} / ${row.schedule_name}` +
             `  — ${row.username}(user ${row.user_id})  ` +
             (devices > 0 ? `기기 ${devices}대` : '구독 없음') +
             `  ${contactLabel(row)}`
@@ -326,6 +330,8 @@ async function main() {
         scheduleName: row.schedule_name,
         daysLeft,
         dueDate: row.due_date,
+        // 시각은 선택입니다. NULL 이면 문구에서 아예 빠집니다.
+        dueTime: row.due_time ? String(row.due_time).slice(0, 5) : null,
       });
 
       let delivered = false;

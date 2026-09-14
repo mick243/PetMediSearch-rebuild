@@ -1,7 +1,7 @@
 const conn = require('../mysql');
 const { logError } = require('../logError');
 const { verifyToken } = require('./authUser');
-const { textField, decimalField, dateField } = require('./validate');
+const { textField, decimalField, dateField, timeField } = require('./validate');
 
 /** pets.weight_kg 는 decimal(5,2) 라 999.99 까지 들어가지만, 실제로 가능한 범위로 좁힙니다. */
 const MAX_WEIGHT_KG = 200;
@@ -81,10 +81,10 @@ const getMyPets = (req, res) => {
 
         const ids = pets.map((p) => p.pet_id);
         const vq = `
-            SELECT vaccination_id, pet_id, name, due_date, done
+            SELECT vaccination_id, pet_id, name, due_date, due_time, done
             FROM pet_vaccinations
             WHERE pet_id IN (?)
-            ORDER BY due_date ASC`;
+            ORDER BY due_date ASC, due_time IS NULL, due_time ASC`;
         conn.query(vq, [ids], (verr, vacc) => {
             if (verr) {
                 logError('pets:vaccinations', verr);
@@ -172,22 +172,37 @@ const deletePet = (req, res) => {
     );
 };
 
+/**
+ * 일정 입력값 검사. 추가와 수정이 같이 씁니다.
+ * 시각은 선택입니다 — 날짜만 아는 일정이 대부분이고, 병원 예약을 잡은 것만 시각이 붙습니다.
+ */
+const validateVaccination = (body) => {
+    const name = textField(body.name, { label: '일정 이름', max: 80 });
+    if (name.error) return { error: name.error };
+
+    // 접종·검진은 앞날 일정이라 미래 날짜를 막지 않습니다.
+    const dueDate = dateField(body.due_date, { label: '날짜' });
+    if (dueDate.error) return { error: dueDate.error };
+
+    const dueTime = timeField(body.due_time, { label: '시각' });
+    if (dueTime.error) return { error: dueTime.error };
+
+    return { value: { name: name.value, due_date: dueDate.value, due_time: dueTime.value } };
+};
+
 // 접종 일정 추가 (반려동물이 본인 것인지 먼저 확인)
 const addVaccination = (req, res) => {
     const user_id = requireUser(req, res);
     if (!user_id) return;
 
-    const name = textField(req.body.name, { label: '일정 이름', max: 80 });
-    if (name.error) return res.status(400).send({ message: name.error });
-
-    // 접종·검진은 앞날 일정이라 미래 날짜를 막지 않습니다.
-    const dueDate = dateField(req.body.due_date, { label: '날짜' });
-    if (dueDate.error) return res.status(400).send({ message: dueDate.error });
+    const { error, value } = validateVaccination(req.body);
+    if (error) return res.status(400).send({ message: error });
 
     const query = `
-        INSERT INTO pet_vaccinations (pet_id, name, due_date)
-        SELECT pet_id, ?, ? FROM pets WHERE pet_id = ? AND user_id = ?`;
-    conn.query(query, [name.value, dueDate.value, req.params.pet_id, user_id], (err, result) => {
+        INSERT INTO pet_vaccinations (pet_id, name, due_date, due_time)
+        SELECT pet_id, ?, ?, ? FROM pets WHERE pet_id = ? AND user_id = ?`;
+    const params = [value.name, value.due_date, value.due_time, req.params.pet_id, user_id];
+    conn.query(query, params, (err, result) => {
         if (err) {
             logError('pets', err);
             return res.status(500).send({ message: '서버 에러 발생' });
@@ -196,6 +211,41 @@ const addVaccination = (req, res) => {
             return res.status(404).send({ message: '본인의 반려동물에만 일정을 추가할 수 있습니다.' });
         }
         return res.send({ message: '일정이 추가되었습니다.', vaccinationId: result.insertId });
+    });
+};
+
+/*
+ * 접종 일정 수정.
+ *
+ * 예전에는 고칠 방법이 없어, 날짜를 잘못 넣으면 지우고 다시 넣어야 했습니다.
+ * 그러면 vaccination_id 가 바뀌어 이미 보낸 알림 기록(vaccination_reminders)이
+ * 끊기고, 같은 일정의 알림이 다시 나갑니다.
+ *
+ * done 은 여기서 건드리지 않습니다. 체크는 목록에서 누르는 별도 조작이고,
+ * 수정 화면이 그 값을 덮어쓰면 사용자가 모르는 사이에 완료가 풀립니다.
+ */
+const updateVaccination = (req, res) => {
+    const user_id = requireUser(req, res);
+    if (!user_id) return;
+
+    const { error, value } = validateVaccination(req.body);
+    if (error) return res.status(400).send({ message: error });
+
+    const query = `
+        UPDATE pet_vaccinations v
+        JOIN pets p ON p.pet_id = v.pet_id
+        SET v.name = ?, v.due_date = ?, v.due_time = ?
+        WHERE v.vaccination_id = ? AND p.user_id = ?`;
+    const params = [value.name, value.due_date, value.due_time, req.params.vaccination_id, user_id];
+    conn.query(query, params, (err, result) => {
+        if (err) {
+            logError('pets', err);
+            return res.status(500).send({ message: '서버 에러 발생' });
+        }
+        if (result.affectedRows === 0) {
+            return res.status(404).send({ message: '일정을 찾을 수 없습니다.' });
+        }
+        return res.send({ message: '수정되었습니다.' });
     });
 };
 
@@ -241,5 +291,5 @@ const deleteVaccination = (req, res) => {
 
 module.exports = {
     getMyPets, addPet, updatePet, deletePet,
-    addVaccination, setVaccinationDone, deleteVaccination,
+    addVaccination, updateVaccination, setVaccinationDone, deleteVaccination,
 };

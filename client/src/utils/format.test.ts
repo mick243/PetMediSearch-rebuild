@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { formatDate, daysUntil, ddayLabel, parseServerTime } from './format';
+import {
+  formatDate,
+  daysUntil,
+  ddayLabel,
+  parseServerTime,
+  hhmm,
+  scheduleWhen,
+} from './format';
 
 describe('parseServerTime', () => {
   /*
@@ -127,5 +134,32 @@ describe('daysUntil / ddayLabel', () => {
     vi.setSystemTime(new Date('2028-02-28T09:00:00'));
     // 2028 은 윤년이라 2월 29일이 있습니다.
     expect(daysUntil('2028-03-01')).toBe(2);
+  });
+});
+
+describe('hhmm / scheduleWhen', () => {
+  /*
+   * 시각은 비어 있는 것이 정상입니다. 없을 때 00:00 을 채워 넣으면 "자정 예정" 으로
+   * 읽히는데, 그건 알려 준 것이 아니라 틀린 것을 알려 준 것입니다.
+   */
+  it('hhmm: 초를 잘라 낸다', () => {
+    // DB 의 TIME 은 'HH:MM:SS' 로 옵니다.
+    expect(hhmm('15:30:00')).toBe('15:30');
+    expect(hhmm('09:05')).toBe('09:05');
+  });
+
+  it('hhmm: 값이 없으면 빈 문자열', () => {
+    expect(hhmm(null)).toBe('');
+    expect(hhmm(undefined)).toBe('');
+    expect(hhmm('')).toBe('');
+  });
+
+  it('scheduleWhen: 시각이 있으면 날짜 뒤에 붙인다', () => {
+    expect(scheduleWhen('2026-09-16', '15:30:00')).toBe('2026-09-16 15:30');
+  });
+
+  it('scheduleWhen: 시각이 없으면 날짜만', () => {
+    expect(scheduleWhen('2026-09-16', null)).toBe('2026-09-16');
+    expect(scheduleWhen('2026-09-16')).toBe('2026-09-16');
   });
 });

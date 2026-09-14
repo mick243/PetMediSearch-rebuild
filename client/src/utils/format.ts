@@ -55,6 +55,28 @@ export const daysUntil = (date: string): number => {
   return Math.round((target.getTime() - today.getTime()) / 86400000);
 };
 
+/**
+ * 서버가 보낸 TIME 을 화면용 'HH:MM' 으로. 값이 없으면 빈 문자열입니다.
+ * 서버는 'HH:MM:SS' 로 보내는데, 그대로 두면 화면마다 '15:00' 과 '15:00:00' 이 섞입니다.
+ */
+export const hhmm = (time?: string | null): string =>
+  time ? String(time).slice(0, 5) : '';
+
+/**
+ * 접종·검진 일정의 "언제" 를 한 줄로. "2026-09-16" 또는 "2026-09-16 15:30".
+ *
+ * 시각은 선택입니다. 없을 때 00:00 을 채워 넣으면 "자정 예정" 으로 읽히는데,
+ * 그건 알려 준 것이 아니라 틀린 것을 알려 준 것입니다.
+ */
+export const scheduleWhen = (
+  dueDate: string,
+  dueTime?: string | null
+): string => {
+  const date = String(dueDate ?? '').slice(0, 10);
+  const time = hhmm(dueTime);
+  return time ? `${date} ${time}` : date;
+};
+
 /** D-day 를 화면 문구로. "오늘" · "D-3" · "5일 지남" */
 export const ddayLabel = (days: number): string => {
   if (days === 0) return '오늘';

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import styled from 'styled-components';
 import { useNavigate, useParams } from 'react-router-dom';
-import { HiCamera, HiTrash, HiXMark } from 'react-icons/hi2';
+import { HiCamera, HiPencil, HiTrash, HiXMark } from 'react-icons/hi2';
 import { Category } from '../types/post.type';
 import { Pet, PetInput, Vaccination } from '../types/pet.type';
 import {
@@ -12,10 +12,12 @@ import {
   deleteVaccination,
   fetchMyPets,
   setVaccinationDone,
+  updateVaccination,
   updatePet,
 } from '../apis/pets.api';
 import { Actions, CancelBt, SubmitBt } from '../components/board/postEditor';
 import { shrinkToSquareDataUrl } from '../utils/image';
+import { scheduleWhen } from '../utils/format';
 import { apiErrorMessage } from '../utils/apiError';
 
 const BASE_URL = import.meta.env.VITE_BASE_URL;
@@ -48,7 +50,18 @@ function PetForm() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [myPets, setMyPets] = useState<Pet[]>([]);
   const [vaccinations, setVaccinations] = useState<Vaccination[]>([]);
-  const [newVacc, setNewVacc] = useState({ name: '', due_date: '' });
+  const [newVacc, setNewVacc] = useState({
+    name: '',
+    due_date: '',
+    due_time: '',
+  });
+  /* 지금 고치고 있는 일정. null 이면 아무것도 펼쳐져 있지 않습니다. */
+  const [editing, setEditing] = useState<{
+    id: number;
+    name: string;
+    due_date: string;
+    due_time: string;
+  } | null>(null);
   const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -158,11 +171,48 @@ function PetForm() {
       return;
     }
     try {
-      await addVaccination(petId, newVacc.name.trim(), newVacc.due_date);
-      setNewVacc({ name: '', due_date: '' });
+      await addVaccination(
+        petId,
+        newVacc.name.trim(),
+        newVacc.due_date,
+        newVacc.due_time
+      );
+      setNewVacc({ name: '', due_date: '', due_time: '' });
       await load();
     } catch (error: any) {
       alert(apiErrorMessage(error, '추가하지 못했습니다.'));
+    }
+  };
+
+  /*
+   * 서버는 TIME 을 'HH:MM:SS' 로 보내는데 <input type="time"> 은 'HH:MM' 만 받습니다.
+   * 초를 그대로 넣으면 값이 비어 보여서, 사용자는 시각이 사라진 줄 압니다.
+   */
+  const startEdit = (v: Vaccination) =>
+    setEditing({
+      id: v.vaccination_id,
+      name: v.name,
+      due_date: v.due_date.slice(0, 10),
+      due_time: v.due_time ? v.due_time.slice(0, 5) : '',
+    });
+
+  const saveEdit = async () => {
+    if (!editing) return;
+    if (!editing.name.trim() || !editing.due_date) {
+      alert('일정 이름과 날짜를 입력해주세요');
+      return;
+    }
+    try {
+      await updateVaccination(
+        editing.id,
+        editing.name.trim(),
+        editing.due_date,
+        editing.due_time
+      );
+      setEditing(null);
+      await load();
+    } catch (error: any) {
+      alert(apiErrorMessage(error, '수정하지 못했습니다.'));
     }
   };
 
@@ -300,27 +350,85 @@ function PetForm() {
           <VaccBox>
             <Title as="h2">접종·검진 일정</Title>
             {vaccinations.length === 0 && <Muted>아직 일정이 없어요.</Muted>}
-            {vaccinations.map((v) => (
-              <VaccRow key={v.vaccination_id} $done={!!v.done}>
-                <input
-                  type="checkbox"
-                  checked={!!v.done}
-                  onChange={() => toggleDone(v)}
-                  aria-label={`${v.name} 완료`}
-                />
-                <span className="name">{v.name}</span>
-                <span className="date">{v.due_date.slice(0, 10)}</span>
-                <IconBt
-                  type="button"
-                  onClick={() => removeVacc(v)}
-                  aria-label="일정 삭제"
-                >
-                  <HiTrash />
-                </IconBt>
-              </VaccRow>
-            ))}
+            {vaccinations.map((v) =>
+              editing?.id === v.vaccination_id ? (
+                <EditRow key={v.vaccination_id}>
+                  <input
+                    className="name"
+                    value={editing.name}
+                    onChange={(e) =>
+                      setEditing((p) => p && { ...p, name: e.target.value })
+                    }
+                    aria-label="일정 이름"
+                  />
+                  <input
+                    className="date"
+                    type="date"
+                    value={editing.due_date}
+                    onChange={(e) =>
+                      setEditing((p) => p && { ...p, due_date: e.target.value })
+                    }
+                    aria-label="일정 날짜"
+                  />
+                  <input
+                    className="time"
+                    type="time"
+                    value={editing.due_time}
+                    onChange={(e) =>
+                      setEditing((p) => p && { ...p, due_time: e.target.value })
+                    }
+                    aria-label="일정 시각 (선택)"
+                  />
+                  <div className="acts">
+                    <SmallBt type="button" onClick={saveEdit}>
+                      저장
+                    </SmallBt>
+                    <GhostSmallBt
+                      type="button"
+                      onClick={() => setEditing(null)}
+                    >
+                      취소
+                    </GhostSmallBt>
+                  </div>
+                </EditRow>
+              ) : (
+                <VaccRow key={v.vaccination_id} $done={!!v.done}>
+                  <input
+                    type="checkbox"
+                    checked={!!v.done}
+                    onChange={() => toggleDone(v)}
+                    aria-label={`${v.name} 완료`}
+                  />
+                  {/*
+                    이름과 날짜를 위아래로 둡니다. 시각까지 한 줄에 넣으면 폭이
+                    390px 인 휴대폰에서 이름이 두세 글자만 남습니다.
+                  */}
+                  <div className="what">
+                    <span className="name">{v.name}</span>
+                    <span className="when">
+                      {scheduleWhen(v.due_date, v.due_time)}
+                    </span>
+                  </div>
+                  <IconBt
+                    type="button"
+                    onClick={() => startEdit(v)}
+                    aria-label={`${v.name} 수정`}
+                  >
+                    <HiPencil />
+                  </IconBt>
+                  <IconBt
+                    type="button"
+                    onClick={() => removeVacc(v)}
+                    aria-label={`${v.name} 삭제`}
+                  >
+                    <HiTrash />
+                  </IconBt>
+                </VaccRow>
+              )
+            )}
             <AddRow>
               <input
+                className="name"
                 value={newVacc.name}
                 onChange={(e) =>
                   setNewVacc((p) => ({ ...p, name: e.target.value }))
@@ -329,6 +437,7 @@ function PetForm() {
                 aria-label="일정 이름"
               />
               <input
+                className="date"
                 type="date"
                 value={newVacc.due_date}
                 onChange={(e) =>
@@ -336,10 +445,20 @@ function PetForm() {
                 }
                 aria-label="일정 날짜"
               />
+              <input
+                className="time"
+                type="time"
+                value={newVacc.due_time}
+                onChange={(e) =>
+                  setNewVacc((p) => ({ ...p, due_time: e.target.value }))
+                }
+                aria-label="일정 시각 (선택)"
+              />
               <SmallBt type="button" onClick={handleAddVacc}>
                 추가
               </SmallBt>
             </AddRow>
+            <Hint>시각은 비워 둬도 됩니다. 알림은 날짜로 갑니다.</Hint>
           </VaccBox>
         )}
 
@@ -460,6 +579,30 @@ const Hint = styled.span`
   color: ${({ theme }) => theme.color.textMuted};
 `;
 
+/*
+ * 날짜·시각 입력칸을 칸 안에 가둡니다.
+ *
+ * iOS 사파리는 date·time 입력에 제 나름의 고유 너비를 줍니다. 그 값이 칸보다
+ * 넓으면 width:100% 를 줘도 줄지 않고 칸 밖으로 삐져나갑니다 — 한국어 로캘의
+ * '2026. 9. 14.' 처럼 값이 길어질수록 심합니다. 아이폰에서 생일 칸이 넘친
+ * 원인입니다. appearance 를 꺼야 비로소 우리가 준 너비를 따릅니다.
+ *
+ * 끄고 나면 아이폰이 글자를 가운데로 몰고 높이도 제멋대로가 되므로, 정렬과
+ * 높이를 여기서 다시 정합니다.
+ */
+const dateInputReset = `
+  &[type='date'],
+  &[type='time'] {
+    -webkit-appearance: none;
+    appearance: none;
+    min-width: 0;
+    max-width: 100%;
+    text-align: left;
+    /* 값이 없을 때 iOS 가 칸을 접어 버리는 것을 막습니다. */
+    min-height: 1em;
+  }
+`;
+
 const Field = styled.div`
   display: grid;
   gap: 6px;
@@ -467,6 +610,9 @@ const Field = styled.div`
     font-size: 12px;
     font-weight: 600;
     color: ${({ theme }) => theme.color.textMuted};
+  }
+  input {
+    ${dateInputReset}
   }
   input,
   select {
@@ -514,15 +660,67 @@ const VaccRow = styled.div<{ $done: boolean }>`
   padding: 8px 0;
   border-bottom: 1px solid ${({ theme }) => theme.color.border};
   font-size: 14px;
+  .what {
+    display: grid;
+    gap: 1px;
+    min-width: 0;
+  }
   .name {
     text-decoration: ${({ $done }) => ($done ? 'line-through' : 'none')};
     color: ${({ theme, $done }) =>
       $done ? theme.color.textMuted : theme.color.text};
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
-  .date {
+  .when {
     font-size: 12px;
     color: ${({ theme }) => theme.color.textMuted};
     font-variant-numeric: tabular-nums;
+  }
+`;
+
+/*
+ * 일정 한 줄을 고칠 때 펼쳐지는 칸.
+ *
+ * 이름·날짜·시각·버튼을 한 줄에 늘어놓으면 휴대폰에서 이름 칸이 몇 글자만 남습니다.
+ * 이름을 윗줄에 통째로 두고, 아랫줄에 날짜·시각·버튼을 나눠 놓습니다.
+ */
+const EditRow = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  grid-template-areas:
+    'name name name'
+    'date time acts';
+  gap: ${({ theme }) => theme.space.sm};
+  align-items: center;
+  padding: ${({ theme }) => theme.space.sm} 0;
+  border-bottom: 1px solid ${({ theme }) => theme.color.border};
+
+  input {
+    height: 38px;
+    padding: 0 10px;
+    border: 1px solid ${({ theme }) => theme.color.primary};
+    border-radius: ${({ theme }) => theme.radius.sm};
+    font-family: inherit;
+    font-size: 13px;
+    min-width: 0;
+    box-sizing: border-box;
+    ${dateInputReset}
+  }
+  .name {
+    grid-area: name;
+  }
+  .date {
+    grid-area: date;
+  }
+  .time {
+    grid-area: time;
+  }
+  .acts {
+    grid-area: acts;
+    display: flex;
+    gap: 6px;
   }
 `;
 
@@ -538,10 +736,15 @@ const IconBt = styled.button`
   }
 `;
 
+/* 두 줄로 나눈 이유는 EditRow 주석과 같습니다. */
 const AddRow = styled.div`
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  grid-template-areas:
+    'name name name'
+    'date time add';
   gap: ${({ theme }) => theme.space.sm};
+  align-items: center;
   input {
     height: 38px;
     padding: 0 10px;
@@ -551,6 +754,19 @@ const AddRow = styled.div`
     font-size: 13px;
     min-width: 0;
     box-sizing: border-box;
+    ${dateInputReset}
+  }
+  .name {
+    grid-area: name;
+  }
+  .date {
+    grid-area: date;
+  }
+  .time {
+    grid-area: time;
+  }
+  button {
+    grid-area: add;
   }
 `;
 
@@ -564,6 +780,19 @@ const SmallBt = styled.button`
   font-family: inherit;
   font-size: 13px;
   font-weight: 600;
+  cursor: pointer;
+`;
+
+/* 수정 중 '취소'. 저장과 나란히 서므로 같은 높이에 테두리만 있는 모양입니다. */
+const GhostSmallBt = styled.button`
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid ${({ theme }) => theme.color.borderStrong};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  background-color: ${({ theme }) => theme.color.surface};
+  color: ${({ theme }) => theme.color.textMuted};
+  font-family: inherit;
+  font-size: 13px;
   cursor: pointer;
 `;
 
