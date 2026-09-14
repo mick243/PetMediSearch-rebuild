@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react';
 import styled from 'styled-components';
+import SlideTabs from '../common/SlideTabs';
 import { Category } from '../../types/post.type';
 
 interface Props {
@@ -13,18 +13,12 @@ interface Props {
  *
  * 예전에는 카테고리 화면에서 하나 고르면 목록 화면으로 넘어가서,
  * 다른 분류를 보려면 뒤로가기를 거쳐야 했습니다. 탭으로 두면 그 자리에서 바뀝니다.
- * 9개가 한 줄에 안 들어가므로 가로 스크롤이고, 고른 탭은 항상 보이게 끌어옵니다.
+ * 9개가 한 줄에 안 들어가므로 SlideTabs 에 얹습니다 — 넘기는 화살표와
+ * 고른 탭 끌어오기는 거기에 있습니다.
  */
 function BoardTabs({ categories, selectedId, onSelect }: Props) {
-  const listRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const active = listRef.current?.querySelector('[aria-selected="true"]');
-    active?.scrollIntoView({ block: 'nearest', inline: 'center' });
-  }, [selectedId]);
-
   return (
-    <TabList ref={listRef} role="tablist" aria-label="게시판 카테고리">
+    <TabList label="게시판 카테고리" activeKey={selectedId}>
       {categories.map((item) => (
         <Tab
           key={item.category_id}
@@ -41,18 +35,10 @@ function BoardTabs({ categories, selectedId, onSelect }: Props) {
   );
 }
 
-const TabList = styled.div`
-  display: flex;
-  gap: ${({ theme }) => theme.space.sm};
+/* 여백과 구분선은 화살표도 덮어야 해서 안쪽 줄이 아니라 바깥에 겁니다. */
+const TabList = styled(SlideTabs)`
   padding: ${({ theme }) => `${theme.space.md} ${theme.space.lg}`};
-  overflow-x: auto;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
   border-bottom: 1px solid ${({ theme }) => theme.color.border};
-
-  &::-webkit-scrollbar {
-    display: none;
-  }
 `;
 
 const Tab = styled.button<{ $on: boolean }>`
