@@ -67,10 +67,21 @@ describe('formatDate', () => {
      * dayjs 는 MM 을 월로, SS 를 그냥 글자로 봅니다. 후기 상세가 'HH.MM.SS' 로
      * 적혀 있어 `26.09.13 14.09.SS` 가 찍혔습니다 — 화면에서 보기 전까지
      * 모릅니다. 토큰을 여기에 고정해 둡니다.
+     *
+     * 시간대를 정해 놓고 봅니다. formatDate 는 일부러 **보는 사람의 시간대**로
+     * 찍으므로, 정하지 않으면 이 값이 실행하는 기계를 따라 바뀝니다.
+     * (UTC 로 도는 CI 에서 05:39:05 가 나와 처음에 이 테스트가 깨졌습니다)
      */
-    expect(formatDate('2026-09-13 14:39:05', 'YY.MM.DD HH:mm:ss')).toBe(
-      '26.09.13 14:39:05'
-    );
+    const before = process.env.TZ;
+    try {
+      process.env.TZ = 'Asia/Seoul';
+      expect(formatDate('2026-09-13 14:39:05', 'YY.MM.DD HH:mm:ss')).toBe(
+        '26.09.13 14:39:05'
+      );
+    } finally {
+      if (before === undefined) delete process.env.TZ;
+      else process.env.TZ = before;
+    }
   });
 });
 
