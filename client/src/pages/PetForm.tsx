@@ -35,7 +35,8 @@ const PHOTO_SIZE = 320;
 /**
  * 반려동물 등록·수정.
  * /pets/new 는 등록, /pets/:id/edit 는 수정이고 수정 화면에서만 접종 일정을 다룹니다.
- * (일정은 pet_id 가 있어야 저장할 수 있어서 등록 직후 수정 화면으로 보냅니다.)
+ * (일정은 pet_id 가 있어야 저장할 수 있습니다. 등록을 마치면 홈으로 보내고,
+ *  일정은 나중에 이 화면을 다시 열어 넣습니다.)
  * 여러 마리를 키우면 위쪽 드롭다운으로 다른 아이로 바로 넘어갑니다.
  */
 function PetForm() {
@@ -116,9 +117,17 @@ function PetForm() {
     setSaving(true);
     try {
       if (petId == null) {
-        const res = await addPet(form);
-        alert('등록되었습니다. 접종 일정을 이어서 추가할 수 있어요.');
-        navigate(`/pets/${res.petId}/edit`, { replace: true });
+        await addPet(form);
+        alert('등록되었습니다.');
+        /*
+         * 등록을 마치면 홈으로 보냅니다. 예전에는 곧장 수정 화면으로 넘겨
+         * 접종 일정을 이어서 넣게 했는데, 등록만 하려던 사람에게는 끝나지 않은
+         * 화면이었습니다. 일정은 홈의 접종 칸이나 카드에서 언제든 들어옵니다.
+         *
+         * replace 로 바꿔 치웁니다 — 뒤로가기로 빈 등록 폼에 돌아오면
+         * 방금 넣은 아이를 한 번 더 등록하기 쉽습니다.
+         */
+        navigate('/', { replace: true });
       } else {
         await updatePet(petId, form);
         alert('저장되었습니다.');
