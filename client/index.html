@@ -3,6 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!--
+      홈 화면에 추가했을 때 쓰는 것들.
+      아이폰은 이 설치 과정을 거쳐야만 웹 푸시를 받습니다 (iOS 16.4+). 사파리 탭으로
+      열어 두기만 하면 알림이 오지 않습니다.
+      apple-touch-icon 은 PNG 만 받습니다 — 아이콘은 scripts/makeIcons.mjs 가 굽습니다.
+    -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <meta name="theme-color" content="#575757" />
     <link rel="preconnect" href="https://cdn.jsdelivr.net" />
     <link
       rel="stylesheet"

@@ -6,6 +6,7 @@ import { fetchMyPets, setVaccinationDone } from '../apis/pets.api';
 import { Pet, Vaccination } from '../types/pet.type';
 import { daysUntil, ddayLabel, formatDate } from '../utils/format';
 import { apiErrorMessage } from '../utils/apiError';
+import PushToggle from '../components/common/PushToggle';
 
 /** 일정 한 줄. 어느 아이 것인지 함께 들고 다닙니다. */
 interface Row {
@@ -111,6 +112,8 @@ function Vaccinations() {
         <Title>접종·검진 일정</Title>
         <Count>{pending}건 남음</Count>
       </Head>
+
+      <PushToggle />
 
       {rows.length === 0 ? (
         <Empty>
