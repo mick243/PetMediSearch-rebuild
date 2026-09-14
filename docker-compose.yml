@@ -16,6 +16,17 @@ services:
   db:
     image: mysql:8
     restart: unless-stopped
+    # TZ 만으로는 부족합니다. 그건 컨테이너의 시스템 시간대라 로그에만 보이고,
+    # MySQL 의 time_zone 은 SYSTEM 이면 이미지가 뜬 시점의 UTC 로 굳습니다.
+    # 그 상태에서는 CURRENT_TIMESTAMP 가 UTC 벽시계로 들어가, 화면이 9시간 이른
+    # 시각을 보여 줍니다. 세션 시간대를 직접 못박습니다.
+    #
+    # 'Asia/Seoul' 이 아니라 '+09:00' 인 이유: 이름 있는 시간대를 쓰려면 MySQL 의
+    # 시간대 표를 미리 적재해야 하는데(mysql_tzinfo_to_sql) 공식 이미지는 하지
+    # 않습니다. 그대로 주면 mysqld 가 뜨지 않습니다. 한국은 서머타임이 없어
+    # 고정 오프셋으로 정확합니다.
+    command:
+      - --default-time-zone=+09:00
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:?server/.env 에 DB_PASSWORD 를 넣으세요}
       MYSQL_DATABASE: ${DB_NAME:-petmedisearch}
@@ -45,6 +56,10 @@ services:
       - ./server/.env
     environment:
       NODE_ENV: production
+      # 컨테이너에는 시간대가 없어 Node 가 UTC 로 돕니다. 로그 시각이 9시간
+      # 어긋나고, 나중에 배치(접종 알림 등)를 붙이면 예약 시각도 UTC 로 잡힙니다.
+      # DB 에 넣는 값은 server/mysql.js 가 따로 못박아 두어 이것과 무관합니다.
+      TZ: Asia/Seoul
       # compose 안에서는 서비스 이름이 곧 호스트 이름입니다.
       DB_HOST: db
       DB_PORT: '3306'

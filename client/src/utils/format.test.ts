@@ -1,5 +1,50 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { formatDate, daysUntil, ddayLabel } from './format';
+import { formatDate, daysUntil, ddayLabel, parseServerTime } from './format';
+
+describe('parseServerTime', () => {
+  /*
+   * 서버는 시간대 표시 없이 '2026-09-13 23:39:00' 처럼 보냅니다.
+   * 그대로 new Date() 에 넣으면 보는 사람의 시간대로 읽혀, DB 가 UTC 로 돌던
+   * 동안 "9시간 전" 이 나왔습니다. 어느 시간대의 값인지 붙여서 읽습니다.
+   */
+  it('시각이 있는 값은 KST 로 읽는다', () => {
+    expect(parseServerTime('2026-09-13 23:39:00')?.toISOString()).toBe(
+      '2026-09-13T14:39:00.000Z'
+    );
+  });
+
+  it('T 로 이어진 값도 같게 읽는다', () => {
+    expect(parseServerTime('2026-09-13T23:39:00')?.toISOString()).toBe(
+      '2026-09-13T14:39:00.000Z'
+    );
+  });
+
+  it('이미 시간대가 붙어 있으면 건드리지 않는다', () => {
+    expect(parseServerTime('2026-09-13T14:39:00Z')?.toISOString()).toBe(
+      '2026-09-13T14:39:00.000Z'
+    );
+    expect(parseServerTime('2026-09-13T23:39:00+09:00')?.toISOString()).toBe(
+      '2026-09-13T14:39:00.000Z'
+    );
+  });
+
+  it('날짜만 있는 값에는 시간대를 붙이지 않는다', () => {
+    // 붙이면 그 날의 자정이 다른 날로 넘어가 D-day 가 하루 밀립니다.
+    const parsed = parseServerTime('2026-09-17');
+    expect(parsed?.getFullYear()).toBe(2026);
+    expect(parsed?.getMonth()).toBe(8);
+    expect(parsed?.getDate()).toBe(17);
+    expect(parsed?.getHours()).toBe(0);
+  });
+
+  it('빈 값과 엉뚱한 값은 null', () => {
+    expect(parseServerTime()).toBeNull();
+    expect(parseServerTime(null)).toBeNull();
+    expect(parseServerTime('')).toBeNull();
+    expect(parseServerTime('   ')).toBeNull();
+    expect(parseServerTime('어제')).toBeNull();
+  });
+});
 
 /*
  * 날짜 표시와 D-day.

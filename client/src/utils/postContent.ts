@@ -6,6 +6,8 @@
  * 목록은 그때 썸네일 칸 자체를 그리지 않습니다.
  */
 
+import { parseServerTime } from './format';
+
 /** img src 로 허용할 스킴. javascript: 같은 건 걸러냅니다. */
 const ALLOWED_SRC = /^(https?:\/\/|data:image\/|\/)/i;
 
@@ -34,17 +36,22 @@ export function excerpt(content?: string): string {
 /** 상세·댓글에서 쓰는 절대 시각. 목록의 "3일 전"과 달리 정확한 때를 보여줍니다. */
 export function formatDateTime(iso?: string): string {
   if (!iso) return '';
-  const d = new Date(iso.replace(' ', 'T'));
-  if (Number.isNaN(d.getTime())) return iso;
+  const d = parseServerTime(iso);
+  if (!d) return iso;
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 /** 목록에 쓰는 상대 날짜. "3일 전" 수준이면 충분합니다. */
 export function timeAgo(iso?: string): string {
-  if (!iso) return '';
-  const then = new Date(iso.replace(' ', 'T')).getTime();
-  if (Number.isNaN(then)) return '';
+  /*
+   * 서버가 보낸 값이 어느 시간대인지는 parseServerTime 이 압니다.
+   * 여기서 직접 new Date() 로 읽으면 보는 사람의 시간대로 해석돼, 한국 밖에서
+   * 열었을 때 "9시간 전" 같은 문구가 그대로 나옵니다.
+   */
+  const parsed = parseServerTime(iso);
+  if (!parsed) return '';
+  const then = parsed.getTime();
 
   const min = Math.floor((Date.now() - then) / 60000);
   if (min < 1) return '방금';

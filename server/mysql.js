@@ -36,6 +36,20 @@ const pool = mysql.createPool({
   database: process.env.DB_NAME,
   dateStrings: true,
 
+  /**
+   * Node 가 보내는 Date 를 어느 시간대의 벽시계로 적을지.
+   *
+   * 기본값은 'local' 이라 프로세스가 도는 기계의 시간대를 따라갑니다. DB 세션은
+   * +09:00 인데(docker-compose 의 --default-time-zone) 컨테이너에 TZ 가 없어 Node 가
+   * UTC 로 돌면, new Date() 로 넣는 deleted_at·terms_agreed_at 이 9시간 어긋난
+   * 순간으로 저장됩니다. 한 표 안에 CURRENT_TIMESTAMP 가 넣은 값과 9시간 벌어진
+   * 값이 섞입니다 — 실제로 같은 순간에 쓴 두 값이 32,400초 차이가 났습니다.
+   *
+   * 양쪽을 같은 값으로 못박아 어디서 돌든 같게 만듭니다.
+   * 한국은 서머타임이 없어 고정 오프셋으로 정확합니다.
+   */
+  timezone: '+09:00',
+
   connectionLimit: CONNECTION_LIMIT,
   // 풀이 다 찼으면 기다립니다. 곧바로 실패시키면 잠깐 몰린 것만으로 오류가 납니다.
   waitForConnections: true,
