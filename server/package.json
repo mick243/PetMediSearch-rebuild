@@ -9,6 +9,7 @@
     "test": "node --test",
     "sync-data": "node scripts/syncData.js",
     "create-admin": "node scripts/createAdmin.js",
+    "send-reminders": "node scripts/sendReminders.js",
     "lint": "eslint . --ext .js"
   },
   "author": "",
@@ -23,9 +24,11 @@
     "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.2",
     "mysql2": "^3.11.3",
+    "node-cron": "^4.6.0",
     "proj4": "^2.12.1",
     "swagger-jsdoc": "^6.2.8",
-    "swagger-ui-express": "^5.0.1"
+    "swagger-ui-express": "^5.0.1",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "eslint": "^8.57.1"
