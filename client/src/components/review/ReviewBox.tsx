@@ -111,10 +111,15 @@ function ReviewBox({ reviews, total, page, onPageChange, onReload }) {
                         <>
                           <div className="detailInfo">
                             <p className="createdAt">
+                              {/*
+                                dayjs 의 MM 은 분이 아니라 월이고 SS 는 형식이
+                                아니라 글자입니다. 'HH.MM.SS' 로 두었더니
+                                `26.09.13 14.09.SS` 가 찍혔습니다.
+                              */}
                               작성 일시:{' '}
                               {formatDate(
                                 review.created_at,
-                                'YY.MM.DD HH.MM.SS'
+                                'YY.MM.DD HH:mm:ss'
                               )}
                             </p>
                             {review.user_id === user.id ? (

@@ -61,6 +61,17 @@ describe('formatDate', () => {
   it('형식을 주면 그대로 따른다', () => {
     expect(formatDate('2026-03-05', 'YYYY.MM.DD')).toBe('2026.03.05');
   });
+
+  it('시·분·초 형식이 제 값을 찍는다', () => {
+    /*
+     * dayjs 는 MM 을 월로, SS 를 그냥 글자로 봅니다. 후기 상세가 'HH.MM.SS' 로
+     * 적혀 있어 `26.09.13 14.09.SS` 가 찍혔습니다 — 화면에서 보기 전까지
+     * 모릅니다. 토큰을 여기에 고정해 둡니다.
+     */
+    expect(formatDate('2026-09-13 14:39:05', 'YY.MM.DD HH:mm:ss')).toBe(
+      '26.09.13 14:39:05'
+    );
+  });
 });
 
 describe('daysUntil / ddayLabel', () => {
