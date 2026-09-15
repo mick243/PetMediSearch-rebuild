@@ -2,6 +2,9 @@ const conn = require('../mysql');
 const { logError } = require('../logError');
 const { verifyToken } = require("./authUser");
 
+/** 마이페이지 칸 하나에 보여 줄 수. 최근 것만 보여 주는 자리입니다. */
+const RECENT_LIMIT = 20;
+
 // 유저 id 에 따른 게시글 조회
 const getPostsByUserId = (req, res) => {
     const token = req.headers.authorization?.split(' ')[1];
@@ -38,11 +41,25 @@ const getReviewsByUserId = (req, res) => {
 
     const user_id = decoded.id;
 
-    // 후기에는 사진이 붙어 있어 더더욱 전부 내려보내면 안 됩니다.
-    const query = `SELECT * FROM reviews WHERE user_id = ? AND deleted_at IS NULL
-                    ORDER BY created_at DESC, review_id DESC LIMIT 20`;
+    /*
+     * 사진 자체는 빼고 장수만 보냅니다 (controller/review.js 의 목록과 같은 이유).
+     *
+     * 예전에는 `SELECT *` 였습니다. LIMIT 20 으로 건수만 줄이고 컬럼은 그대로라
+     * images 가 통째로 따라 나갔습니다. 사진 두 장 붙은 후기를 하나 가진 계정이
+     * 214,370B 였습니다 — 시설 목록이 같은 후기 다섯 건을 725B 로 주는 것과
+     * 견주면 300배입니다. 20건에 장당 5장이면 10MB 가 됩니다.
+     *
+     * 이 칸은 사진을 보여 주지도 않습니다(components/myProfile/MyReview.tsx).
+     * 화면 타입(types/review.type.ts 의 ReviewData)은 진작 image_count 를 받기로
+     * 적어 두었는데, 여기서만 그 값을 안 보내고 사진을 보내고 있었습니다.
+     */
+    const query = `
+        SELECT review_id, user_id, facility_id, rating, review_content, created_at,
+               COALESCE(JSON_LENGTH(images), 0) AS image_count
+          FROM reviews WHERE user_id = ? AND deleted_at IS NULL
+         ORDER BY created_at DESC, review_id DESC LIMIT ?`;
 
-    conn.query(query, [user_id], (err, results) => {
+    conn.query(query, [user_id, RECENT_LIMIT], (err, results) => {
         if (err) {
             logError('mypage', err);
             return res.status(500).send({ message: '서버 에러 발생' });
@@ -52,9 +69,6 @@ const getReviewsByUserId = (req, res) => {
         return res.send(results);
     });
 };
-
-/** 마이페이지 칸 하나에 보여 줄 수. 최근 것만 보여 주는 자리입니다. */
-const RECENT_LIMIT = 20;
 
 // 유저 id 에 따른 댓글 조회
 const getCommentsByUserId = (req, res) => {
