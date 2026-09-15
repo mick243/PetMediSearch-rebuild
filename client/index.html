@@ -2,7 +2,19 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!--
+      탭 아이콘 — 로딩 화면과 같은 강아지 얼굴입니다 (src/assets/img/puppy.webp 의 원본에서 잘라냄).
+
+      16 과 32 를 따로 둡니다. 32 하나만 주면 브라우저가 탭에서 16 으로 줄이는데,
+      선이 아니라 사진이라 그때 코·눈이 뭉개집니다. 미리 그 크기로 만들어 두면
+      또렷합니다. 둘을 합쳐도 4.4KB 입니다.
+
+      예전 favicon.svg 는 지웠습니다. SVG 는 화면 모드에 따라 색을 뒤집을 수 있었지만,
+      사진은 그럴 수 없어 같이 둘 이유가 없습니다 (되살리려면 git 에 남아 있습니다).
+      배경이 투명해서 밝은 탭바·어두운 탭바 어디서도 네모가 보이지 않습니다.
+    -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
     <!--
       홈 화면에 추가했을 때 쓰는 것들.
       아이폰은 이 설치 과정을 거쳐야만 웹 푸시를 받습니다 (iOS 16.4+). 사파리 탭으로

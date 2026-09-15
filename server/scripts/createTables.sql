@@ -27,6 +27,9 @@ CREATE TABLE `users` (
    `phone` varchar(20) NULL,
    `address` varchar(255) NULL,
    `role` varchar(20) NOT NULL DEFAULT 'user',
+   -- 발급한 토큰의 판번호. 비밀번호 변경·탈퇴 때 1 올려 이전 토큰을 전부 무효로
+   -- 만듭니다 (scripts/alterTokenVersion.sql, middleware/tokenVersion.js).
+   `token_version` int NOT NULL DEFAULT 0,
    `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
    -- 필수 약관에 동의한 시각. 화면의 체크만으로는 동의를 받았다는 것을 증명할 수 없습니다.
    `terms_agreed_at` timestamp(3) NULL DEFAULT NULL,
@@ -201,4 +204,24 @@ CREATE TABLE IF NOT EXISTS `favorite_facilities` (
   PRIMARY KEY (`user_id`, `facility_id`),
   CONSTRAINT `fav_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE,
   CONSTRAINT `fav_ibfk_2` FOREIGN KEY (`facility_id`) REFERENCES `medical_facilities` (`id`) ON DELETE CASCADE
+);
+
+-- 댓글에 넣는 이모티콘. 관리자만 등록합니다.
+-- 그림은 여기 한 번만 두고 댓글에는 [emoticon:12] 표시만 남깁니다.
+-- 이 표만 deleted_at 없이 진짜로 지웁니다 — 지운 뒤 id 를 앞으로 당기기 때문입니다.
+-- 자세한 이유는 scripts/alterEmoticons.sql 주석에 적어 두었습니다.
+CREATE TABLE IF NOT EXISTS `emoticons` (
+  `emoticon_id` int NOT NULL AUTO_INCREMENT,
+  `name` varchar(30) NOT NULL,
+  -- 올린 사람이 말한 형식이 아니라 바이트 앞머리를 보고 정한 값입니다.
+  `mime` varchar(20) NOT NULL,
+  -- 16MB 까지. 실제로는 서버가 512KB 로 자릅니다 (controller/emoticon.js).
+  `data` mediumblob NOT NULL,
+  -- 그림의 지문. 주소(/emoticons/:id/image?v=)에 실어 캐시가 번호를 헷갈리지 않게 합니다.
+  -- 번호는 지울 때마다 당겨지므로 그것만으로는 그림을 가리키는 이름이 되지 못합니다.
+  `content_hash` char(16) GENERATED ALWAYS AS (SUBSTRING(SHA2(`data`, 256), 1, 16)) STORED NOT NULL,
+  `created_by` int DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`emoticon_id`),
+  CONSTRAINT `emoticons_ibfk_1` FOREIGN KEY (`created_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL ON UPDATE CASCADE
 );

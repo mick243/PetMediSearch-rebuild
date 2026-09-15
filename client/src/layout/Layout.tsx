@@ -1,5 +1,6 @@
 import Footer from '../components/common/Footer';
 import Header from '../components/common/Header';
+import PullToRefresh from '../components/common/PullToRefresh';
 import styled from 'styled-components';
 
 interface LayoutProps {
@@ -9,6 +10,7 @@ interface LayoutProps {
 function Layout({ children }: LayoutProps) {
   return (
     <LayoutStyle>
+      <PullToRefresh />
       <Header />
       {children}
       <Footer />

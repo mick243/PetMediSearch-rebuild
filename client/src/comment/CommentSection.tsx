@@ -2,12 +2,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import styled, { createGlobalStyle } from 'styled-components';
 import { useSelector } from 'react-redux';
+import { FaRegSmile } from 'react-icons/fa';
 import { Comment } from '../types/post.type';
 import { RootState } from '../store';
 import { addComment, deleteComment } from '../apis/Comment.api';
+import { getEmoticons } from '../apis/emoticon.api';
+import { Emoticon } from '../types/emoticon.type';
+import { emoticonToken, TOKEN_BEFORE_CARET } from '../utils/emoticon';
 import { formatDateTime } from '../utils/postContent';
 import PaginationComp from '../components/common/PaginationComp';
 import { apiErrorMessage } from '../utils/apiError';
+import EmoticonPicker from './EmoticonPicker';
+import CommentText from './CommentText';
 
 const BASE_URL = import.meta.env.VITE_BASE_URL;
 const PER_PAGE = 5;
@@ -42,8 +48,106 @@ export default function CommentSection({ postId, postAuthorId }: Props) {
   const [replyTo, setReplyTo] = useState<Comment | null>(null);
   const [sending, setSending] = useState(false);
 
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const composerRef = useRef<HTMLFormElement>(null);
+  const emoticonBtRef = useRef<HTMLButtonElement>(null);
+
+  /*
+   * 이모티콘 목록. 그림은 들어 있지 않고 id·이름만입니다.
+   *
+   * 피커를 열 때가 아니라 화면에 들어올 때 받아 옵니다 — 댓글에 이미 들어 있는
+   * 이모티콘의 대체 텍스트로도 쓰기 때문입니다. 응답이 작고(수백 바이트) 서버가
+   * 1분 캐시를 걸어 두어, 연이어 글을 여러 개 열어도 요청은 한 번뿐입니다.
+   */
+  const [emoticons, setEmoticons] = useState<Emoticon[]>([]);
+  const [emoticonsLoading, setEmoticonsLoading] = useState(true);
+  const [emoticonsFailed, setEmoticonsFailed] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    getEmoticons()
+      .then((rows) => alive && setEmoticons(rows))
+      .catch((error) => {
+        console.error('이모티콘을 불러오지 못했습니다:', error);
+        if (alive)
+          setEmoticonsFailed(
+            apiErrorMessage(error, '이모티콘을 불러오지 못했습니다.')
+          );
+      })
+      .finally(() => alive && setEmoticonsLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  /* 댓글이 번호로만 가리키므로, 이름과 지문을 꺼내 쓰려면 번호로 찾을 수 있어야 합니다. */
+  const emoticonById = useMemo(
+    () => new Map(emoticons.map((e) => [e.emoticon_id, e])),
+    [emoticons]
+  );
+
+  /**
+   * 이모티콘을 넣은 뒤 커서를 둘 자리.
+   *
+   * 값이 바뀐 다음에 옮겨야 합니다. 넣자마자 옮기면 아직 짧은 예전 값에 맞춰
+   * 잘려서 맨 뒤로 튑니다.
+   */
+  const caretAfterInsert = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (caretAfterInsert.current === null) return;
+    const el = inputRef.current;
+    const at = caretAfterInsert.current;
+    caretAfterInsert.current = null;
+    el?.focus();
+    el?.setSelectionRange(at, at);
+  }, [draft]);
+
+  const insertEmoticon = (emoticon: Emoticon) => {
+    const token = emoticonToken(emoticon.emoticon_id);
+    const el = inputRef.current;
+    /* 고르려고 칸에서 초점이 떠나도 마지막 커서 자리는 남아 있습니다. */
+    const from = el?.selectionStart ?? draft.length;
+    const to = el?.selectionEnd ?? from;
+
+    setDraft(draft.slice(0, from) + token + draft.slice(to));
+    caretAfterInsert.current = from + token.length;
+    setPickerOpen(false);
+  };
+
+  const closePicker = useCallback(() => setPickerOpen(false), []);
+
+  /*
+   * 마우스·키보드 환경에서는 Enter 로 보냅니다(예전 input 과 같게). 줄바꿈은 Shift+Enter.
+   * 터치 기기에서는 Enter 가 줄바꿈입니다 — 자판의 확인 키를 보내기로 쓰면 여러 줄을
+   * 쓸 방법이 없습니다. 한글 조합 중(isComposing)의 Enter 는 조합 확정이라 건너뜁니다.
+   */
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    /*
+     * 이모티콘 표시는 한 글자처럼 지웁니다. 한 자씩 지우면 [emoticon:12 처럼
+     * 부서진 채로 남아, 그림이던 것이 갑자기 글자로 보입니다.
+     */
+    if (e.key === 'Backspace' && !e.nativeEvent.isComposing) {
+      const el = e.currentTarget;
+      if (el.selectionStart === el.selectionEnd) {
+        const before = draft.slice(0, el.selectionStart);
+        const matched = TOKEN_BEFORE_CARET.exec(before);
+        if (matched) {
+          e.preventDefault();
+          const at = before.length - matched[0].length;
+          setDraft(before.slice(0, at) + draft.slice(el.selectionEnd));
+          caretAfterInsert.current = at;
+          return;
+        }
+      }
+    }
+
+    if (e.key !== 'Enter' || e.shiftKey || e.nativeEvent.isComposing) return;
+    if (window.matchMedia('(pointer: coarse)').matches) return;
+    e.preventDefault();
+    composerRef.current?.requestSubmit();
+  };
   /*
    * 떠 있는 입력창이 푸터를 가리지 않게 그 높이만큼 화면 아래를 비웁니다.
    * 답글 배너가 뜨면 바가 높아지므로 값을 고정하지 않고 실제 높이를 잽니다.
@@ -276,7 +380,7 @@ export default function CommentSection({ postId, postAuthorId }: Props) {
           </Author>
           <Text>
             {mentionTo && <Mention>@{mentionTo} </Mention>}
-            {comment.content}
+            <CommentText content={comment.content} emoticons={emoticonById} />
           </Text>
         </Tap>
         <Foot>
@@ -319,6 +423,16 @@ export default function CommentSection({ postId, postAuthorId }: Props) {
       )}
 
       <Composer ref={composerRef} onSubmit={handleSubmit}>
+        {pickerOpen && (
+          <EmoticonPicker
+            emoticons={emoticons}
+            loading={emoticonsLoading}
+            failed={emoticonsFailed}
+            anchorRef={emoticonBtRef}
+            onPick={insertEmoticon}
+            onClose={closePicker}
+          />
+        )}
         {replyTo && (
           <ReplyBanner>
             <span>{replyTo.author}님에게 답글 남기는 중</span>
@@ -332,22 +446,31 @@ export default function CommentSection({ postId, postAuthorId }: Props) {
           </ReplyBanner>
         )}
         <ComposerRow>
-          <Avatar aria-hidden="true">
-            {(isLoggedIn ? user.username : '?').slice(0, 1)}
-          </Avatar>
-          <Field
-            ref={inputRef}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder={
-              isLoggedIn ? '댓글 입력' : '로그인 후 댓글을 남길 수 있어요'
-            }
-            aria-label="댓글 입력"
-          />
-          {/*
-            이모티콘 버튼. 피커를 붙일 때 주석을 풀어주세요.
-            <EmojiBt type="button" aria-label="이모티콘">☺</EmojiBt>
-          */}
+          <FieldBox>
+            <FieldLabel>
+              <Field
+                ref={inputRef}
+                rows={1}
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={
+                  isLoggedIn ? '댓글 입력' : '로그인 후 댓글을 남길 수 있어요'
+                }
+                aria-label="댓글 입력"
+              />
+            </FieldLabel>
+            <EmoticonBt
+              ref={emoticonBtRef}
+              type="button"
+              onClick={() => setPickerOpen((open) => !open)}
+              aria-label="이모티콘"
+              aria-expanded={pickerOpen}
+              $on={pickerOpen}
+            >
+              <FaRegSmile />
+            </EmoticonBt>
+          </FieldBox>
           <SendBt type="submit" disabled={!draft.trim() || sending}>
             등록
           </SendBt>
@@ -554,36 +677,94 @@ const CancelReply = styled.button`
   }
 `;
 
+/* 둘 다 높이가 44px 로 고정이라 그냥 가운데로 맞춥니다. */
 const ComposerRow = styled.div`
   display: flex;
   align-items: center;
   gap: ${({ theme }) => theme.space.sm};
-  padding: ${({ theme }) => `${theme.space.sm} ${theme.space.lg}`};
+  padding: ${({ theme }) => `${theme.space.md} ${theme.space.lg}`};
 `;
 
-const Avatar = styled.span`
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background-color: ${({ theme }) => theme.color.surfaceMuted};
-  border: 1px solid ${({ theme }) => theme.color.border};
-  color: ${({ theme }) => theme.color.textMuted};
-  font-size: 12px;
-  font-weight: 600;
-`;
-
-const Field = styled.input`
+/*
+ * 입력칸의 겉모습(테두리·배경·여백)을 맡는 상자.
+ *
+ * 44px 로 못박습니다. 손가락으로 누르기 편한 최소 높이입니다 — 예전 input 은
+ * 30px 남짓이라 모바일에서 어디를 눌러야 하는지 잘 보이지 않았습니다.
+ * 모서리는 둥글리지 않습니다. 알약 모양일 때는 칸이 줄 안에 떠 있는 것처럼
+ * 보였는데, 각을 세우면 한 칸을 꽉 채운 것으로 읽힙니다.
+ *
+ * 여백을 textarea 자신에게 주지 않고 여기로 뺀 이유가 있습니다. 넘치는 내용은
+ * padding 의 바깥 경계에서 잘리므로, 칸에 아래 여백 11px 이 있으면 둘째 줄의
+ * 윗부분이 딱 그만큼 삐져나와 반쯤 보입니다. 상자와 칸을 나누면 둘째 줄은
+ * 칸(딱 한 줄 높이)의 경계에서 통째로 잘려 언제나 한 줄만 보입니다.
+ *
+ * 이모티콘 버튼도 이 안에 들어옵니다. 줄에 따로 세우면 입력칸이 그만큼 좁아지는데,
+ * 상자 안 오른쪽 끝에 두면 등록 버튼 바로 왼쪽이면서 입력칸은 줄을 그대로 씁니다.
+ */
+const FieldBox = styled.div`
   flex: 1;
   min-width: 0;
-  padding: 8px 0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  height: 44px;
+  padding: 0 4px 0 14px;
+  border: 1px solid ${({ theme }) => theme.color.border};
+  background-color: ${({ theme }) => theme.color.surfaceMuted};
+
+  &:focus-within {
+    border-color: ${({ theme }) => theme.color.primary};
+    background-color: ${({ theme }) => theme.color.surface};
+  }
+`;
+
+/*
+ * label 이라 글자가 없는 위아래 여백을 눌러도 칸에 초점이 갑니다.
+ * 상자 전체가 아니라 글자 자리만 감쌉니다 — 이모티콘 버튼까지 덮으면 그 버튼을
+ * 눌렀을 때 초점이 입력칸으로 끌려갑니다.
+ */
+const FieldLabel = styled.label`
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  cursor: text;
+`;
+
+/*
+ * 글자가 들어가는 칸. 높이는 line-height 와 같은 20px — 딱 한 줄입니다.
+ *
+ * 예전에는 쓴 만큼 칸이 늘어났습니다(JS 가 scrollHeight 를 재서 height 를 올림).
+ * 그러면 화면 아래 떠 있는 입력창이 자라면서 댓글 목록을 덮고, 그 높이에 맞춰
+ * 본문 아래 여백도 같이 움직여 화면이 출렁였습니다. 이제 칸은 그대로 두고
+ * 넘치는 줄은 칸 안에서 스크롤합니다. Shift+Enter 줄바꿈은 그대로 됩니다.
+ */
+const Field = styled.textarea`
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  height: 20px;
+  padding: 0;
   border: 0;
   background: none;
   font-family: ${({ theme }) => theme.font.body};
-  font-size: 14px;
+  font-size: 15px;
+  line-height: 20px;
   color: ${({ theme }) => theme.color.text};
+  resize: none;
+  overflow-y: auto;
+
+  /*
+   * 스크롤바는 감춥니다. 한 줄짜리 칸에 막대가 서면 글자 자리를 먹는 데다,
+   * 두 줄째부터 나타났다 사라지며 폭이 흔들립니다. 스크롤 자체는 그대로 됩니다.
+   */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* 구형 Edge */
+
+  &::-webkit-scrollbar {
+    display: none; /* Chrome · Safari */
+  }
 
   &::placeholder {
     color: ${({ theme }) => theme.color.textMuted};
@@ -595,28 +776,39 @@ const Field = styled.input`
 `;
 
 /*
-const EmojiBt = styled.button`
+ * 이모티콘 피커를 여는 버튼. 입력 상자 안 오른쪽 끝, 등록 버튼 바로 왼쪽입니다.
+ * 36px 은 44px 상자 안에 들어가는 한도에서 누를 자리를 최대한 남긴 크기입니다.
+ */
+const EmoticonBt = styled.button<{ $on: boolean }>`
   flex: none;
-  width: 32px;
-  height: 32px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
   border: 0;
+  border-radius: ${({ theme }) => theme.radius.sm};
   background: none;
-  color: ${({ theme }) => theme.color.textMuted};
-  font-size: 18px;
+  color: ${({ theme, $on }) =>
+    $on ? theme.color.primary : theme.color.textMuted};
+  font-size: 19px;
   line-height: 1;
   cursor: pointer;
+
+  &:hover {
+    color: ${({ theme }) => theme.color.text};
+  }
 `;
-*/
 
 const SendBt = styled.button`
   flex: none;
-  padding: 7px 14px;
+  height: 44px;
+  padding: 0 16px;
   border: 0;
   border-radius: ${({ theme }) => theme.radius.pill};
   background-color: ${({ theme }) => theme.color.primary};
   color: ${({ theme }) => theme.color.textInverse};
   font-family: ${({ theme }) => theme.font.body};
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
 

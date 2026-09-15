@@ -99,11 +99,37 @@ const {
   keywordScoreExpr,
 } = require('./search');
 
+/**
+ * 지도에 내려보낼 컬럼.
+ *
+ * 예전에는 `SELECT *` 였습니다. 표에는 16개가 있는데 화면이 읽는 것은 이 열 개뿐이라
+ * 나머지 여섯이 매 요청 그냥 따라 나갔습니다.
+ *
+ *   mgtno·lastmodts·apvpermymd·dcbymd  적재·동기화용입니다 (scripts/syncData.js).
+ *                                      클라이언트 참조 0곳.
+ *   x·y                                원본 TM 좌표(EPSG:5181). 화면은 받자마자
+ *                                      lat/lng 로 덮어씁니다 — 보내 봐야 버립니다
+ *                                      (client/.../SearchMap.tsx 의 transformedResults).
+ *
+ * 서울 도심 300건으로 재면 139,598B → 96,764B (31%). 이 요청 하나가 전체 전송량의
+ * 65% 라 전체로는 20%가 줄어듭니다. (docs/LoadTest-2026-09-15.md)
+ *
+ * trdstatenm 은 지금 데이터에서 dtlstatenm 과 1:1 로 겹치지만(3만건 중 어긋나는 것 0건)
+ * 남겨 둡니다. 우리가 만드는 값이 아니라 공공데이터 원본이라 언젠가 갈라질 수 있고,
+ * 화면의 폐업 거르기가 둘 다 봅니다 (client/src/apis/place.api.ts 의 isClosed).
+ *
+ * 즐겨찾기도 같은 방식으로 골라 담습니다 (controller/favorites.js 의 getFavorites).
+ */
+const FACILITY_COLUMNS = [
+  'id', 'bplcnm', 'type', 'sitewhladdr', 'rdnwhladdr',
+  'sitetel', 'lat', 'lng', 'dtlstatenm', 'trdstatenm',
+].join(', ');
+
 app.get("/facilities", (req, res) => {
   const {
     type, keyword, swLat, swLng, neLat, neLng, onlyOpened, limit,
   } = req.query;
-  let query = "SELECT * FROM medical_facilities WHERE 1=1";
+  let query = `SELECT ${FACILITY_COLUMNS} FROM medical_facilities WHERE 1=1`;
   const values = [];
 
   if (type) {
@@ -283,6 +309,19 @@ app.get("/facilities/clusters", (req, res) => {
 });
 
 
+/*
+ * 거둬들인 토큰 끊기.
+ *
+ * 비밀번호를 바꾸거나 탈퇴하면 users.token_version 이 올라가고, 그 전에 나간
+ * 토큰은 여기서 401 이 됩니다 (middleware/tokenVersion.js).
+ *
+ * 자리가 여기인 이유: 위의 /facilities·/facilities/clusters·/health 는 토큰 없이
+ * 도는 길이고 이 서버에서 제일 자주 불립니다. 그 뒤에 붙여 두면 그 요청들은
+ * 아예 지나갑니다. 아래 라우터들 중 인증이 필요한 것만 조회 한 번을 더 씁니다.
+ */
+const { revokeStaleTokens } = require('./middleware/tokenVersion');
+app.use(revokeStaleTokens);
+
 // 라우터 설정
 const categoryRouter = require('./routes/category');
 const postRouter = require('./routes/post');
@@ -293,6 +332,7 @@ const mypageRouter = require('./routes/mypage');
 const petsRouter = require('./routes/pets');
 const favoritesRouter = require('./routes/favorites');
 const pushRouter = require('./routes/push');
+const emoticonRouter = require('./routes/emoticon');
 
 app.use('/category', categoryRouter);
 app.use('/posts', postRouter);
@@ -303,6 +343,12 @@ app.use('/mypage', mypageRouter);
 app.use('/pets', petsRouter);
 app.use('/favorites', favoritesRouter);
 app.use('/push', pushRouter);
+/*
+ * 그림을 내려주는 /emoticons/:id/image 는 토큰 없이 <img> 가 부르는 길이라,
+ * 위의 revokeStaleTokens 는 Authorization 헤더가 없는 것을 보고 바로 지나갑니다.
+ * 등록·삭제는 토큰을 들고 오므로 거둬들인 토큰 검사를 그대로 거칩니다.
+ */
+app.use('/emoticons', emoticonRouter);
 
 /*
  * 어느 라우트에도 걸리지 않은 주소.

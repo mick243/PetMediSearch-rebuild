@@ -1,4 +1,4 @@
-import { MyComment, PostState } from '../types/post.type';
+import { MyComment, MyPost } from '../types/post.type';
 import { ReviewData } from '../types/review.type';
 import { httpClient } from './http';
 
@@ -8,9 +8,9 @@ import { httpClient } from './http';
  * 한 번의 실패가 콘솔에 두 줄로 남습니다.
  */
 
-/** 내가 쓴 글 최근 20건. 지워진 글은 서버에서 빠집니다. */
+/** 내가 쓴 글 최근 20건. 본문은 오지 않습니다(MyPost). 지워진 글은 서버에서 빠집니다. */
 export const getPostsByUserId = async () => {
-  const response = await httpClient.get<PostState[]>(`/mypage/posts`);
+  const response = await httpClient.get<MyPost[]>(`/mypage/posts`);
   return response.data;
 };
 

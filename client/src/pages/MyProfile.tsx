@@ -4,6 +4,9 @@ import { RootState } from '../store';
 import MyReview from '../components/myProfile/MyReview';
 import MyPosts from '../components/myProfile/MyPosts';
 import MyComments from '../components/myProfile/MyComments';
+import AccountSection from '../components/myProfile/AccountSection';
+import PasswordSection from '../components/myProfile/PasswordSection';
+import AdminMenu from '../components/myProfile/AdminMenu';
 import WithdrawSection from '../components/myProfile/WithdrawSection';
 import { SiNaver } from 'react-icons/si';
 import { FcGoogle } from 'react-icons/fc';
@@ -34,6 +37,12 @@ function MyProfile() {
         </p>
         <p className="userName">{user.username}</p>
       </div>
+      {/* 계정 정보는 글·댓글·후기보다 위에 둡니다. 내 것이 무엇인지가 먼저입니다. */}
+      <AccountSection />
+      {/* 소셜 계정에서는 스스로 아무것도 그리지 않습니다 (비밀번호로 로그인하지 않으므로). */}
+      <PasswordSection />
+      {/* 관리자 전용 화면으로 가는 길. 관리자가 아니면 스스로 아무것도 그리지 않습니다. */}
+      <AdminMenu />
       <div className="userSection">
         <div className="post">
           <div className="title">

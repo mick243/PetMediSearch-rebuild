@@ -12,13 +12,16 @@ import Terms from './pages/Terms';
 import Privacy from './pages/Privacy';
 import Layout from './layout/Layout';
 import Error from './components/common/Error';
+import SplashScreen from './components/common/SplashScreen';
 import Posts from './pages/Posts';
 import LoginRedirectKakao from './pages/loginRedirect/LoginRedirectKakao';
 import LoginRedirectNaver from './pages/loginRedirect/LoginRedirectNaver';
 import LoginRedirectGoogle from './pages/loginRedirect/LoginRedirectGoogle';
 import { PetMediThemeProvider } from './style/themeContext';
 import MyProfile from './pages/MyProfile';
+import EmoticonAdmin from './pages/EmoticonAdmin';
 import LoginProtect from './components/common/LoginProtect';
+import AdminProtect from './components/common/AdminProtect';
 import Review from './pages/Review';
 import CreatePost from './pages/CreatePost';
 import PostDetail from './pages/PostDetail';
@@ -122,6 +125,21 @@ const routeList = [
     ),
   },
   {
+    /*
+     * 관리자 전용. 마이페이지의 링크로만 들어옵니다.
+     * 여기서 막는 것은 화면일 뿐이고, 등록·삭제 요청은 서버가 users 표를 보고
+     * 다시 확인합니다 (controller/emoticon.js 의 withAdmin).
+     */
+    path: '/myprofile/emoticons',
+    element: (
+      <LoginProtect>
+        <AdminProtect>
+          <EmoticonAdmin />
+        </AdminProtect>
+      </LoginProtect>
+    ),
+  },
+  {
     path: '/Review',
     element: (
       <LoginProtect>
@@ -144,6 +162,12 @@ const router = createBrowserRouter(
 function App() {
   return (
     <PetMediThemeProvider>
+      {/*
+        라우터보다 먼저 쓰지만 덮기만 합니다. 뒤에서 홈이 그려지고 데이터도 받아
+        오므로, 덮여 있는 동안이 그냥 기다리는 시간이 되지 않습니다.
+        뜨는 경우는 셋뿐입니다 — 이번 방문의 첫 진입 · 느린 로딩 · 연결 끊김.
+      */}
+      <SplashScreen />
       <RouterProvider router={router} />
     </PetMediThemeProvider>
   );
