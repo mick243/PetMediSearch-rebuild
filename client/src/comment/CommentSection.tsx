@@ -81,8 +81,9 @@ export default function CommentSection({ postId, postAuthorId }: Props) {
     };
   }, []);
 
-  const emoticonNames = useMemo(
-    () => new Map(emoticons.map((e) => [e.emoticon_id, e.name])),
+  /* 댓글이 번호로만 가리키므로, 이름과 지문을 꺼내 쓰려면 번호로 찾을 수 있어야 합니다. */
+  const emoticonById = useMemo(
+    () => new Map(emoticons.map((e) => [e.emoticon_id, e])),
     [emoticons]
   );
 
@@ -379,7 +380,7 @@ export default function CommentSection({ postId, postAuthorId }: Props) {
           </Author>
           <Text>
             {mentionTo && <Mention>@{mentionTo} </Mention>}
-            <CommentText content={comment.content} names={emoticonNames} />
+            <CommentText content={comment.content} emoticons={emoticonById} />
           </Text>
         </Tap>
         <Foot>

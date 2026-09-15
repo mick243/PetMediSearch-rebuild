@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import styled from 'styled-components';
 import { emoticonImageUrl } from '../apis/emoticon.api';
+import { Emoticon } from '../types/emoticon.type';
 import { REMOVED_EMOTICON_ID, splitEmoticons } from '../utils/emoticon';
 
 /**
@@ -12,7 +13,7 @@ import { REMOVED_EMOTICON_ID, splitEmoticons } from '../utils/emoticon';
  * 목록에 있는지 미리 보지 않고 onError 로 처리하는 이유는, 목록을 아직 못 받은
  * 동안에도 그림은 뜨기 때문입니다 — 순서에 기대지 않습니다.
  */
-function EmoticonImage({ id, name }: { id: number; name?: string }) {
+function EmoticonImage({ id, emoticon }: { id: number; emoticon?: Emoticon }) {
   const [failed, setFailed] = useState(false);
 
   if (id <= REMOVED_EMOTICON_ID || failed)
@@ -20,8 +21,8 @@ function EmoticonImage({ id, name }: { id: number; name?: string }) {
 
   return (
     <Image
-      src={emoticonImageUrl(id)}
-      alt={name ?? '이모티콘'}
+      src={emoticonImageUrl(id, emoticon?.v)}
+      alt={emoticon?.name ?? '이모티콘'}
       loading="lazy"
       onError={() => setFailed(true)}
     />
@@ -30,12 +31,15 @@ function EmoticonImage({ id, name }: { id: number; name?: string }) {
 
 interface Props {
   content: string;
-  /** id → 이름. 대체 텍스트로 씁니다. 목록을 못 받았으면 비어 있습니다. */
-  names: Map<number, string>;
+  /**
+   * id → 이모티콘. 이름(대체 텍스트)과 지문을 꺼내 씁니다.
+   * 목록을 못 받았으면 비어 있고, 그때는 지문 없이 불러 옵니다.
+   */
+  emoticons: Map<number, Emoticon>;
 }
 
 /** 댓글 본문. [emoticon:12] 표시만 그림으로 바꿔 답니다. 나머지는 글자 그대로입니다. */
-export default function CommentText({ content, names }: Props) {
+export default function CommentText({ content, emoticons }: Props) {
   return (
     <>
       {splitEmoticons(content).map((part, i) =>
@@ -45,7 +49,7 @@ export default function CommentText({ content, names }: Props) {
           <EmoticonImage
             key={`${i}-${part.id}`}
             id={part.id}
-            name={names.get(part.id)}
+            emoticon={emoticons.get(part.id)}
           />
         )
       )}

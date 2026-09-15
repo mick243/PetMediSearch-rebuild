@@ -10,4 +10,12 @@
 export interface Emoticon {
   emoticon_id: number;
   name: string;
+  /**
+   * 그림의 지문. 주소에 실어 보냅니다 (emoticonImageUrl).
+   *
+   * 번호는 이모티콘을 지울 때마다 한 칸씩 당겨지므로, 번호만으로는 그림을 가리키는
+   * 이름이 되지 못합니다. 이 값이 있어야 브라우저가 "3번 그림"과 "예전 3번 그림"을
+   * 다른 것으로 봅니다.
+   */
+  v: string;
 }

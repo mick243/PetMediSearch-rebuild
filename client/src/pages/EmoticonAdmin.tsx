@@ -43,14 +43,6 @@ function EmoticonAdmin() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [removing, setRemoving] = useState<number | null>(null);
-  /*
-   * 지운 직후 목록의 그림을 다시 받아 오게 하는 값.
-   *
-   * 번호가 한 칸씩 당겨지면 같은 주소가 다른 그림을 뜻하게 되는데, 브라우저는
-   * 1분간 들고 있던 것을 그대로 씁니다. 그러면 지운 자리부터 아래로 그림만
-   * 한 칸씩 밀려 보입니다 — 이름은 맞는데 그림이 틀린 상태라 더 헷갈립니다.
-   */
-  const [imageBust, setImageBust] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -125,6 +117,9 @@ function EmoticonAdmin() {
    * 지우면 되돌릴 수 없고, 뒤엣것의 번호가 한 칸씩 당겨집니다.
    * 이미 올라간 댓글은 서버가 같은 순간에 함께 고쳐 주므로 밀리지 않습니다.
    * 화면 쪽 번호도 서버와 같은 규칙으로 다시 매겨, 새로고침 없이 맞춥니다.
+   *
+   * 그림은 번호가 아니라 지문으로 주소가 정해지므로(emoticonImageUrl), 번호가
+   * 당겨져도 각 줄이 계속 자기 그림을 가리킵니다 — 따로 손볼 것이 없습니다.
    */
   const handleDelete = async (emoticon: Emoticon) => {
     const message =
@@ -145,7 +140,6 @@ function EmoticonAdmin() {
               : row
           )
       );
-      setImageBust(Date.now());
     } catch (error) {
       alert(apiErrorMessage(error, '이모티콘을 삭제하지 못했습니다.'));
     } finally {
@@ -221,7 +215,7 @@ function EmoticonAdmin() {
               {/* 번호는 지울 때마다 다시 매겨져 언제나 1부터 이어집니다. */}
               <span className="no">#{emoticon.emoticon_id}</span>
               <img
-                src={emoticonImageUrl(emoticon.emoticon_id, imageBust)}
+                src={emoticonImageUrl(emoticon.emoticon_id, emoticon.v)}
                 alt={emoticon.name}
                 loading="lazy"
               />

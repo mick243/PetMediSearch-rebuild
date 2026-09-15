@@ -217,6 +217,9 @@ CREATE TABLE IF NOT EXISTS `emoticons` (
   `mime` varchar(20) NOT NULL,
   -- 16MB 까지. 실제로는 서버가 512KB 로 자릅니다 (controller/emoticon.js).
   `data` mediumblob NOT NULL,
+  -- 그림의 지문. 주소(/emoticons/:id/image?v=)에 실어 캐시가 번호를 헷갈리지 않게 합니다.
+  -- 번호는 지울 때마다 당겨지므로 그것만으로는 그림을 가리키는 이름이 되지 못합니다.
+  `content_hash` char(16) GENERATED ALWAYS AS (SUBSTRING(SHA2(`data`, 256), 1, 16)) STORED NOT NULL,
   `created_by` int DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`emoticon_id`),

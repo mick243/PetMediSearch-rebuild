@@ -72,7 +72,7 @@ export default function EmoticonPicker({
               onClick={() => onPick(emoticon)}
             >
               <img
-                src={emoticonImageUrl(emoticon.emoticon_id)}
+                src={emoticonImageUrl(emoticon.emoticon_id, emoticon.v)}
                 alt={emoticon.name}
                 loading="lazy"
               />

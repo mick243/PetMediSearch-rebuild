@@ -4,6 +4,7 @@ const { verifyToken } = require('./authUser');
 const { textField } = require('./validate');
 const { sniffImageMime, parseImageDataUrl } = require('../imageType');
 const { renumberReplacements } = require('../emoticonToken');
+const { cacheControlFor } = require('../emoticonImage');
 
 /**
  * 이모티콘 한 개의 최대 크기(원본 바이트).
@@ -60,13 +61,17 @@ const parseId = (raw) => {
 /**
  * 피커에 뿌릴 목록.
  *
- * 그림은 싣지 않고 id 와 이름만 보냅니다. 스티커 30개를 목록에 실으면 그것만으로
- * 1MB 가 넘고, 정작 화면은 피커를 열기 전까지 한 장도 그리지 않습니다.
- * 그림은 GET /emoticons/:id/image 로 필요할 때 한 장씩 받아 갑니다.
+ * 그림은 싣지 않고 id·이름과 그림의 지문(v)만 보냅니다. 스티커 30개를 목록에
+ * 실으면 그것만으로 1MB 가 넘고, 정작 화면은 피커를 열기 전까지 한 장도 그리지
+ * 않습니다. 그림은 GET /emoticons/:id/image?v=<지문> 으로 한 장씩 받아 갑니다.
+ *
+ * 지문을 함께 주는 이유는 번호가 고정이 아니기 때문입니다 — 하나를 지우면 뒤엣것이
+ * 당겨 와서 같은 번호가 다른 그림을 뜻하게 됩니다. 주소에 지문이 실려 있어야
+ * 브라우저가 둘을 다른 그림으로 봅니다.
  */
 const listEmoticons = (req, res) => {
     conn.query(
-        'SELECT emoticon_id, name FROM emoticons ORDER BY emoticon_id',
+        'SELECT emoticon_id, name, content_hash AS v FROM emoticons ORDER BY emoticon_id',
         (err, rows) => {
             if (err) {
                 logError('emoticon:list', err);
@@ -74,15 +79,19 @@ const listEmoticons = (req, res) => {
             }
 
             /*
-             * 글을 열 때마다 부르지만 내용은 거의 바뀌지 않아 잠깐 담아 둡니다.
-             * 로그인 상태에서도 재사용되도록 public 입니다.
+             * 담아 두되 쓸 때마다 물어봅니다(no-cache).
              *
-             * 1분입니다. 처음에 5분으로 뒀다가 줄였습니다 — 이 목록이 늦는 것을
-             * 느끼는 사람은 방금 이모티콘을 올린 관리자뿐인데, 올리고 글로 가서
-             * 판을 열었을 때 없으면 등록이 안 된 줄 압니다. 응답이 수백 바이트라
-             * 자주 물어도 부담이 없습니다.
+             * 처음에는 5분, 그다음 1분을 담아 뒀는데 둘 다 틀렸습니다. 이 목록은
+             * 그림의 지문을 나르는데, 목록이 낡으면 낡은 지문으로 그림을 부르고
+             * 그 주소는 1년짜리로 담기므로 **옛 그림이 자신 있게 나옵니다.**
+             * 실제로 그렇게 지우고 새로 올린 자리에 옛 그림이 그대로 떴습니다.
+             *
+             * 그래서 목록만큼은 늘 확인합니다. 바뀌지 않았으면 express 가 붙인
+             * ETag 로 304 만 오가서 본문이 0바이트입니다 — 그림(수십 KB)이 아니라
+             * 이름표 몇 줄이라 매번 물어도 쌉니다.
+             * 비싼 것(그림)은 영원히 담고, 싼 것(목록)은 매번 확인하는 쪽으로 나눕니다.
              */
-            res.set('Cache-Control', 'public, max-age=60');
+            res.set('Cache-Control', 'no-cache');
             return res.json({ emoticons: rows });
         }
     );
@@ -93,13 +102,22 @@ const listEmoticons = (req, res) => {
  *
  * data URL 이 아니라 이미지 그대로 내보냅니다. 그래야 브라우저가 보통 이미지처럼
  * 캐시해서, 같은 스티커가 여러 댓글에 나와도 내려받기는 한 번뿐입니다.
+ *
+ * 주소 끝의 ?v= 는 그림의 지문입니다. 서버가 그것으로 무엇을 고르지는 않습니다 —
+ * 번호로만 고릅니다. 오직 **얼마나 오래 담아 둘지**를 정하는 데만 씁니다.
+ * 지문이 맞으면 이 주소는 영원히 같은 그림을 뜻하므로 1년을 줍니다.
+ * 지문이 없거나 어긋나면 그림은 지금 것을 제대로 주되 담아 두지는 못하게 합니다.
+ *
+ * 이렇게 하면 번호가 당겨져도 틀린 그림이 보이는 순간이 없습니다. 예전에는
+ * 같은 주소에 옛 사본이 남아, 지우고 새로 올린 그림 대신 그 번호에 있던
+ * 옛 그림이 나왔습니다 (1,524바이트 PNG 자리에 4,715바이트 GIF).
  */
 const getEmoticonImage = (req, res) => {
     const id = parseId(req.params.emoticon_id);
     if (!id) return res.status(404).json({ message: '이모티콘을 찾을 수 없습니다.' });
 
     conn.query(
-        'SELECT mime, data FROM emoticons WHERE emoticon_id = ?',
+        'SELECT mime, data, content_hash FROM emoticons WHERE emoticon_id = ?',
         [id],
         (err, rows) => {
             if (err) {
@@ -110,18 +128,7 @@ const getEmoticonImage = (req, res) => {
                 return res.status(404).json({ message: '이모티콘을 찾을 수 없습니다.' });
             }
 
-            /*
-             * 1분만 담아 둡니다.
-             *
-             * 주소에 id 가 들어가는데 그 id 가 고정이 아닙니다 — 하나를 지우면
-             * 뒤엣것이 한 칸씩 당겨 오므로, 같은 주소가 어제와 다른 그림을 뜻하게
-             * 됩니다. 오래 담아 두면 그동안 엉뚱한 스티커가 보입니다.
-             * 1분이면 잘못 보일 수 있는 시간이 1분으로 묶입니다.
-             *
-             * 1분이 지나도 express 가 붙인 ETag 로 304 만 오가서(본문 0바이트)
-             * 바뀌지 않았으면 다시 받아 오지 않습니다.
-             */
-            res.set('Cache-Control', 'public, max-age=60');
+            res.set('Cache-Control', cacheControlFor(req.query.v, rows[0].content_hash));
             res.type(rows[0].mime);
             return res.send(rows[0].data);
         }
@@ -161,10 +168,30 @@ const createEmoticon = (req, res) =>
                     logError('emoticon:create', err);
                     return res.status(500).json({ message: '서버 오류 발생' });
                 }
-                return res.status(201).json({
-                    message: '이모티콘을 등록했습니다.',
-                    emoticon: { emoticon_id: result.insertId, name },
-                });
+
+                /*
+                 * 지문은 DB 가 data 에서 만들어 내는 값이라(생성 컬럼) 다시 읽어 옵니다.
+                 * 여기서 직접 계산해 넣으면 두 곳이 어긋날 수 있고, 어긋나면 방금 올린
+                 * 관리자 화면만 그림을 못 담아 두게 됩니다. 기본키 한 행 조회입니다.
+                 */
+                return conn.query(
+                    'SELECT content_hash AS v FROM emoticons WHERE emoticon_id = ?',
+                    [result.insertId],
+                    (readErr, rows) => {
+                        if (readErr) {
+                            logError('emoticon:create', readErr);
+                            return res.status(500).json({ message: '서버 오류 발생' });
+                        }
+                        return res.status(201).json({
+                            message: '이모티콘을 등록했습니다.',
+                            emoticon: {
+                                emoticon_id: result.insertId,
+                                name,
+                                v: rows[0] ? rows[0].v : '',
+                            },
+                        });
+                    }
+                );
             }
         );
     });
