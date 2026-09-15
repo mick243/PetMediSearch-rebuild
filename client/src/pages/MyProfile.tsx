@@ -4,6 +4,7 @@ import { RootState } from '../store';
 import MyReview from '../components/myProfile/MyReview';
 import MyPosts from '../components/myProfile/MyPosts';
 import MyComments from '../components/myProfile/MyComments';
+import AccountSection from '../components/myProfile/AccountSection';
 import WithdrawSection from '../components/myProfile/WithdrawSection';
 import { SiNaver } from 'react-icons/si';
 import { FcGoogle } from 'react-icons/fc';
@@ -34,6 +35,8 @@ function MyProfile() {
         </p>
         <p className="userName">{user.username}</p>
       </div>
+      {/* 계정 정보는 글·댓글·후기보다 위에 둡니다. 내 것이 무엇인지가 먼저입니다. */}
+      <AccountSection />
       <div className="userSection">
         <div className="post">
           <div className="title">

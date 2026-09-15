@@ -41,3 +41,35 @@ export interface AuthResponse {
   token: string;
   user: UserState;
 }
+
+/**
+ * 마이페이지의 내 정보 칸이 받는 것 (GET·PATCH /auth/me).
+ *
+ * UserState 와 갈라 두는 이유는 담는 것이 다르기 때문입니다. UserState 는 로그인
+ * 응답에 실려 localStorage 까지 들어가므로 이메일·전화번호를 넣지 않습니다.
+ * 이쪽은 수정 칸이 열릴 때만 받아 씁니다.
+ *
+ * 소셜 계정은 email·phone 이 null 입니다 — 소셜 로그인은 그 둘 없이 계정을
+ * 만듭니다(서버 controller/auth.js 의 createUser).
+ */
+export interface MyAccount {
+  id: number;
+  username: string;
+  email: string | null;
+  phone: string | null;
+  socialType: string;
+  role: UserRole;
+}
+
+/**
+ * 내 정보 수정. 보낸 항목만 바뀝니다.
+ *
+ * 전화번호는 빈 문자열을 보내면 지워집니다. 이메일은 소셜 계정이면 **보내면 안
+ * 됩니다** — 서버가 400 으로 막습니다(소셜 계정에는 이메일이 없고, 넣어 주어도
+ * 비밀번호가 없어 그 주소로 로그인할 수 없습니다).
+ */
+export interface UpdateMyAccountInput {
+  username?: string;
+  email?: string;
+  phone?: string;
+}

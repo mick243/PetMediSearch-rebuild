@@ -1,5 +1,11 @@
 import { httpClient } from './http';
-import { AuthResponse, LoginInput, SignupRequest } from '../types/auth.type';
+import {
+  AuthResponse,
+  LoginInput,
+  MyAccount,
+  SignupRequest,
+  UpdateMyAccountInput,
+} from '../types/auth.type';
 
 export const signup = async (input: SignupRequest) => {
   const res = await httpClient.post<AuthResponse>('/auth/signup', input);
@@ -8,6 +14,22 @@ export const signup = async (input: SignupRequest) => {
 
 export const login = async (input: LoginInput) => {
   const res = await httpClient.post<AuthResponse>('/auth/login', input);
+  return res.data;
+};
+
+/**
+ * 내 정보 (이름·이메일·전화번호).
+ *
+ * 로그인 응답에는 이름만 실려 있어, 수정 칸을 열 때 여기서 따로 받아옵니다.
+ */
+export const getMyAccount = async () => {
+  const res = await httpClient.get<MyAccount>('/auth/me');
+  return res.data;
+};
+
+/** 내 정보 수정. 바뀐 뒤의 값을 그대로 돌려받습니다. */
+export const updateMyAccount = async (input: UpdateMyAccountInput) => {
+  const res = await httpClient.patch<MyAccount>('/auth/me', input);
   return res.data;
 };
 

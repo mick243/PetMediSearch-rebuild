@@ -212,32 +212,82 @@ const query = (sql, values) =>
     });
   });
 
+/*
+ * 항목별 검사.
+ *
+ * 가입(validateSignup)과 마이페이지의 내 정보 수정(updateMe)이 같은 것을 씁니다.
+ * 예전처럼 검사를 각자 늘어놓으면 한쪽만 고쳐져, 가입에서는 막히는 값이 수정으로는
+ * 들어가는 일이 생깁니다. 문구까지 한곳에 두어야 사용자가 보는 말도 같아집니다.
+ *
+ * 모두 controller/validate.js 와 같은 규약입니다 — { error } 아니면 다듬은 { value }.
+ */
+
+const usernameField = (raw) => {
+  const value = String(raw ?? '').trim();
+  if (!value) return { error: '이름을 입력해주세요.' };
+  if (value.length > 50) return { error: '이름은 50자까지 입력할 수 있습니다.' };
+  return { value };
+};
+
+const emailField = (raw) => {
+  const value = String(raw ?? '')
+    .trim()
+    .toLowerCase();
+  if (!value) return { error: '이메일을 입력해주세요.' };
+  if (!EMAIL_RE.test(value)) return { error: '이메일 형식이 올바르지 않습니다.' };
+  if (value.length > 255) return { error: '이메일이 너무 깁니다.' };
+  return { value };
+};
+
+/**
+ * 전화번호.
+ *
+ * `required: false` 는 마이페이지에서 씁니다. 소셜 계정은 전화번호 없이 만들어지고
+ * (createUser 가 social_id·social_type·username 만 넣습니다) 컬럼도 NULL 을 받으므로,
+ * 비우고 저장하는 것을 오류로 볼 수 없습니다. 가입은 네 항목을 다 받으므로 필수입니다.
+ */
+const phoneField = (raw, { required = true } = {}) => {
+  const value = normalizePhone(raw ?? '');
+  if (!value) return required ? { error: '전화번호를 입력해주세요.' } : { value: null };
+  if (value.length < 9 || value.length > 11) {
+    return { error: '전화번호 형식이 올바르지 않습니다.' };
+  }
+  return { value };
+};
+
+const addressField = (raw) => {
+  const value = String(raw ?? '').trim();
+  if (!value) return { error: '주소를 입력해주세요.' };
+  if (value.length > 255) return { error: '주소는 255자까지 입력할 수 있습니다.' };
+  return { value };
+};
+
+const passwordField = (raw) => {
+  const value = String(raw ?? '');
+  if (!value) return { error: '비밀번호를 입력해주세요.' };
+  if (value.length < MIN_PASSWORD_LENGTH) {
+    return { error: `비밀번호는 ${MIN_PASSWORD_LENGTH}자 이상이어야 합니다.` };
+  }
+  return { value };
+};
+
 /**
  * 입력값을 검사해 다듬은 값을 돌려줍니다. 문제가 있으면 { error } 를 담아 돌려줍니다.
  * 받는 정보는 이름·전화번호·이메일·주소 네 가지이고, 비밀번호는 로그인 수단입니다.
  */
 const validateSignup = (body) => {
-  const username = String(body.username ?? '').trim();
-  const email = String(body.email ?? '')
-    .trim()
-    .toLowerCase();
-  const password = String(body.password ?? '');
-  const phone = normalizePhone(body.phone ?? '');
-  const address = String(body.address ?? '').trim();
+  const checked = {
+    username: usernameField(body.username),
+    email: emailField(body.email),
+    password: passwordField(body.password),
+    phone: phoneField(body.phone),
+    address: addressField(body.address),
+  };
 
-  if (!username) return { error: '이름을 입력해주세요.' };
-  if (username.length > 50) return { error: '이름은 50자까지 입력할 수 있습니다.' };
-  if (!email) return { error: '이메일을 입력해주세요.' };
-  if (!EMAIL_RE.test(email)) return { error: '이메일 형식이 올바르지 않습니다.' };
-  if (email.length > 255) return { error: '이메일이 너무 깁니다.' };
-  if (!password) return { error: '비밀번호를 입력해주세요.' };
-  if (password.length < MIN_PASSWORD_LENGTH)
-    return { error: `비밀번호는 ${MIN_PASSWORD_LENGTH}자 이상이어야 합니다.` };
-  if (!phone) return { error: '전화번호를 입력해주세요.' };
-  if (phone.length < 9 || phone.length > 11)
-    return { error: '전화번호 형식이 올바르지 않습니다.' };
-  if (!address) return { error: '주소를 입력해주세요.' };
-  if (address.length > 255) return { error: '주소는 255자까지 입력할 수 있습니다.' };
+  // 가입 폼의 차례대로 봅니다. 아래쪽 칸의 오류가 먼저 뜨면 어디를 고치라는 건지 모릅니다.
+  for (const key of ['username', 'email', 'password', 'phone', 'address']) {
+    if (checked[key].error) return { error: checked[key].error };
+  }
 
   /*
    * 필수 동의(만 14세 이상 · 이용약관 · 개인정보 수집·이용)를 서버에서도 확인합니다.
@@ -247,7 +297,15 @@ const validateSignup = (body) => {
     return { error: '필수 항목에 동의해야 가입할 수 있습니다.' };
   }
 
-  return { value: { username, email, password, phone, address } };
+  return {
+    value: {
+      username: checked.username.value,
+      email: checked.email.value,
+      password: checked.password.value,
+      phone: checked.phone.value,
+      address: checked.address.value,
+    },
+  };
 };
 
 exports.signup = async (req, res) => {
@@ -309,6 +367,137 @@ exports.login = async (req, res) => {
   } catch (err) {
     logError('Login error', err);
     res.status(500).json({ message: '로그인 처리 중 오류가 발생했습니다.' });
+  }
+};
+
+/* ------------------------------------------------------------------ *
+ * 내 정보 보기 · 고치기
+ *
+ * 마이페이지에서 이름·이메일·전화번호를 고칩니다. 주소와 비밀번호는 여기서
+ * 다루지 않습니다 — 비밀번호는 지금 값 확인이 함께 필요해 흐름이 다릅니다.
+ * ------------------------------------------------------------------ */
+
+/**
+ * 내 계정에서 화면에 필요한 것만.
+ *
+ * toClientUser 와 따로 두는 이유는 담는 것이 다르기 때문입니다. 그쪽은 로그인
+ * 응답에 실려 localStorage 까지 들어가므로 이메일·전화번호를 넣지 않습니다.
+ * 이쪽은 수정 폼이 열릴 때만 받아 가는 값입니다.
+ */
+const toMyAccount = (user) => ({
+  id: user.user_id,
+  username: user.username,
+  // 소셜 계정은 email·phone 이 비어 있습니다. 빈 문자열이 아니라 null 로 구분해 보냅니다.
+  email: user.email ?? null,
+  phone: user.phone ?? null,
+  socialType: user.social_type || '',
+  role: user.role || 'user',
+});
+
+/** 수정 폼이 열릴 때 지금 값을 받아갑니다. 토큰에는 이름·이메일이 없습니다. */
+const findMyAccount = async (userId) => {
+  const rows = await query(
+    `SELECT user_id, username, email, phone, social_type, role
+       FROM users WHERE user_id = ? AND deleted_at IS NULL`,
+    [userId]
+  );
+  return rows[0];
+};
+
+exports.getMe = async (req, res) => {
+  const decoded = verifyToken(req.headers.authorization?.split(' ')[1]);
+  if (!decoded) {
+    return res.status(401).json({ message: '유효하지 않은 토큰입니다.' });
+  }
+
+  try {
+    const user = await findMyAccount(decoded.id);
+    // 토큰은 하루짜리라, 그 사이에 탈퇴한 계정의 토큰이 올 수 있습니다.
+    if (!user) return res.status(404).json({ message: '계정을 찾을 수 없습니다.' });
+
+    return res.json(toMyAccount(user));
+  } catch (err) {
+    logError('auth:getMe', err);
+    return res.status(500).json({ message: '내 정보를 불러오지 못했습니다.' });
+  }
+};
+
+/**
+ * 보낸 항목만 고칩니다.
+ *
+ * 값이 없는 것(undefined)과 비운 것을 가릅니다 — 전화번호를 지우려면 빈 값을
+ * 보내야 하는데, 둘을 뭉치면 지울 방법이 없어집니다 (review.js 의 images 와 같은 이유).
+ *
+ * 소셜 계정이 이메일을 못 바꾸는 이유:
+ *   소셜 계정에는 애초에 이메일이 없습니다(createUser 가 넣지 않습니다). 여기서
+ *   넣어 준다 해도 비밀번호가 없어 그 주소로는 로그인할 수 없고, 남의 일반 계정과
+ *   같은 주소면 UNIQUE 에 걸려 저장도 안 됩니다. 쓸 수 없는 값을 받아 두면
+ *   "바꿨는데 로그인이 안 된다" 만 만듭니다.
+ *
+ * 소셜인지는 토큰이 아니라 DB 에서 봅니다. 토큰에는 { id, role } 뿐이고, 권한을
+ * 토큰으로 판단하지 않는 것은 이 서버의 규칙입니다 (controller/authUser.js).
+ */
+exports.updateMe = async (req, res) => {
+  const decoded = verifyToken(req.headers.authorization?.split(' ')[1]);
+  if (!decoded) {
+    return res.status(401).json({ message: '유효하지 않은 토큰입니다.' });
+  }
+
+  try {
+    const current = await findMyAccount(decoded.id);
+    if (!current) return res.status(404).json({ message: '계정을 찾을 수 없습니다.' });
+
+    const changes = {};
+
+    if (req.body.username !== undefined) {
+      const name = usernameField(req.body.username);
+      if (name.error) return res.status(400).json({ message: name.error });
+      changes.username = name.value;
+    }
+
+    if (req.body.email !== undefined) {
+      if (current.social_type) {
+        return res
+          .status(400)
+          .json({ message: '소셜 계정은 이메일을 바꿀 수 없습니다.' });
+      }
+      const mail = emailField(req.body.email);
+      if (mail.error) return res.status(400).json({ message: mail.error });
+      changes.email = mail.value;
+    }
+
+    if (req.body.phone !== undefined) {
+      const tel = phoneField(req.body.phone, { required: false });
+      if (tel.error) return res.status(400).json({ message: tel.error });
+      changes.phone = tel.value;
+    }
+
+    const columns = Object.keys(changes);
+    if (columns.length === 0) {
+      return res.status(400).json({ message: '바꿀 내용이 없습니다.' });
+    }
+
+    /*
+     * 컬럼 이름을 문자열로 이어 붙이지만, 위 세 갈래에서만 채워지는 고정된 이름이라
+     * 요청 본문의 키가 SQL 로 들어가지는 않습니다. 값은 전부 자리표시자로 넘깁니다.
+     */
+    await query(
+      `UPDATE users SET ${columns.map((c) => `${c} = ?`).join(', ')}
+        WHERE user_id = ? AND deleted_at IS NULL`,
+      [...columns.map((c) => changes[c]), current.user_id]
+    );
+
+    return res.json(toMyAccount({ ...current, ...changes }));
+  } catch (err) {
+    /*
+     * 이메일 UNIQUE 제약. 가입과 같은 판단입니다 — 먼저 SELECT 로 확인하면 그 사이에
+     * 끼어드는 변경을 막지 못하므로, DB 가 잡아준 것을 그대로 씁니다.
+     */
+    if (err.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ message: '이미 가입된 이메일입니다.' });
+    }
+    logError('auth:updateMe', err);
+    return res.status(500).json({ message: '내 정보를 바꾸지 못했습니다.' });
   }
 };
 
