@@ -16,10 +16,26 @@ const getPostsByUserId = (req, res) => {
 
     const user_id = decoded.id;
 
-    // 마이페이지는 최근 것만 보여 주는 칸입니다. 본문이 붙어 있어 전부 내려보내지 않습니다.
-    const query = 'SELECT * FROM posts WHERE user_id = ? AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 20';
+    /*
+     * 제목과 작성일만 보냅니다.
+     *
+     * 예전에는 `SELECT *` 였습니다. LIMIT 20 으로 건수만 줄이고 컬럼은 그대로라
+     * 본문이 통째로 따라 나갔습니다 — 한 건에 2KB 씩 20건이면 40KB 이고, 사진을
+     * 박은 글은 본문에 data URL 이 들어가 훨씬 큽니다.
+     *
+     * 이 칸은 본문을 보여 주지 않습니다. 누르면 /posts/:id 로 넘어가 거기서 다시
+     * 받습니다 (components/myProfile/MyPosts.tsx 의 handleClickPost).
+     * 화면이 받는 모양은 types/post.type.ts 의 MyPost 입니다.
+     *
+     * 동점 처리(post_id DESC)를 붙입니다. created_at 이 초 단위라 같은 값이 흔하고,
+     * 없으면 스무 건 중 어느 것이 남을지 MySQL 이 보장하지 않습니다.
+     */
+    const query = `
+        SELECT post_id, title, created_at
+          FROM posts WHERE user_id = ? AND deleted_at IS NULL
+         ORDER BY created_at DESC, post_id DESC LIMIT ?`;
 
-    conn.query(query, [user_id], (err, results) => {
+    conn.query(query, [user_id, RECENT_LIMIT], (err, results) => {
         if (err) {
             logError('mypage', err);
             return res.status(500).send({ message: '서버 에러 발생' });

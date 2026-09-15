@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import styled from 'styled-components';
-import { PostState } from '../../types/post.type';
+import { MyPost } from '../../types/post.type';
 import { MdInbox } from 'react-icons/md';
 import { useNavigate } from 'react-router-dom';
 import { getPostsByUserId } from '../../apis/myprofile.api';
@@ -8,7 +8,7 @@ import { formatDate } from '../../utils/format';
 import { apiErrorMessage } from '../../utils/apiError';
 
 function MyPosts() {
-  const [myPosts, setMyPosts] = useState<PostState[]>([]);
+  const [myPosts, setMyPosts] = useState<MyPost[]>([]);
   const [loading, setLoading] = useState(true);
   /*
    * 못 불러온 것과 쓴 적이 없는 것은 다른 상태입니다.
