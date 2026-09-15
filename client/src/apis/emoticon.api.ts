@@ -8,10 +8,15 @@ const BASE_URL = import.meta.env.VITE_BASE_URL;
  *
  * axios 가 아니라 <img src> 로 직접 부릅니다. 그래야 브라우저가 보통 이미지처럼
  * 캐시해서, 같은 스티커가 여러 댓글에 나와도 내려받기는 한 번뿐입니다
- * (서버가 하루짜리 캐시를 걸어 둡니다).
+ * (서버가 1분짜리 캐시를 걸어 둡니다).
+ *
+ * bust 는 그 캐시를 건너뛰고 싶을 때만 씁니다. 이모티콘을 지우면 뒤엣것의 번호가
+ * 한 칸씩 당겨져서 **같은 주소가 다른 그림을 뜻하게** 되는데, 방금 지운 관리자
+ * 화면에서는 그 1분이 곧바로 눈에 띕니다 (목록이 한 칸씩 밀려 보입니다).
+ * 그 자리에서만 값을 바꿔 새로 받아 옵니다.
  */
-export const emoticonImageUrl = (id: number) =>
-  `${BASE_URL}/emoticons/${id}/image`;
+export const emoticonImageUrl = (id: number, bust?: number) =>
+  `${BASE_URL}/emoticons/${id}/image${bust ? `?t=${bust}` : ''}`;
 
 /** 등록된 이모티콘 목록. 그림은 오지 않고 id·이름만 옵니다. */
 export const getEmoticons = async () => {

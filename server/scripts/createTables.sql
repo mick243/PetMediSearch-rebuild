@@ -208,6 +208,7 @@ CREATE TABLE IF NOT EXISTS `favorite_facilities` (
 
 -- 댓글에 넣는 이모티콘. 관리자만 등록합니다.
 -- 그림은 여기 한 번만 두고 댓글에는 [emoticon:12] 표시만 남깁니다.
+-- 이 표만 deleted_at 없이 진짜로 지웁니다 — 지운 뒤 id 를 앞으로 당기기 때문입니다.
 -- 자세한 이유는 scripts/alterEmoticons.sql 주석에 적어 두었습니다.
 CREATE TABLE IF NOT EXISTS `emoticons` (
   `emoticon_id` int NOT NULL AUTO_INCREMENT,
@@ -218,9 +219,6 @@ CREATE TABLE IF NOT EXISTS `emoticons` (
   `data` mediumblob NOT NULL,
   `created_by` int DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  -- 지워도 행은 남깁니다. 옛 댓글이 가리키던 id 라 조회에서만 빠집니다.
-  `deleted_at` timestamp(3) NULL DEFAULT NULL,
   PRIMARY KEY (`emoticon_id`),
-  KEY `idx_emoticons_live` (`deleted_at`, `emoticon_id`),
   CONSTRAINT `emoticons_ibfk_1` FOREIGN KEY (`created_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL ON UPDATE CASCADE
 );

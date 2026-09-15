@@ -3,6 +3,7 @@ const { logError } = require('../logError');
 const { verifyToken } = require('./authUser');
 const { textField } = require('./validate');
 const { sniffImageMime, parseImageDataUrl } = require('../imageType');
+const { renumberReplacements } = require('../emoticonToken');
 
 /**
  * 이모티콘 한 개의 최대 크기(원본 바이트).
@@ -65,7 +66,7 @@ const parseId = (raw) => {
  */
 const listEmoticons = (req, res) => {
     conn.query(
-        'SELECT emoticon_id, name FROM emoticons WHERE deleted_at IS NULL ORDER BY emoticon_id',
+        'SELECT emoticon_id, name FROM emoticons ORDER BY emoticon_id',
         (err, rows) => {
             if (err) {
                 logError('emoticon:list', err);
@@ -98,7 +99,7 @@ const getEmoticonImage = (req, res) => {
     if (!id) return res.status(404).json({ message: '이모티콘을 찾을 수 없습니다.' });
 
     conn.query(
-        'SELECT mime, data FROM emoticons WHERE emoticon_id = ? AND deleted_at IS NULL',
+        'SELECT mime, data FROM emoticons WHERE emoticon_id = ?',
         [id],
         (err, rows) => {
             if (err) {
@@ -110,17 +111,17 @@ const getEmoticonImage = (req, res) => {
             }
 
             /*
-             * 하루만 담아 둡니다.
+             * 1분만 담아 둡니다.
              *
-             * 한 번 올린 그림은 바뀌지 않으니 immutable 로 1년을 걸어도 맞는 것
-             * 같지만, 그러면 관리자가 지운 이모티콘이 이미 받아 간 브라우저에는
-             * 1년 동안 그대로 남습니다. 잘못 올린 것을 내리는 일이 이 기능에서
-             * 유일하게 급한 일이라, 하루 안에는 사라지게 둡니다.
+             * 주소에 id 가 들어가는데 그 id 가 고정이 아닙니다 — 하나를 지우면
+             * 뒤엣것이 한 칸씩 당겨 오므로, 같은 주소가 어제와 다른 그림을 뜻하게
+             * 됩니다. 오래 담아 두면 그동안 엉뚱한 스티커가 보입니다.
+             * 1분이면 잘못 보일 수 있는 시간이 1분으로 묶입니다.
              *
-             * 하루가 지나도 express 가 붙인 ETag 로 304 만 오가서(본문 0바이트)
-             * 다시 받아 오지 않습니다.
+             * 1분이 지나도 express 가 붙인 ETag 로 304 만 오가서(본문 0바이트)
+             * 바뀌지 않았으면 다시 받아 오지 않습니다.
              */
-            res.set('Cache-Control', 'public, max-age=86400');
+            res.set('Cache-Control', 'public, max-age=60');
             res.type(rows[0].mime);
             return res.send(rows[0].data);
         }
@@ -169,30 +170,112 @@ const createEmoticon = (req, res) =>
     });
 
 /**
+ * 지운 뒤 댓글에 남은 표시를 옮겨 적는 SQL.
+ *
+ * 먼저 할 것을 안쪽에 둡니다 — REPLACE 는 안에서 바깥으로 풀리므로, 규칙의 순서가
+ * 곧 중첩 순서입니다 (규칙과 순서의 이유는 emoticonToken.js 에 적어 두었습니다).
+ * 자리표시자로 넘겨서 번호가 SQL 문장에 직접 박히지 않게 합니다.
+ */
+const rewriteCommentsSql = (removedId, shiftedIds) => {
+    const values = [];
+    let expr = 'content';
+
+    renumberReplacements(removedId, shiftedIds).forEach(([from, to]) => {
+        expr = `REPLACE(${expr}, ?, ?)`;
+        values.push(from, to);
+    });
+
+    return {
+        sql: `UPDATE comments SET content = ${expr} WHERE content LIKE '%[emoticon:%'`,
+        values,
+    };
+};
+
+/**
  * 이모티콘 삭제. 관리자만.
  *
- * 행은 남기고 deleted_at 만 채웁니다. 이미 그 이모티콘을 쓴 댓글이 있는데 행을
- * 지워 버리면, 옛 댓글이 가리키는 id 가 영영 비어 버립니다.
+ * 지운 자리를 비워 두지 않고 뒤엣것을 한 칸씩 당깁니다(1,2,3,4 에서 2를 지우면
+ * 1,2,3). 그래서 다른 표와 달리 deleted_at 을 쓰지 않고 진짜로 지웁니다 — 지운
+ * 행을 남겨 두면 그 행이 id 를 계속 차지해 당길 수가 없습니다.
+ *
+ * 당기면 이미 올라간 댓글의 [emoticon:N] 이 전부 어긋나므로, 같은 트랜잭션에서
+ * 댓글의 표시도 함께 옮겨 적습니다. 이것을 하지 않으면 스티커가 전부 한 칸씩
+ * 밀려서 다른 그림으로 보입니다.
+ *
+ * 관리자가 어쩌다 한 번 하는 일이라 댓글 표를 한 번 훑는 비용은 받아들입니다.
+ * 되돌릴 수 없어서 화면에서 한 번 물어봅니다.
  */
 const deleteEmoticon = (req, res) =>
     withAdmin(req, res, '삭제', () => {
         const id = parseId(req.params.emoticon_id);
         if (!id) return res.status(404).json({ message: '이모티콘을 찾을 수 없습니다.' });
 
-        return conn.query(
-            'UPDATE emoticons SET deleted_at = ? WHERE emoticon_id = ? AND deleted_at IS NULL',
-            [new Date(), id],
-            (err, result) => {
-                if (err) {
+        return conn.getConnection((poolErr, db) => {
+            if (poolErr) {
+                logError('emoticon:delete', poolErr);
+                return res.status(500).json({ message: '서버 오류 발생' });
+            }
+
+            const run = (sql, values) =>
+                new Promise((resolve, reject) => {
+                    db.query(sql, values, (err, result) => (err ? reject(err) : resolve(result)));
+                });
+
+            const fail = (err) =>
+                run('ROLLBACK').catch(() => {}).then(() => {
+                    db.release();
                     logError('emoticon:delete', err);
                     return res.status(500).json({ message: '서버 오류 발생' });
-                }
-                if (result.affectedRows === 0) {
-                    return res.status(404).json({ message: '이모티콘을 찾을 수 없습니다.' });
-                }
-                return res.json({ message: '이모티콘을 삭제했습니다.' });
-            }
-        );
+                });
+
+            return run('START TRANSACTION')
+                .then(async () => {
+                    /*
+                     * 번호를 새로 매기는 동안 다른 요청이 끼어들면 안 됩니다.
+                     * 표가 수십 행이라 통째로 잠가도 부담이 없습니다.
+                     */
+                    const rows = await run('SELECT emoticon_id FROM emoticons ORDER BY emoticon_id FOR UPDATE');
+                    const ids = rows.map((row) => row.emoticon_id);
+
+                    if (!ids.includes(id)) {
+                        await run('ROLLBACK');
+                        db.release();
+                        return res.status(404).json({ message: '이모티콘을 찾을 수 없습니다.' });
+                    }
+
+                    const shifted = ids.filter((each) => each > id);
+
+                    const rewrite = rewriteCommentsSql(id, shifted);
+                    await run(rewrite.sql, rewrite.values);
+
+                    await run('DELETE FROM emoticons WHERE emoticon_id = ?', [id]);
+
+                    /*
+                     * 작은 번호부터 당겨야 합니다. 3을 2로 옮긴 다음에야 4가 3으로
+                     * 갈 자리가 생깁니다. 순서가 없으면 중간에 기본키가 겹칩니다.
+                     */
+                    if (shifted.length > 0) {
+                        await run(
+                            'UPDATE emoticons SET emoticon_id = emoticon_id - 1 WHERE emoticon_id > ? ORDER BY emoticon_id',
+                            [id]
+                        );
+                    }
+
+                    await run('COMMIT');
+
+                    /*
+                     * 다음에 올릴 것이 빈 번호를 이어받게 합니다. 이걸 빼먹으면
+                     * 1,2,3 에서 하나 지워 1,2 가 된 다음 새로 올린 것이 4가 되어
+                     * 방금 메운 자리가 도로 벌어집니다.
+                     * ALTER 는 스스로 커밋하므로 트랜잭션 밖에서 합니다.
+                     */
+                    await run(`ALTER TABLE emoticons AUTO_INCREMENT = ${ids.length}`);
+
+                    db.release();
+                    return res.json({ message: '이모티콘을 삭제했습니다.' });
+                })
+                .catch(fail);
+        });
     });
 
 module.exports = {

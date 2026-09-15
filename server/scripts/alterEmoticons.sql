@@ -14,6 +14,14 @@
 --   (pets.photo·reviews.images 가 data URL 인 것은 파일 서버가 없어서 진 빚입니다.
 --    새로 만드는 표까지 같은 모양으로 둘 이유는 없습니다.)
 --
+-- 왜 deleted_at 이 없는가
+--   이 표만 다른 표와 다르게 진짜로 지웁니다. 지운 뒤 id 를 앞으로 당겨 빈자리를
+--   메우기 때문입니다 (controller/emoticon.js 의 deleteEmoticon). 지운 행을 남겨
+--   두면 그 행이 id 를 계속 차지해서 당길 수가 없습니다.
+--   대신 지울 때 그 이모티콘을 쓴 댓글의 표시를 [emoticon:0] 으로 바꿔 두어,
+--   옛 댓글이 옆 이모티콘을 잘못 가리키지 않게 합니다.
+--   되돌릴 수 없으므로 화면에서 한 번 물어봅니다.
+--
 -- 적용
 --   docker exec -i petmedisearch-mysql mysql -uroot -p<암호> --default-character-set=utf8mb4 petmedisearch < server/scripts/alterEmoticons.sql
 --
@@ -23,6 +31,7 @@
 SET NAMES utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `emoticons` (
+  -- 지울 때마다 뒤엣것을 한 칸씩 당겨서 1,2,3... 으로 이어 둡니다.
   `emoticon_id` int NOT NULL AUTO_INCREMENT,
   -- 피커의 이름표이자, 댓글에서 화면 낭독기가 읽어 주는 대체 텍스트입니다.
   `name` varchar(30) NOT NULL,
@@ -32,10 +41,7 @@ CREATE TABLE IF NOT EXISTS `emoticons` (
   `data` mediumblob NOT NULL,
   `created_by` int DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  -- 지워도 행은 남깁니다. 옛 댓글이 가리키던 id 라 조회에서만 빠집니다.
-  `deleted_at` timestamp(3) NULL DEFAULT NULL,
+  -- 목록은 "전부 다"라 기본키만으로 정렬까지 끝납니다. 따로 인덱스를 두지 않습니다.
   PRIMARY KEY (`emoticon_id`),
-  -- 피커 목록은 "살아 있는 것 전부"라 조건이 deleted_at 하나뿐입니다.
-  KEY `idx_emoticons_live` (`deleted_at`, `emoticon_id`),
   CONSTRAINT `emoticons_ibfk_1` FOREIGN KEY (`created_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL ON UPDATE CASCADE
 );

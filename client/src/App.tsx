@@ -19,7 +19,9 @@ import LoginRedirectNaver from './pages/loginRedirect/LoginRedirectNaver';
 import LoginRedirectGoogle from './pages/loginRedirect/LoginRedirectGoogle';
 import { PetMediThemeProvider } from './style/themeContext';
 import MyProfile from './pages/MyProfile';
+import EmoticonAdmin from './pages/EmoticonAdmin';
 import LoginProtect from './components/common/LoginProtect';
+import AdminProtect from './components/common/AdminProtect';
 import Review from './pages/Review';
 import CreatePost from './pages/CreatePost';
 import PostDetail from './pages/PostDetail';
@@ -119,6 +121,21 @@ const routeList = [
     element: (
       <LoginProtect>
         <MyProfile />
+      </LoginProtect>
+    ),
+  },
+  {
+    /*
+     * 관리자 전용. 마이페이지의 링크로만 들어옵니다.
+     * 여기서 막는 것은 화면일 뿐이고, 등록·삭제 요청은 서버가 users 표를 보고
+     * 다시 확인합니다 (controller/emoticon.js 의 withAdmin).
+     */
+    path: '/myprofile/emoticons',
+    element: (
+      <LoginProtect>
+        <AdminProtect>
+          <EmoticonAdmin />
+        </AdminProtect>
       </LoginProtect>
     ),
   },

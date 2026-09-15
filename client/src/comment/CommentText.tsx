@@ -1,20 +1,22 @@
 import { useState } from 'react';
 import styled from 'styled-components';
 import { emoticonImageUrl } from '../apis/emoticon.api';
-import { splitEmoticons } from '../utils/emoticon';
+import { REMOVED_EMOTICON_ID, splitEmoticons } from '../utils/emoticon';
 
 /**
  * 이모티콘 한 장.
  *
- * 못 불러오면 글자로 바꿔 답니다. 관리자가 지운 이모티콘을 쓴 옛 댓글이 깨진
- * 그림 아이콘만 남기고 무슨 말이었는지 알 수 없게 되는 것을 막습니다.
+ * 지워진 자리(0번)는 요청도 보내지 않고 바로 글자로 그립니다. 그 밖에 못 불러온
+ * 경우도 같은 글자로 답니다 — 옛 댓글이 깨진 그림 아이콘만 남기고 무슨 말이었는지
+ * 알 수 없게 되는 것을 막습니다.
  * 목록에 있는지 미리 보지 않고 onError 로 처리하는 이유는, 목록을 아직 못 받은
  * 동안에도 그림은 뜨기 때문입니다 — 순서에 기대지 않습니다.
  */
 function EmoticonImage({ id, name }: { id: number; name?: string }) {
   const [failed, setFailed] = useState(false);
 
-  if (failed) return <Missing>(삭제된 이모티콘)</Missing>;
+  if (id <= REMOVED_EMOTICON_ID || failed)
+    return <Missing>(삭제된 이모티콘)</Missing>;
 
   return (
     <Image

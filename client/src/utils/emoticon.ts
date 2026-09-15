@@ -15,6 +15,17 @@ const TOKEN = /\[emoticon:(\d+)\]/;
 /** 표시를 만드는 쪽. 만드는 곳과 읽는 곳이 어긋나지 않게 한 군데 둡니다. */
 export const emoticonToken = (id: number) => `[emoticon:${id}]`;
 
+/**
+ * 지워진 자리.
+ *
+ * 관리자가 이모티콘을 지우면 뒤엣것의 번호가 한 칸씩 당겨지고, 그 이모티콘을
+ * 쓰던 댓글은 서버가 이 번호로 바꿔 둡니다 (server/emoticonToken.js). 그냥 두면
+ * 빈 번호에 뒤엣것이 당겨 와서 옛 댓글이 옆 스티커를 가리키게 됩니다.
+ *
+ * 0 은 어떤 이모티콘도 갖지 않습니다 — 번호가 1부터 매겨지기 때문입니다.
+ */
+export const REMOVED_EMOTICON_ID = 0;
+
 /** 커서 바로 앞에 붙어 있는 표시. 지울 때 한 글자처럼 다루려고 씁니다. */
 export const TOKEN_BEFORE_CARET = /\[emoticon:\d+\]$/;
 
