@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import styled from 'styled-components';
-import Logo from './Logo';
+import puppy from '../../assets/img/puppy.webp';
 
 /** 첫 진입에서 로고가 온전히 보이는 시간. */
 const FIRST_MS = 2000;
@@ -137,9 +137,12 @@ function SplashScreen() {
       role={offline ? 'alert' : 'status'}
       aria-label={offline ? '인터넷 연결 끊김' : '앱을 준비하는 중'}
     >
-      <div className="mark">
-        <Mark />
-      </div>
+      {/*
+        alt 을 비워 둡니다. 바깥 요소가 role 과 aria-label 로 이미 무슨 화면인지
+        알리고 있어서, 사진까지 읽어 주면 같은 말을 두 번 하게 됩니다.
+        width·height 를 적어 두면 사진이 늦게 와도 자리가 밀리지 않습니다.
+      */}
+      <img className="mark" src={puppy} alt="" width={320} height={374} />
       {offline ? (
         <>
           <p className="brand display">인터넷이 끊겼어요</p>
@@ -180,7 +183,13 @@ const SplashStyle = styled.div<{ $fading: boolean }>`
    */
   pointer-events: ${({ $fading }) => ($fading ? 'none' : 'auto')};
 
+  /*
+   * 사진은 320x374 로 넣어 두고 화면에서는 높이로 맞춥니다. 화면이 좁으면
+   * 세로 절반까지만 차지하게 해, 작은 기기에서 글자를 밀어내지 않습니다.
+   */
   .mark {
+    width: auto;
+    height: min(190px, 34vh);
     animation: splash-rise 700ms ease-out both;
   }
 
@@ -222,15 +231,6 @@ const SplashStyle = styled.div<{ $fading: boolean }>`
       animation: none;
     }
   }
-`;
-
-/*
- * Logo 는 자기 스타일에 색을 박아 두고 있습니다. styled(Logo) 로 감싸면
- * className 이 전달되면서 우선순위가 이쪽으로 넘어와, 크기와 색을 여기서 정합니다.
- */
-const Mark = styled(Logo)`
-  width: 76px;
-  color: ${({ theme }) => theme.color.primary};
 `;
 
 export default SplashScreen;
