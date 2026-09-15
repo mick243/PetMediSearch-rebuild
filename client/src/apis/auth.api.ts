@@ -2,6 +2,7 @@ import { httpClient } from './http';
 import {
   AuthResponse,
   ChangePasswordInput,
+  ChangePasswordResponse,
   LoginInput,
   MyAccount,
   SignupRequest,
@@ -40,9 +41,13 @@ export const updateMyAccount = async (input: UpdateMyAccountInput) => {
  * 지금 비밀번호를 함께 보냅니다. 서버는 같은 주소에서 15분에 실패 10번까지만
  * 받습니다(server/middleware/rateLimit.js 의 passwordChangeLimiter) — bcrypt 를
  * 도는 경로라 막아 두지 않으면 요청 제한이 아니라 부하 발생기가 됩니다.
+ *
+ * 성공하면 이전에 나간 토큰이 전부 끊기므로(다른 기기 포함) 새 토큰을 함께
+ * 받습니다. 부르는 쪽에서 반드시 저장해야 합니다 — 안 그러면 바로 다음 요청이
+ * 401 이 됩니다.
  */
 export const changePassword = async (input: ChangePasswordInput) => {
-  const res = await httpClient.patch<{ message: string }>(
+  const res = await httpClient.patch<ChangePasswordResponse>(
     '/auth/me/password',
     input
   );

@@ -71,8 +71,12 @@ async function main() {
    */
   const hash = await bcrypt.hash(PASSWORD, 12);
 
+  /*
+   * token_version 도 함께 읽습니다. 서버가 요청마다 이 값을 토큰의 v 와 맞춰 보므로
+   * (middleware/tokenVersion.js), 어긋나면 인증이 필요한 모든 요청이 401 이 됩니다.
+   */
   const [people] = await db.query(
-    `SELECT user_id, email, role FROM users
+    `SELECT user_id, email, role, token_version FROM users
       WHERE user_id >= ? AND email IS NOT NULL AND deleted_at IS NULL
       ORDER BY user_id LIMIT ?`,
     [FIRST_SEEDED_ID, TOKEN_USERS]
@@ -96,9 +100,12 @@ async function main() {
   const users = people.map((u) => ({
     id: u.user_id,
     email: u.email,
-    token: jwt.sign({ id: u.user_id, role: u.role || 'user' }, process.env.JWT_SECRET, {
-      expiresIn: '1d',
-    }),
+    // 서버의 generateToken 과 같은 모양이어야 합니다 (controller/auth.js).
+    token: jwt.sign(
+      { id: u.user_id, role: u.role || 'user', v: u.token_version ?? 0 },
+      process.env.JWT_SECRET,
+      { expiresIn: '1d' }
+    ),
   }));
 
   /*

@@ -309,6 +309,19 @@ app.get("/facilities/clusters", (req, res) => {
 });
 
 
+/*
+ * 거둬들인 토큰 끊기.
+ *
+ * 비밀번호를 바꾸거나 탈퇴하면 users.token_version 이 올라가고, 그 전에 나간
+ * 토큰은 여기서 401 이 됩니다 (middleware/tokenVersion.js).
+ *
+ * 자리가 여기인 이유: 위의 /facilities·/facilities/clusters·/health 는 토큰 없이
+ * 도는 길이고 이 서버에서 제일 자주 불립니다. 그 뒤에 붙여 두면 그 요청들은
+ * 아예 지나갑니다. 아래 라우터들 중 인증이 필요한 것만 조회 한 번을 더 씁니다.
+ */
+const { revokeStaleTokens } = require('./middleware/tokenVersion');
+app.use(revokeStaleTokens);
+
 // 라우터 설정
 const categoryRouter = require('./routes/category');
 const postRouter = require('./routes/post');

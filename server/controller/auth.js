@@ -131,9 +131,19 @@ const processUser = async (socialId, socialType, username) => {
   return user;
 };
 
+/**
+ * 로그인 토큰.
+ *
+ * v 는 users.token_version 입니다. 비밀번호를 바꾸거나 탈퇴하면 그 값이 올라가고,
+ * 이전에 나간 토큰은 middleware/tokenVersion.js 에서 걸려 401 이 됩니다.
+ * JWT 는 한 번 나가면 만료 전까지 되돌릴 방법이 없어서, 거둬들일 자리를 이렇게 둡니다.
+ *
+ * 값이 없는 계정(갓 만든 계정·마이그레이션 전 행)은 0 으로 봅니다. 컬럼 기본값도
+ * 0 이라 그대로 맞습니다.
+ */
 const generateToken = (user) => {
   return jwt.sign(
-    { id: user.user_id, role: user.role || 'user' },
+    { id: user.user_id, role: user.role || 'user', v: user.token_version ?? 0 },
     process.env.JWT_SECRET,
     { expiresIn: '1d' }
   );
@@ -539,7 +549,7 @@ exports.changePassword = async (req, res) => {
 
   try {
     const rows = await query(
-      'SELECT user_id, password FROM users WHERE user_id = ? AND deleted_at IS NULL',
+      'SELECT user_id, password, role, token_version FROM users WHERE user_id = ? AND deleted_at IS NULL',
       [decoded.id]
     );
     const user = rows[0];
@@ -568,18 +578,29 @@ exports.changePassword = async (req, res) => {
         .json({ message: '지금 쓰는 것과 다른 비밀번호로 정해주세요.' });
     }
 
+    /*
+     * 판번호를 함께 올려 이전에 나간 토큰을 전부 끊습니다.
+     *
+     * 비밀번호를 바꾸는 흔한 이유가 "샌 것 같다" 입니다. 그런데 정작 남의 기기에
+     * 남아 있던 로그인이 살아 있으면, 바꾼 사람만 빼고 아무것도 달라지지 않습니다.
+     * 여기서 올린 값이 middleware/tokenVersion.js 에서 걸립니다.
+     */
     const hashed = await bcrypt.hash(next.value, SALT_ROUNDS);
+    const nextVersion = Number(user.token_version ?? 0) + 1;
     await query(
-      'UPDATE users SET password = ? WHERE user_id = ? AND deleted_at IS NULL',
-      [hashed, user.user_id]
+      'UPDATE users SET password = ?, token_version = ? WHERE user_id = ? AND deleted_at IS NULL',
+      [hashed, nextVersion, user.user_id]
     );
 
     /*
-     * 이미 나가 있는 토큰은 그대로 살아 있습니다. 토큰을 거둬들이려면 users 에
-     * 판번호를 두고 토큰에 실어 맞춰 봐야 하는데, 지금은 그 자리가 없습니다.
-     * 남은 토큰은 길어야 하루 뒤에 스스로 만료됩니다(generateToken 의 expiresIn).
+     * 지금 쓰던 토큰도 방금 무효가 됐으므로 새 것을 함께 돌려줍니다.
+     * 이게 없으면 비밀번호를 바꾼 사람이 그 자리에서 로그아웃됩니다 — 바꾸자마자
+     * 로그인 화면으로 튕기면 바뀌긴 한 건지부터 알 수 없습니다.
      */
-    return res.json({ message: '비밀번호를 바꿨습니다.' });
+    return res.json({
+      message: '비밀번호를 바꿨습니다.',
+      token: generateToken({ ...user, token_version: nextVersion }),
+    });
   } catch (err) {
     logError('auth:changePassword', err);
     return res.status(500).json({ message: '비밀번호를 바꾸지 못했습니다.' });
@@ -621,11 +642,19 @@ exports.withdraw = async (req, res) => {
 
   try {
     // 계정을 먼저 닫습니다. 여기서 걸리면 이미 탈퇴한 계정이라 글은 건드리지 않습니다.
+    /*
+     * 판번호를 올려 남아 있던 토큰을 함께 끊습니다.
+     *
+     * 탈퇴한 계정의 토큰으로 할 수 있는 일은 대부분 쿼리의 deleted_at 조건이
+     * 막고 있었지만, 그건 길마다 따로 챙겨야 하는 방식입니다. 여기서 한 번 올리면
+     * 그 뒤의 모든 요청이 입구(middleware/tokenVersion.js)에서 끝납니다.
+     */
     const closed = await query(
       `UPDATE users
           SET deleted_at = ?, username = '탈퇴한 사용자',
               email = NULL, password = NULL, phone = NULL, address = NULL,
-              social_id = NULL, social_type = NULL
+              social_id = NULL, social_type = NULL,
+              token_version = token_version + 1
         WHERE user_id = ? AND deleted_at IS NULL`,
       [deletedAt, userId]
     );

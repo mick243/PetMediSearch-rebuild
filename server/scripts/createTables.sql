@@ -27,6 +27,9 @@ CREATE TABLE `users` (
    `phone` varchar(20) NULL,
    `address` varchar(255) NULL,
    `role` varchar(20) NOT NULL DEFAULT 'user',
+   -- 발급한 토큰의 판번호. 비밀번호 변경·탈퇴 때 1 올려 이전 토큰을 전부 무효로
+   -- 만듭니다 (scripts/alterTokenVersion.sql, middleware/tokenVersion.js).
+   `token_version` int NOT NULL DEFAULT 0,
    `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
    -- 필수 약관에 동의한 시각. 화면의 체크만으로는 동의를 받았다는 것을 증명할 수 없습니다.
    `terms_agreed_at` timestamp(3) NULL DEFAULT NULL,

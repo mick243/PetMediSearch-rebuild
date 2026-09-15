@@ -107,7 +107,9 @@ router.patch('/me', authController.updateMe);
  *       지금 비밀번호를 함께 받습니다 — 토큰만으로 바꾸게 두면 새어 나간 토큰
  *       하나로 계정을 빼앗깁니다.
  *       소셜 계정은 비밀번호가 없어 400 입니다.
- *       이미 나가 있는 토큰은 그대로 살아 있고, 길어야 하루 뒤에 만료됩니다.
+ *       성공하면 users.token_version 이 올라가 **이전에 나간 토큰이 전부
+ *       무효**가 됩니다(다른 기기의 로그인 포함). 지금 쓰던 것도 그중 하나라
+ *       새 토큰을 함께 돌려주므로, 부르는 쪽은 그것으로 갈아 끼워야 합니다.
  *     security:
  *       - BearerAuth: []
  *     requestBody:
@@ -122,7 +124,14 @@ router.patch('/me', authController.updateMe);
  *               newPassword: { type: string, minLength: 8, example: '새로운-비밀번호' }
  *     responses:
  *       200:
- *         description: 바꿈
+ *         description: 바꿈. 갈아 끼울 새 토큰이 함께 옵니다
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message: { type: string, example: '비밀번호를 바꿨습니다.' }
+ *                 token: { type: string, description: '이전 토큰은 모두 무효이므로 이것으로 바꿔 두어야 합니다' }
  *       400:
  *         description: 입력값이 올바르지 않음 · 지금과 같은 비밀번호 · 소셜 계정
  *       401:

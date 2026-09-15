@@ -87,3 +87,13 @@ export interface ChangePasswordInput {
   currentPassword: string;
   newPassword: string;
 }
+
+/**
+ * 비밀번호를 바꾸면 이전에 나간 토큰이 전부 끊깁니다(다른 기기의 로그인 포함).
+ * 지금 쓰던 것도 그중 하나라 새 토큰을 함께 받아 바로 갈아 끼웁니다 — 안 그러면
+ * 바꾼 사람이 그 자리에서 로그아웃됩니다.
+ */
+export interface ChangePasswordResponse {
+  message: string;
+  token: string;
+}

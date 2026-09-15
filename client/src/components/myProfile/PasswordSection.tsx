@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import { changePassword } from '../../apis/auth.api';
 import { RootState } from '../../store';
 import { apiErrorMessage } from '../../utils/apiError';
+import { setToken } from '../../utils/localStorage';
 
 /** 서버의 최소 길이와 맞춰 둡니다. 여기서 먼저 걸러 왕복을 한 번 줄입니다 (Signup 과 같은 값). */
 const MIN_PASSWORD_LENGTH = 8;
@@ -69,10 +70,16 @@ function PasswordSection() {
     setSaving(true);
     setError(null);
     try {
-      await changePassword({
+      const { token } = await changePassword({
         currentPassword: form.current,
         newPassword: form.next,
       });
+      /*
+       * 바꾸는 순간 이전 토큰이 전부 끊깁니다. 지금 들고 있던 것도 그중 하나라
+       * 바로 갈아 끼웁니다 — 안 하면 다음 요청이 401 이 되어, 비밀번호를 바꾸자마자
+       * 로그인 화면으로 튕깁니다.
+       */
+      setToken(token);
       setDone(true);
       close();
     } catch (err) {
@@ -139,11 +146,12 @@ function PasswordSection() {
           {error && <p className="failed">{error}</p>}
 
           {/*
-            다른 기기에 남아 있는 로그인은 끊기지 않습니다. 토큰을 거둬들이는
-            자리가 아직 없어서인데, 바꾼 사람이 그것을 모르면 안 됩니다.
+            바꾸는 순간 다른 기기의 로그인이 끊깁니다. 비밀번호가 샜다고 생각해
+            바꾸는 경우가 많아 그게 바라는 동작이지만, 모르고 누르면 다른 기기가
+            갑자기 로그아웃된 것으로 보입니다.
           */}
           <p className="hint">
-            이미 로그인해 둔 다른 기기는 하루 안에 자동으로 로그아웃됩니다.
+            바꾸면 다른 기기에 남아 있는 로그인이 모두 끊깁니다.
           </p>
 
           <div className="actions">
