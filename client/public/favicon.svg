@@ -1,9 +1,34 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 60">
-  <path d="M24 2C12.4 2 3 11.4 3 23c0 14.3 17.4 32.6 19.4 34.7a2.2 2.2 0 0 0 3.2 0C27.6 55.6 45 37.3 45 23 45 11.4 35.6 2 24 2z"
-        fill="#ffffff" stroke="#575757" stroke-width="3.4" stroke-linejoin="round"/>
-  <ellipse cx="24" cy="27.5" rx="7" ry="5.6" fill="#575757"/>
-  <circle cx="14.6" cy="19.6" r="3.1" fill="#575757"/>
-  <circle cx="20.4" cy="14.6" r="3.1" fill="#575757"/>
-  <circle cx="27.6" cy="14.6" r="3.1" fill="#575757"/>
-  <circle cx="33.4" cy="19.6" r="3.1" fill="#575757"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <!--
+    탭 아이콘 — 핀(찾기) 안에 발바닥(반려동물).
+
+    외곽선이 아니라 덩어리로 그립니다. 탭에서는 16px 로 줄어드는데, 예전의 가는
+    선(48 기준 3.4)과 반지름 3.1 짜리 발가락은 그 크기에서 한 덩어리로 뭉개져
+    무슨 그림인지 알아볼 수 없었습니다. 채운 핀에 발바닥을 흰색으로 파내면
+    16px 에서도 실루엣이 남습니다.
+
+    색을 화면 모드에 맞춰 뒤집습니다. 브라우저는 파비콘을 대신 칠해 주지 않아서,
+    한 가지 색으로 두면 어두운 탭바에서 어두운 아이콘이 그대로 묻힙니다.
+    (실제로 어두운 테마에서 안 보인다는 이야기를 듣고 넣었습니다)
+
+    style/theme.ts 의 color.primary(#575757) · color.text(#333333) 와 맞춘 값입니다.
+    PWA 아이콘(icon-192·icon-512)은 scripts/makeIcons.mjs 가 따로 굽습니다.
+  -->
+  <style>
+    .pin { fill: #575757; }
+    .paw { fill: #ffffff; }
+
+    @media (prefers-color-scheme: dark) {
+      .pin { fill: #e8e8e6; }
+      .paw { fill: #2c2c2a; }
+    }
+  </style>
+
+  <path class="pin" d="M24 2C13.5 2 5 10.5 5 21c0 12.6 14.8 23.6 18 25.6a1.9 1.9 0 0 0 2 0C28.2 44.6 43 33.6 43 21 43 10.5 34.5 2 24 2z"/>
+
+  <ellipse class="paw" cx="24" cy="25.5" rx="6.2" ry="5"/>
+  <circle class="paw" cx="15.8" cy="18.4" r="2.9"/>
+  <circle class="paw" cx="20.9" cy="13.6" r="2.9"/>
+  <circle class="paw" cx="27.1" cy="13.6" r="2.9"/>
+  <circle class="paw" cx="32.2" cy="18.4" r="2.9"/>
 </svg>
