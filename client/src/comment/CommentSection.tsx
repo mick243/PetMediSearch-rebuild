@@ -11,6 +11,8 @@ import { apiErrorMessage } from '../utils/apiError';
 
 const BASE_URL = import.meta.env.VITE_BASE_URL;
 const PER_PAGE = 5;
+/** 댓글 입력칸이 늘어나는 상한(px). 다섯 줄쯤입니다. 그 뒤로는 칸 안에서 스크롤합니다. */
+const FIELD_MAX_HEIGHT = 132;
 
 interface Props {
   postId: number;
@@ -42,8 +44,32 @@ export default function CommentSection({ postId, postAuthorId }: Props) {
   const [replyTo, setReplyTo] = useState<Comment | null>(null);
   const [sending, setSending] = useState(false);
 
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const composerRef = useRef<HTMLFormElement>(null);
+
+  /*
+   * 입력칸은 쓴 만큼 늘어납니다. 한 줄짜리 input 이었을 때는 모바일에서 칸이 좁아
+   * 두 줄만 넘어가도 앞부분이 안 보였습니다. 상한(FIELD_MAX_HEIGHT)을 넘으면
+   * 칸 안에서 스크롤합니다.
+   */
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, FIELD_MAX_HEIGHT)}px`;
+  }, [draft]);
+
+  /*
+   * 마우스·키보드 환경에서는 Enter 로 보냅니다(예전 input 과 같게). 줄바꿈은 Shift+Enter.
+   * 터치 기기에서는 Enter 가 줄바꿈입니다 — 자판의 확인 키를 보내기로 쓰면 여러 줄을
+   * 쓸 방법이 없습니다. 한글 조합 중(isComposing)의 Enter 는 조합 확정이라 건너뜁니다.
+   */
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key !== 'Enter' || e.shiftKey || e.nativeEvent.isComposing) return;
+    if (window.matchMedia('(pointer: coarse)').matches) return;
+    e.preventDefault();
+    composerRef.current?.requestSubmit();
+  };
   /*
    * 떠 있는 입력창이 푸터를 가리지 않게 그 높이만큼 화면 아래를 비웁니다.
    * 답글 배너가 뜨면 바가 높아지므로 값을 고정하지 않고 실제 높이를 잽니다.
@@ -337,8 +363,10 @@ export default function CommentSection({ postId, postAuthorId }: Props) {
           </Avatar>
           <Field
             ref={inputRef}
+            rows={1}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={handleKeyDown}
             placeholder={
               isLoggedIn ? '댓글 입력' : '로그인 후 댓글을 남길 수 있어요'
             }
@@ -554,19 +582,22 @@ const CancelReply = styled.button`
   }
 `;
 
+/* 입력칸이 여러 줄로 늘어나도 아바타와 등록 버튼은 마지막 줄에 맞춰 아래에 둡니다. */
 const ComposerRow = styled.div`
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: ${({ theme }) => theme.space.sm};
-  padding: ${({ theme }) => `${theme.space.sm} ${theme.space.lg}`};
+  padding: ${({ theme }) => `${theme.space.md} ${theme.space.lg}`};
 `;
 
 const Avatar = styled.span`
   flex: none;
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
+  /* 입력칸(44px) 세로 가운데에 오도록 */
+  margin-bottom: 6px;
   border-radius: 50%;
   background-color: ${({ theme }) => theme.color.surfaceMuted};
   border: 1px solid ${({ theme }) => theme.color.border};
@@ -575,15 +606,26 @@ const Avatar = styled.span`
   font-weight: 600;
 `;
 
-const Field = styled.input`
+/*
+ * 한 줄일 때 44px — 손가락으로 누르기 편한 최소 높이입니다. 예전 input 은 30px 남짓이라
+ * 모바일에서 어디를 눌러야 하는지 잘 보이지 않았습니다. 높이는 위 useEffect 가
+ * 내용에 맞춰 올립니다.
+ */
+const Field = styled.textarea`
   flex: 1;
   min-width: 0;
-  padding: 8px 0;
-  border: 0;
-  background: none;
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 11px 14px;
+  border: 1px solid ${({ theme }) => theme.color.border};
+  border-radius: 22px;
+  background-color: ${({ theme }) => theme.color.surfaceMuted};
   font-family: ${({ theme }) => theme.font.body};
-  font-size: 14px;
+  font-size: 15px;
+  line-height: 20px;
   color: ${({ theme }) => theme.color.text};
+  resize: none;
+  overflow-y: auto;
 
   &::placeholder {
     color: ${({ theme }) => theme.color.textMuted};
@@ -591,6 +633,8 @@ const Field = styled.input`
 
   &:focus {
     outline: none;
+    border-color: ${({ theme }) => theme.color.primary};
+    background-color: ${({ theme }) => theme.color.surface};
   }
 `;
 
@@ -610,13 +654,14 @@ const EmojiBt = styled.button`
 
 const SendBt = styled.button`
   flex: none;
-  padding: 7px 14px;
+  height: 44px;
+  padding: 0 16px;
   border: 0;
   border-radius: ${({ theme }) => theme.radius.pill};
   background-color: ${({ theme }) => theme.color.primary};
   color: ${({ theme }) => theme.color.textInverse};
   font-family: ${({ theme }) => theme.font.body};
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
 
