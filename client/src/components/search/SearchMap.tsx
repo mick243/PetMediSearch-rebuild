@@ -474,7 +474,8 @@ function SearchMap() {
               ? clusters.reduce((sum, cell) => sum + cell.count, 0)
               : filteredResults.length || '-'}
           </div>
-          <div className="mapwrap">
+          {/* 지도를 아래로 끌 때 페이지 새로고침으로 읽히지 않게 (utils/pullToRefresh.ts) */}
+          <div className="mapwrap" data-pull-refresh="off">
             <Map
               center={
                 searchCenter ??

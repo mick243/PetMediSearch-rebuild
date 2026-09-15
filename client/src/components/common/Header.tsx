@@ -30,6 +30,13 @@ function Header() {
 }
 
 const HeaderStyle = styled.header`
+  /*
+   * 스크롤해도 맨 위에 붙어 있습니다. sticky 는 흐름에 남으므로 아래 화면들의
+   * 간격은 그대로입니다. z-index 는 아래에 떠 있는 댓글 입력창(20)보다 위로 둡니다.
+   */
+  position: sticky;
+  top: 0;
+  z-index: 30;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
