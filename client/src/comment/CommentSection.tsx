@@ -344,24 +344,19 @@ export default function CommentSection({ postId, postAuthorId }: Props) {
           </ReplyBanner>
         )}
         <ComposerRow>
-          <Avatar aria-hidden="true">
-            {(isLoggedIn ? user.username : '?').slice(0, 1)}
-          </Avatar>
-          <Field
-            ref={inputRef}
-            rows={1}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={
-              isLoggedIn ? '댓글 입력' : '로그인 후 댓글을 남길 수 있어요'
-            }
-            aria-label="댓글 입력"
-          />
-          {/*
-            이모티콘 버튼. 피커를 붙일 때 주석을 풀어주세요.
-            <EmojiBt type="button" aria-label="이모티콘">☺</EmojiBt>
-          */}
+          <FieldBox>
+            <Field
+              ref={inputRef}
+              rows={1}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={
+                isLoggedIn ? '댓글 입력' : '로그인 후 댓글을 남길 수 있어요'
+              }
+              aria-label="댓글 입력"
+            />
+          </FieldBox>
           <SendBt type="submit" disabled={!draft.trim() || sending}>
             등록
           </SendBt>
@@ -568,10 +563,7 @@ const CancelReply = styled.button`
   }
 `;
 
-/*
- * 셋 다 높이가 고정이라 그냥 가운데로 맞춥니다.
- * 입력칸이 늘어나던 때는 flex-end 로 아래를 맞추고 아바타에 여백을 따로 줬습니다.
- */
+/* 둘 다 높이가 44px 로 고정이라 그냥 가운데로 맞춥니다. */
 const ComposerRow = styled.div`
   display: flex;
   align-items: center;
@@ -579,41 +571,55 @@ const ComposerRow = styled.div`
   padding: ${({ theme }) => `${theme.space.md} ${theme.space.lg}`};
 `;
 
-const Avatar = styled.span`
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background-color: ${({ theme }) => theme.color.surfaceMuted};
+/*
+ * 입력칸의 겉모습(테두리·배경·여백)을 맡는 상자.
+ *
+ * 44px 로 못박습니다. 손가락으로 누르기 편한 최소 높이입니다 — 예전 input 은
+ * 30px 남짓이라 모바일에서 어디를 눌러야 하는지 잘 보이지 않았습니다.
+ * 모서리는 둥글리지 않습니다. 알약 모양일 때는 칸이 줄 안에 떠 있는 것처럼
+ * 보였는데, 각을 세우면 한 칸을 꽉 채운 것으로 읽힙니다.
+ *
+ * 여백을 textarea 자신에게 주지 않고 여기로 뺀 이유가 있습니다. 넘치는 내용은
+ * padding 의 바깥 경계에서 잘리므로, 칸에 아래 여백 11px 이 있으면 둘째 줄의
+ * 윗부분이 딱 그만큼 삐져나와 반쯤 보입니다. 상자와 칸을 나누면 둘째 줄은
+ * 칸(딱 한 줄 높이)의 경계에서 통째로 잘려 언제나 한 줄만 보입니다.
+ *
+ * label 이라 글자가 없는 위아래 여백을 눌러도 칸에 초점이 갑니다.
+ */
+const FieldBox = styled.label`
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  height: 44px;
+  padding: 0 14px;
   border: 1px solid ${({ theme }) => theme.color.border};
-  color: ${({ theme }) => theme.color.textMuted};
-  font-size: 12px;
-  font-weight: 600;
+  background-color: ${({ theme }) => theme.color.surfaceMuted};
+  cursor: text;
+
+  &:focus-within {
+    border-color: ${({ theme }) => theme.color.primary};
+    background-color: ${({ theme }) => theme.color.surface};
+  }
 `;
 
 /*
- * 44px 로 못박습니다. 손가락으로 누르기 편한 최소 높이입니다 — 예전 input 은
- * 30px 남짓이라 모바일에서 어디를 눌러야 하는지 잘 보이지 않았습니다.
+ * 글자가 들어가는 칸. 높이는 line-height 와 같은 20px — 딱 한 줄입니다.
  *
  * 예전에는 쓴 만큼 칸이 늘어났습니다(JS 가 scrollHeight 를 재서 height 를 올림).
  * 그러면 화면 아래 떠 있는 입력창이 자라면서 댓글 목록을 덮고, 그 높이에 맞춰
  * 본문 아래 여백도 같이 움직여 화면이 출렁였습니다. 이제 칸은 그대로 두고
  * 넘치는 줄은 칸 안에서 스크롤합니다. Shift+Enter 줄바꿈은 그대로 됩니다.
- *
- * 모서리는 둥글리지 않습니다. 알약 모양(border-radius: 22px)일 때는 칸이 줄 안에
- * 떠 있는 것처럼 보였는데, 각을 세우면 한 칸을 꽉 채운 것으로 읽힙니다.
  */
 const Field = styled.textarea`
   flex: 1;
   min-width: 0;
   box-sizing: border-box;
-  height: 44px;
-  padding: 11px 14px;
-  border: 1px solid ${({ theme }) => theme.color.border};
-  border-radius: 0;
-  background-color: ${({ theme }) => theme.color.surfaceMuted};
+  height: 20px;
+  padding: 0;
+  border: 0;
+  background: none;
   font-family: ${({ theme }) => theme.font.body};
   font-size: 15px;
   line-height: 20px;
@@ -622,7 +628,7 @@ const Field = styled.textarea`
   overflow-y: auto;
 
   /*
-   * 스크롤바는 감춥니다. 44px 짜리 칸에 막대가 서면 글자 자리를 먹는 데다,
+   * 스크롤바는 감춥니다. 한 줄짜리 칸에 막대가 서면 글자 자리를 먹는 데다,
    * 두 줄째부터 나타났다 사라지며 폭이 흔들립니다. 스크롤 자체는 그대로 됩니다.
    */
   scrollbar-width: none; /* Firefox */
@@ -638,24 +644,8 @@ const Field = styled.textarea`
 
   &:focus {
     outline: none;
-    border-color: ${({ theme }) => theme.color.primary};
-    background-color: ${({ theme }) => theme.color.surface};
   }
 `;
-
-/*
-const EmojiBt = styled.button`
-  flex: none;
-  width: 32px;
-  height: 32px;
-  border: 0;
-  background: none;
-  color: ${({ theme }) => theme.color.textMuted};
-  font-size: 18px;
-  line-height: 1;
-  cursor: pointer;
-`;
-*/
 
 const SendBt = styled.button`
   flex: none;
