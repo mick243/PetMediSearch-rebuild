@@ -12,6 +12,7 @@ import Terms from './pages/Terms';
 import Privacy from './pages/Privacy';
 import Layout from './layout/Layout';
 import Error from './components/common/Error';
+import SplashScreen from './components/common/SplashScreen';
 import Posts from './pages/Posts';
 import LoginRedirectKakao from './pages/loginRedirect/LoginRedirectKakao';
 import LoginRedirectNaver from './pages/loginRedirect/LoginRedirectNaver';
@@ -144,6 +145,11 @@ const router = createBrowserRouter(
 function App() {
   return (
     <PetMediThemeProvider>
+      {/*
+        라우터보다 먼저 쓰지만 덮기만 합니다. 뒤에서 홈이 그려지고 데이터도 받아
+        오므로, 스플래시가 떠 있는 동안이 그냥 기다리는 시간이 되지 않습니다.
+      */}
+      <SplashScreen />
       <RouterProvider router={router} />
     </PetMediThemeProvider>
   );
