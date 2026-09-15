@@ -35,6 +35,29 @@ const loginLimiter = rateLimit({
     handler: handler('로그인 시도가 너무 많습니다. 15분 뒤에 다시 시도해주세요.'),
 });
 
+/**
+ * 비밀번호 변경. 같은 주소에서 15분에 **실패** 10번까지.
+ *
+ * 로그인과 버킷을 따로 두는 이유가 둘입니다.
+ *
+ *   ① 지금 비밀번호를 몇 번 잘못 친 것 때문에 로그인까지 막히면, 고치러 왔다가
+ *      나가지도 못하게 됩니다.
+ *   ② 비용이 로그인과 같습니다. 여기도 bcrypt(cost 12)를 돌리는데 그 한 번이
+ *      283ms 입니다(docs/LoadTest-2026-09-15.md). 일반 상한(1분에 300번)에 두면
+ *      한 주소가 1분에 85초어치 CPU 를 태울 수 있습니다 — 요청 제한이 아니라
+ *      부하 발생기가 됩니다.
+ *
+ * skipSuccessfulRequests 는 제대로 바꾼 사람이 한도를 깎아 먹지 않게 합니다.
+ */
+const passwordChangeLimiter = rateLimit({
+    windowMs: minutes(15),
+    limit: 10,
+    skipSuccessfulRequests: true,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    handler: handler('비밀번호 변경 시도가 너무 많습니다. 15분 뒤에 다시 시도해주세요.'),
+});
+
 /** 가입. 같은 주소에서 1시간에 5개까지. */
 const signupLimiter = rateLimit({
     windowMs: minutes(60),
@@ -58,4 +81,4 @@ const generalLimiter = rateLimit({
     handler: handler('요청이 너무 많습니다. 잠시 뒤에 다시 시도해주세요.'),
 });
 
-module.exports = { loginLimiter, signupLimiter, generalLimiter };
+module.exports = { loginLimiter, signupLimiter, passwordChangeLimiter, generalLimiter };

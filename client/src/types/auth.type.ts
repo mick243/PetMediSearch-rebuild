@@ -73,3 +73,17 @@ export interface UpdateMyAccountInput {
   email?: string;
   phone?: string;
 }
+
+/**
+ * 비밀번호 변경 (PATCH /auth/me/password).
+ *
+ * 지금 비밀번호를 함께 보냅니다 — 토큰만으로 바꾸게 두면 새어 나간 토큰 하나로
+ * 계정을 빼앗깁니다. 확인용으로 한 번 더 치는 칸은 화면에서만 맞춰 보고
+ * 서버로는 보내지 않습니다.
+ *
+ * 소셜 계정에는 비밀번호가 없어 이 요청 자체를 보내지 않습니다(400).
+ */
+export interface ChangePasswordInput {
+  currentPassword: string;
+  newPassword: string;
+}

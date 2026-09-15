@@ -1,5 +1,9 @@
 const express = require('express');
-const { loginLimiter, signupLimiter } = require('../middleware/rateLimit');
+const {
+    loginLimiter,
+    signupLimiter,
+    passwordChangeLimiter,
+} = require('../middleware/rateLimit');
 const router = express.Router();
 const authController = require('../controller/auth');
 
@@ -92,6 +96,45 @@ router.get('/me', authController.getMe);
  *         description: 서버 에러 발생
  */
 router.patch('/me', authController.updateMe);
+
+/**
+ * @swagger
+ * /auth/me/password:
+ *   patch:
+ *     tags: [Auth]
+ *     summary: 비밀번호 변경
+ *     description: >
+ *       지금 비밀번호를 함께 받습니다 — 토큰만으로 바꾸게 두면 새어 나간 토큰
+ *       하나로 계정을 빼앗깁니다.
+ *       소셜 계정은 비밀번호가 없어 400 입니다.
+ *       이미 나가 있는 토큰은 그대로 살아 있고, 길어야 하루 뒤에 만료됩니다.
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [currentPassword, newPassword]
+ *             properties:
+ *               currentPassword: { type: string, example: '지금-비밀번호' }
+ *               newPassword: { type: string, minLength: 8, example: '새로운-비밀번호' }
+ *     responses:
+ *       200:
+ *         description: 바꿈
+ *       400:
+ *         description: 입력값이 올바르지 않음 · 지금과 같은 비밀번호 · 소셜 계정
+ *       401:
+ *         description: 유효하지 않은 토큰 · 지금 비밀번호가 틀림
+ *       404:
+ *         description: 이미 탈퇴한 계정
+ *       429:
+ *         description: 시도가 너무 많음 (15분에 실패 10번)
+ *       500:
+ *         description: 서버 에러 발생
+ */
+router.patch('/me/password', passwordChangeLimiter, authController.changePassword);
 
 /**
  * @swagger

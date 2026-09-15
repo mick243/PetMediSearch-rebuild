@@ -262,11 +262,19 @@ const addressField = (raw) => {
   return { value };
 };
 
-const passwordField = (raw) => {
+/**
+ * 비밀번호.
+ *
+ * label 은 문구에 그대로 들어갑니다 — 가입은 '비밀번호', 변경은 '새 비밀번호'.
+ * 어느 칸을 말하는지 밝히지 않으면 비밀번호가 둘인 화면에서 무엇을 고치라는
+ * 말인지 알 수 없습니다. 둘 다 '호' 로 끝나 받침이 없으므로 조사는 를/는 로
+ * 고정해도 맞습니다 (받침을 보는 일반적인 방법은 controller/validate.js 에 있습니다).
+ */
+const passwordField = (raw, { label = '비밀번호' } = {}) => {
   const value = String(raw ?? '');
-  if (!value) return { error: '비밀번호를 입력해주세요.' };
+  if (!value) return { error: `${label}를 입력해주세요.` };
   if (value.length < MIN_PASSWORD_LENGTH) {
-    return { error: `비밀번호는 ${MIN_PASSWORD_LENGTH}자 이상이어야 합니다.` };
+    return { error: `${label}는 ${MIN_PASSWORD_LENGTH}자 이상이어야 합니다.` };
   }
   return { value };
 };
@@ -498,6 +506,83 @@ exports.updateMe = async (req, res) => {
     }
     logError('auth:updateMe', err);
     return res.status(500).json({ message: '내 정보를 바꾸지 못했습니다.' });
+  }
+};
+
+/**
+ * 비밀번호 변경.
+ *
+ * 지금 비밀번호를 함께 받습니다. 토큰만으로 바꾸게 두면, 남의 기기에 로그인이
+ * 남아 있거나 토큰이 한 번 새어 나간 것만으로 계정을 통째로 빼앗깁니다 —
+ * 비밀번호를 바꾸는 순간 원래 주인이 못 들어옵니다. 토큰은 하루짜리라 그 사이에
+ * 되찾을 방법이 있어야 하고, 그 마지막 자물쇠가 지금 비밀번호입니다.
+ *
+ * 소셜 계정은 바꿀 비밀번호가 없습니다(password 가 NULL). 이메일과 같은 이유로
+ * 화면에서는 이 칸 자체를 보여 주지 않고, 서버는 400 으로 답합니다.
+ *
+ * 요청 제한은 routes/auth.js 에서 로그인과 따로 겁니다 — 여기도 bcrypt 를 한 번
+ * 돌리므로 비용이 로그인과 같습니다.
+ */
+exports.changePassword = async (req, res) => {
+  const decoded = verifyToken(req.headers.authorization?.split(' ')[1]);
+  if (!decoded) {
+    return res.status(401).json({ message: '유효하지 않은 토큰입니다.' });
+  }
+
+  const currentPassword = String(req.body.currentPassword ?? '');
+  if (!currentPassword) {
+    return res.status(400).json({ message: '지금 비밀번호를 입력해주세요.' });
+  }
+
+  const next = passwordField(req.body.newPassword, { label: '새 비밀번호' });
+  if (next.error) return res.status(400).json({ message: next.error });
+
+  try {
+    const rows = await query(
+      'SELECT user_id, password FROM users WHERE user_id = ? AND deleted_at IS NULL',
+      [decoded.id]
+    );
+    const user = rows[0];
+    if (!user) return res.status(404).json({ message: '계정을 찾을 수 없습니다.' });
+
+    if (!user.password) {
+      return res
+        .status(400)
+        .json({ message: '소셜 계정은 비밀번호로 로그인하지 않습니다.' });
+    }
+
+    if (!(await bcrypt.compare(currentPassword, user.password))) {
+      return res.status(401).json({ message: '지금 비밀번호가 올바르지 않습니다.' });
+    }
+
+    /*
+     * 같은 값으로 바꾸는 것을 막습니다.
+     *
+     * 그대로 저장해도 탈은 없지만 "바꿨습니다" 라고 답하게 됩니다. 비밀번호가
+     * 샜다고 생각해 바꾸러 온 사람이 사실은 아무것도 안 바꿨다는 것을 모른 채
+     * 돌아갑니다.
+     */
+    if (await bcrypt.compare(next.value, user.password)) {
+      return res
+        .status(400)
+        .json({ message: '지금 쓰는 것과 다른 비밀번호로 정해주세요.' });
+    }
+
+    const hashed = await bcrypt.hash(next.value, SALT_ROUNDS);
+    await query(
+      'UPDATE users SET password = ? WHERE user_id = ? AND deleted_at IS NULL',
+      [hashed, user.user_id]
+    );
+
+    /*
+     * 이미 나가 있는 토큰은 그대로 살아 있습니다. 토큰을 거둬들이려면 users 에
+     * 판번호를 두고 토큰에 실어 맞춰 봐야 하는데, 지금은 그 자리가 없습니다.
+     * 남은 토큰은 길어야 하루 뒤에 스스로 만료됩니다(generateToken 의 expiresIn).
+     */
+    return res.json({ message: '비밀번호를 바꿨습니다.' });
+  } catch (err) {
+    logError('auth:changePassword', err);
+    return res.status(500).json({ message: '비밀번호를 바꾸지 못했습니다.' });
   }
 };
 
