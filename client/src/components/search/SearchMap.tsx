@@ -40,6 +40,15 @@ import SearchMapControlBar from './map/SearchMapControlBar';
 import { FaLocationCrosshairs } from 'react-icons/fa6';
 
 /**
+ * 지도에 찍을 수 있는 시설 — 좌표가 성한 것만.
+ *
+ * x·y 는 서버가 주는 값이 아니라 여기서 lat/lng 로 채워 넣는 별칭입니다
+ * (하위 컴포넌트가 x=위도, y=경도로 읽습니다). PlaceData 와 갈라 둬야
+ * "서버가 보내는 것" 과 "지도가 만들어 쓰는 것" 이 섞이지 않습니다.
+ */
+type MappedPlace = PlaceData & { x: number; y: number };
+
+/**
  * 한 화면에 그릴 마커 상한.
  * 클러스터러에 2만개를 한 번에 넘기면 RangeError(스택 오버플로)로 죽습니다.
  */
@@ -328,6 +337,11 @@ function SearchMap() {
    * 좌표는 서버가 적재 시점에 WGS84 로 변환해 lat/lng 컬럼에 담아 보냅니다.
    * x/y 에 넣는 이유는 하위 컴포넌트가 x=위도, y=경도로 쓰고 있기 때문입니다.
    *
+   * 서버는 x/y 를 보내지 않습니다. 원래는 원본 TM 좌표(EPSG:5181)가 들어오는데
+   * 여기서 어차피 덮어써서 버렸고, 매 요청 300건씩 따라오느라 전송량만 먹었습니다
+   * (server/app.js 의 FACILITY_COLUMNS). 그래서 아래 두 값은 온전히 이쪽이 만듭니다 —
+   * PlaceData 가 아니라 MappedPlace 인 이유입니다.
+   *
    * 예전에는 이 결과를 Redux 에 다시 저장했습니다. 수천~수만 건이 상태에 한 벌 더 쌓이고
    * 그때마다 dispatch 가 한 번 더 돌아 dev 검사 비용이 두 배로 들었습니다.
    * 이 값은 이 컴포넌트에서만 쓰므로 로컬에서 계산합니다.
@@ -344,7 +358,7 @@ function SearchMap() {
 
           return { ...place, x: lat, y: lng };
         })
-        .filter((place): place is PlaceData => place !== null),
+        .filter((place): place is MappedPlace => place !== null),
     [searchPlaceResults]
   );
 
@@ -416,7 +430,7 @@ function SearchMap() {
     const first = filteredResults[0];
     if (!first) return;
 
-    setSearchCenter({ lat: first.x as number, lng: first.y as number });
+    setSearchCenter({ lat: first.x, lng: first.y });
     // 너무 넓게 보고 있으면 결과가 보이도록 당겨줍니다. (숫자가 작을수록 확대)
     setMapLevel((level) => (level > 5 ? 5 : level));
     /*
@@ -536,8 +550,8 @@ function SearchMap() {
                   <MapMarker
                     key={`place-${place.id}`}
                     position={{
-                      lat: place.x as number,
-                      lng: place.y as number,
+                      lat: place.x,
+                      lng: place.y,
                     }}
                     image={{
                       src:
@@ -555,8 +569,8 @@ function SearchMap() {
               {openedPlace && (
                 <CustomOverlayMap
                   position={{
-                    lat: openedPlace.x as number,
-                    lng: openedPlace.y as number,
+                    lat: openedPlace.x,
+                    lng: openedPlace.y,
                   }}
                 >
                   <SearchMapOverlay
