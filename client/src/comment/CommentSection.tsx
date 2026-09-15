@@ -11,8 +11,6 @@ import { apiErrorMessage } from '../utils/apiError';
 
 const BASE_URL = import.meta.env.VITE_BASE_URL;
 const PER_PAGE = 5;
-/** 댓글 입력칸이 늘어나는 상한(px). 다섯 줄쯤입니다. 그 뒤로는 칸 안에서 스크롤합니다. */
-const FIELD_MAX_HEIGHT = 132;
 
 interface Props {
   postId: number;
@@ -46,18 +44,6 @@ export default function CommentSection({ postId, postAuthorId }: Props) {
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const composerRef = useRef<HTMLFormElement>(null);
-
-  /*
-   * 입력칸은 쓴 만큼 늘어납니다. 한 줄짜리 input 이었을 때는 모바일에서 칸이 좁아
-   * 두 줄만 넘어가도 앞부분이 안 보였습니다. 상한(FIELD_MAX_HEIGHT)을 넘으면
-   * 칸 안에서 스크롤합니다.
-   */
-  useEffect(() => {
-    const el = inputRef.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, FIELD_MAX_HEIGHT)}px`;
-  }, [draft]);
 
   /*
    * 마우스·키보드 환경에서는 Enter 로 보냅니다(예전 input 과 같게). 줄바꿈은 Shift+Enter.
@@ -582,10 +568,13 @@ const CancelReply = styled.button`
   }
 `;
 
-/* 입력칸이 여러 줄로 늘어나도 아바타와 등록 버튼은 마지막 줄에 맞춰 아래에 둡니다. */
+/*
+ * 셋 다 높이가 고정이라 그냥 가운데로 맞춥니다.
+ * 입력칸이 늘어나던 때는 flex-end 로 아래를 맞추고 아바타에 여백을 따로 줬습니다.
+ */
 const ComposerRow = styled.div`
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: ${({ theme }) => theme.space.sm};
   padding: ${({ theme }) => `${theme.space.md} ${theme.space.lg}`};
 `;
@@ -596,8 +585,6 @@ const Avatar = styled.span`
   place-items: center;
   width: 32px;
   height: 32px;
-  /* 입력칸(44px) 세로 가운데에 오도록 */
-  margin-bottom: 6px;
   border-radius: 50%;
   background-color: ${({ theme }) => theme.color.surfaceMuted};
   border: 1px solid ${({ theme }) => theme.color.border};
@@ -607,18 +594,25 @@ const Avatar = styled.span`
 `;
 
 /*
- * 한 줄일 때 44px — 손가락으로 누르기 편한 최소 높이입니다. 예전 input 은 30px 남짓이라
- * 모바일에서 어디를 눌러야 하는지 잘 보이지 않았습니다. 높이는 위 useEffect 가
- * 내용에 맞춰 올립니다.
+ * 44px 로 못박습니다. 손가락으로 누르기 편한 최소 높이입니다 — 예전 input 은
+ * 30px 남짓이라 모바일에서 어디를 눌러야 하는지 잘 보이지 않았습니다.
+ *
+ * 예전에는 쓴 만큼 칸이 늘어났습니다(JS 가 scrollHeight 를 재서 height 를 올림).
+ * 그러면 화면 아래 떠 있는 입력창이 자라면서 댓글 목록을 덮고, 그 높이에 맞춰
+ * 본문 아래 여백도 같이 움직여 화면이 출렁였습니다. 이제 칸은 그대로 두고
+ * 넘치는 줄은 칸 안에서 스크롤합니다. Shift+Enter 줄바꿈은 그대로 됩니다.
+ *
+ * 모서리는 둥글리지 않습니다. 알약 모양(border-radius: 22px)일 때는 칸이 줄 안에
+ * 떠 있는 것처럼 보였는데, 각을 세우면 한 칸을 꽉 채운 것으로 읽힙니다.
  */
 const Field = styled.textarea`
   flex: 1;
   min-width: 0;
   box-sizing: border-box;
-  min-height: 44px;
+  height: 44px;
   padding: 11px 14px;
   border: 1px solid ${({ theme }) => theme.color.border};
-  border-radius: 22px;
+  border-radius: 0;
   background-color: ${({ theme }) => theme.color.surfaceMuted};
   font-family: ${({ theme }) => theme.font.body};
   font-size: 15px;
@@ -626,6 +620,17 @@ const Field = styled.textarea`
   color: ${({ theme }) => theme.color.text};
   resize: none;
   overflow-y: auto;
+
+  /*
+   * 스크롤바는 감춥니다. 44px 짜리 칸에 막대가 서면 글자 자리를 먹는 데다,
+   * 두 줄째부터 나타났다 사라지며 폭이 흔들립니다. 스크롤 자체는 그대로 됩니다.
+   */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* 구형 Edge */
+
+  &::-webkit-scrollbar {
+    display: none; /* Chrome · Safari */
+  }
 
   &::placeholder {
     color: ${({ theme }) => theme.color.textMuted};
