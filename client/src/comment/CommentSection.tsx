@@ -57,7 +57,7 @@ export default function CommentSection({ postId, postAuthorId }: Props) {
    *
    * 피커를 열 때가 아니라 화면에 들어올 때 받아 옵니다 — 댓글에 이미 들어 있는
    * 이모티콘의 대체 텍스트로도 쓰기 때문입니다. 응답이 작고(수백 바이트) 서버가
-   * 5분 캐시를 걸어 두어, 글을 여러 개 열어도 요청은 처음 한 번뿐입니다.
+   * 1분 캐시를 걸어 두어, 연이어 글을 여러 개 열어도 요청은 한 번뿐입니다.
    */
   const [emoticons, setEmoticons] = useState<Emoticon[]>([]);
   const [emoticonsLoading, setEmoticonsLoading] = useState(true);
