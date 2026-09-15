@@ -147,7 +147,8 @@ function App() {
     <PetMediThemeProvider>
       {/*
         라우터보다 먼저 쓰지만 덮기만 합니다. 뒤에서 홈이 그려지고 데이터도 받아
-        오므로, 스플래시가 떠 있는 동안이 그냥 기다리는 시간이 되지 않습니다.
+        오므로, 덮여 있는 동안이 그냥 기다리는 시간이 되지 않습니다.
+        뜨는 경우는 셋뿐입니다 — 이번 방문의 첫 진입 · 느린 로딩 · 연결 끊김.
       */}
       <SplashScreen />
       <RouterProvider router={router} />
