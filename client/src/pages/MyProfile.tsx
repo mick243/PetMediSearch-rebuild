@@ -6,6 +6,7 @@ import MyPosts from '../components/myProfile/MyPosts';
 import MyComments from '../components/myProfile/MyComments';
 import AccountSection from '../components/myProfile/AccountSection';
 import PasswordSection from '../components/myProfile/PasswordSection';
+import EmoticonAdminSection from '../components/myProfile/EmoticonAdminSection';
 import WithdrawSection from '../components/myProfile/WithdrawSection';
 import { SiNaver } from 'react-icons/si';
 import { FcGoogle } from 'react-icons/fc';
@@ -40,6 +41,12 @@ function MyProfile() {
       <AccountSection />
       {/* 소셜 계정에서는 스스로 아무것도 그리지 않습니다 (비밀번호로 로그인하지 않으므로). */}
       <PasswordSection />
+      {/*
+        댓글 이모티콘 등록. 관리자가 아니면 스스로 아무것도 그리지 않습니다.
+        관리자 화면이 따로 없어서 계정 칸 아래에 둡니다 — 관리자도 자기 계정을
+        보러 들어오는 곳이 여기입니다.
+      */}
+      <EmoticonAdminSection />
       <div className="userSection">
         <div className="post">
           <div className="title">

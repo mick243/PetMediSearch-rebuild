@@ -332,6 +332,7 @@ const mypageRouter = require('./routes/mypage');
 const petsRouter = require('./routes/pets');
 const favoritesRouter = require('./routes/favorites');
 const pushRouter = require('./routes/push');
+const emoticonRouter = require('./routes/emoticon');
 
 app.use('/category', categoryRouter);
 app.use('/posts', postRouter);
@@ -342,6 +343,12 @@ app.use('/mypage', mypageRouter);
 app.use('/pets', petsRouter);
 app.use('/favorites', favoritesRouter);
 app.use('/push', pushRouter);
+/*
+ * 그림을 내려주는 /emoticons/:id/image 는 토큰 없이 <img> 가 부르는 길이라,
+ * 위의 revokeStaleTokens 는 Authorization 헤더가 없는 것을 보고 바로 지나갑니다.
+ * 등록·삭제는 토큰을 들고 오므로 거둬들인 토큰 검사를 그대로 거칩니다.
+ */
+app.use('/emoticons', emoticonRouter);
 
 /*
  * 어느 라우트에도 걸리지 않은 주소.
