@@ -78,24 +78,44 @@ const ReviewInputStyle = styled.div`
   background-color: #d9d9d9;
   padding: 8px;
 
+  /*
+   * 상호가 길면(예: "24시 당신의 동물의료센터") 왼쪽 정보 칸이 자리를 다 가져가
+   * 등록 버튼이 40px 까지 눌렸습니다. 그러면 "등록" 이 두 글자로 쪼개져 세로로
+   * 쌓입니다. 버튼은 줄어들지 않게 못박고, 줄어들 쪽은 정보 칸으로 정합니다.
+   */
   .head {
     display: flex;
+    align-items: flex-start;
+    gap: 8px;
     justify-content: space-between;
     .info {
+      flex: 1;
+      min-width: 0;
       display: flex;
       flex-direction: column;
       padding: 0px 5px;
       .title {
         display: flex;
+        align-items: center;
+        flex-wrap: wrap;
         gap: 10px;
         font-weight: bold;
         font-size: 20px;
+        word-break: keep-all;
+        overflow-wrap: anywhere;
       }
+    }
+    > button {
+      flex: none;
+      white-space: nowrap;
     }
   }
 
+  /* 주소에는 띄어쓰기 없이 긴 토막이 들어옵니다 (104,113,115,...202호). */
   .address {
     font-size: 10px;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
   }
 
   form {
