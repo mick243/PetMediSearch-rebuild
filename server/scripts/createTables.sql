@@ -206,6 +206,24 @@ CREATE TABLE IF NOT EXISTS `favorite_facilities` (
   CONSTRAINT `fav_ibfk_2` FOREIGN KEY (`facility_id`) REFERENCES `medical_facilities` (`id`) ON DELETE CASCADE
 );
 
+-- 시설별 후기 AI 요약. 후기가 5건 이상 쌓인 시설에만 행이 있습니다.
+-- 후기가 등록·수정·삭제될 때 뒤에서 다시 만들고, 목록은 이 행을 같이 실어 보냅니다.
+-- review_count 가 실제 후기 수와 다르면 낡은 것이고, 조회가 스스로 다시 만듭니다.
+-- 자세한 이유는 scripts/alterReviewSummaries.sql 주석에 적어 두었습니다.
+CREATE TABLE IF NOT EXISTS `review_summaries` (
+  `facility_id` int NOT NULL,
+  `summary` text NOT NULL,
+  `good` json NOT NULL,
+  `caution` json NOT NULL,
+  `review_count` int NOT NULL,
+  `last_review_id` int NOT NULL,
+  `provider` varchar(20) NOT NULL,
+  `model` varchar(80) NOT NULL,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`facility_id`),
+  CONSTRAINT `review_summaries_ibfk_1` FOREIGN KEY (`facility_id`) REFERENCES `medical_facilities` (`id`) ON DELETE CASCADE
+);
+
 -- 댓글에 넣는 이모티콘. 관리자만 등록합니다.
 -- 그림은 여기 한 번만 두고 댓글에는 [emoticon:12] 표시만 남깁니다.
 -- 이 표만 deleted_at 없이 진짜로 지웁니다 — 지운 뒤 id 를 앞으로 당기기 때문입니다.

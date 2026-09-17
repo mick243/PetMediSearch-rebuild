@@ -433,6 +433,12 @@ if (process.env.REMINDER_CRON) {
   }
 }
 
+/*
+ * 후기 AI 요약이 켜져 있는지 한 줄 남깁니다. 키가 없으면 조용히 꺼지는 기능이라,
+ * 이 줄이 없으면 "왜 요약이 안 나오지" 를 코드까지 들어가 봐야 압니다. 키 값은 찍지 않습니다.
+ */
+console.log(`후기 AI 요약: ${require('./ai').describe()}`);
+
 // 서버 시작
 const server = app.listen(port, () => {
   console.log(`Server running at http://0.0.0.0:${port}`);

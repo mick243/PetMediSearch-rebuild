@@ -77,7 +77,10 @@ router.post('/', createReview);
  *           type: integer
  *     responses:
  *       200:
- *         description: 성공적으로 리뷰 목록을 반환함
+ *         description: >
+ *           { reviews, total, summary }. summary 는 후기가 5건 이상인 시설의 AI 요약
+ *           ({ summary, good[], caution[], review_count, updated_at })이고, 5건 미만이거나
+ *           아직 안 만들어졌거나 요약 기능이 꺼져 있으면 null 입니다.
  *       401:
  *         description: 유효하지 않은 토큰
  *       404:

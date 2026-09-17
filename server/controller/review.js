@@ -2,6 +2,7 @@ const conn = require('../mysql');
 const { logError } = require('../logError');
 const { verifyToken } = require('./authUser');
 const { textField, intField } = require('./validate');
+const { refreshSummary, refreshForReview, getSummary } = require('./reviewSummary');
 
 /*
  * 붙임 사진은 브라우저에서 줄인 JPEG 를 data URL 로 받습니다 (pets.photo 와 같은 방식).
@@ -88,7 +89,14 @@ const getReviewsByFacilityId = async (req, res) => {
                 return res.status(500).send({ message: '서버 오류 발생' });
             }
             // 후기가 없는 것은 오류가 아닙니다. 예전에는 404 라서 화면이 콘솔에 에러를 찍었습니다.
-            return res.send({ reviews: results, total: countRows[0]?.total ?? results.length });
+            const total = countRows[0]?.total ?? results.length;
+
+            /*
+             * AI 요약을 같이 실어 보냅니다. 후기 5건 미만이거나 아직 안 만들어졌으면 null.
+             * 요청 하나를 더 받는 대신 여기에 싣는 이유: 요약은 이 목록을 보는 사람만
+             * 보고, 저장된 행 하나를 읽는 것이라 목록 쿼리에 비하면 비용이 없습니다.
+             */
+            return getSummary(facilityId, total, (summary) => res.send({ reviews: results, total, summary }));
         });
     });
 };
@@ -150,6 +158,8 @@ const createReview = async (req, res) => {
         if (results.affectedRows === 0) {
             return res.status(401).send({ message: '사용할 수 없는 계정입니다.' });
         }
+        // 요약은 응답을 보낸 뒤 뒤에서 다시 만듭니다. 쓰는 사람이 모델을 기다리지 않습니다.
+        refreshSummary(facility_id);
         return res.status(201).send({ message: '리뷰가 성공적으로 등록되었습니다' });
     });
 };
@@ -200,6 +210,7 @@ const updateReview = async (req, res) => {
         if (results.affectedRows === 0) {
             return res.status(404).send({ message: '작성자만 수정할 수 있습니다.' });
         }
+        refreshForReview(reviewId);
         return res.send({ message: '리뷰가 수정되었습니다.' });
     });
 };
@@ -234,6 +245,8 @@ const deleteReview = async (req, res) => {
         if (results.affectedRows === 0) {
             return res.status(404).send({ message: '작성자만 삭제할 수 있습니다.' });
         }
+        // 5건 아래로 내려가면 요약 행도 치워집니다 (reviewSummary.js).
+        refreshForReview(reviewId);
         return res.status(200).send({ message: '리뷰가 삭제되었습니다.' });
     });
 };
