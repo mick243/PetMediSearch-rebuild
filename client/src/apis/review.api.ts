@@ -1,4 +1,4 @@
-import { ReviewData } from '../types/review.type';
+import { ReviewData, ReviewSummary } from '../types/review.type';
 import { httpClient } from './http';
 
 /** 한 쪽에 보여 줄 후기 수. 서버 기본값과 같습니다. */
@@ -19,6 +19,8 @@ export const getReviewsByFacilityId = async (
     const response = await httpClient.get<{
       reviews: ReviewData[];
       total: number;
+      /** 후기 5건 이상일 때 AI 요약. 아니면 null (요약 기능이 꺼져 있어도 null) */
+      summary?: ReviewSummary | null;
     }>(`/reviews/facility/${facilityId}?page=${page}&limit=${limit}`);
     return response.data;
   } catch (error) {

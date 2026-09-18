@@ -2,12 +2,16 @@ import styled from 'styled-components';
 import SearchBox from '../components/search/SearchBox';
 import ReviewInput from '../components/review/ReviewInput';
 import ReviewBox from '../components/review/ReviewBox';
+import ReviewSummary from '../components/review/ReviewSummary';
 import ReviewPlaceList from '../components/review/ReviewPlaceList';
 import { useSelector } from 'react-redux';
 import { RootState } from '../store';
 import { PlaceData } from '../types/place.type';
 import { useCallback, useEffect, useState } from 'react';
-import { ReviewData } from '../types/review.type';
+import {
+  ReviewData,
+  ReviewSummary as ReviewSummaryData,
+} from '../types/review.type';
 import { getReviewsByFacilityId, REVIEWS_PER_PAGE } from '../apis/review.api';
 
 /*
@@ -21,6 +25,8 @@ function Review() {
   const [reviews, setReviews] = useState<ReviewData[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  /* AI 요약은 목록 응답에 같이 실려 옵니다. 5건 미만이면 null 이고 카드를 안 그립니다. */
+  const [summary, setSummary] = useState<ReviewSummaryData | null>(null);
 
   const load = useCallback(
     async (which: number) => {
@@ -33,10 +39,12 @@ function Review() {
         );
         setReviews(data.reviews ?? []);
         setTotal(data.total ?? 0);
+        setSummary(data.summary ?? null);
       } catch (err) {
         console.error('리뷰 목록을 불러오는 중 오류 발생:', err);
         setReviews([]);
         setTotal(0);
+        setSummary(null);
       }
     },
     [selectedPlace]
@@ -63,6 +71,7 @@ function Review() {
                 load(1);
               }}
             />
+            {summary && <ReviewSummary summary={summary} />}
             <ReviewBox
               reviews={reviews}
               total={total}
