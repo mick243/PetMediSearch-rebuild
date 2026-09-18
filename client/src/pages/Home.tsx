@@ -57,6 +57,14 @@ function Home() {
   const [favorites, setFavorites] = useState<FavoriteFacility[]>([]);
   const [posts, setPosts] = useState<PostState[]>([]);
   const [loading, setLoading] = useState(isLogin);
+  /*
+   * 불러오기가 실패한 것과 정말로 아무것도 없는 것은 다릅니다.
+   *
+   * 예전에는 catch 에서 빈 배열만 넣어서, 서버가 죽었을 때 화면이 "아직 글이
+   * 없어요 · 즐겨찾기 0" 이라고 말했습니다. 사용자는 자기 데이터가 사라진 줄 압니다.
+   */
+  const [failed, setFailed] = useState(false);
+  const [postsFailed, setPostsFailed] = useState(false);
 
   const pet = pets[petIndex];
 
@@ -69,6 +77,7 @@ function Home() {
     }
     let alive = true;
     setLoading(true);
+    setFailed(false);
     Promise.all([fetchMyPets(), fetchFavorites()])
       .then(([p, f]) => {
         if (!alive) return;
@@ -76,7 +85,10 @@ function Home() {
         setFavorites(f);
         setPetIndex(0);
       })
-      .catch((err) => console.error('홈 데이터를 불러오지 못했습니다:', err))
+      .catch((err) => {
+        console.error('홈 데이터를 불러오지 못했습니다:', err);
+        if (alive) setFailed(true);
+      })
       .finally(() => alive && setLoading(false));
     return () => {
       alive = false;
@@ -92,8 +104,17 @@ function Home() {
       .get<{ posts: PostState[] }>(
         `${BASE_URL}/category?category=${postCategory}&limit=3`
       )
-      .then((res) => alive && setPosts(res.data.posts ?? []))
-      .catch(() => alive && setPosts([]));
+      .then((res) => {
+        if (!alive) return;
+        setPosts(res.data.posts ?? []);
+        setPostsFailed(false);
+      })
+      .catch((err) => {
+        console.error('커뮤니티 글을 불러오지 못했습니다:', err);
+        if (!alive) return;
+        setPosts([]);
+        setPostsFailed(true);
+      });
     return () => {
       alive = false;
     };
@@ -123,6 +144,19 @@ function Home() {
 
   return (
     <Page>
+      {/*
+        내 아이·즐겨찾기를 못 불러왔으면 먼저 말합니다. 이 줄이 없으면 아래 화면이
+        "등록된 아이가 없고 즐겨찾기가 0" 인 것과 똑같아 보입니다.
+      */}
+      {failed && (
+        <Notice role="alert">
+          <span>내 정보를 불러오지 못했어요. 연결을 확인해 주세요.</span>
+          <button type="button" onClick={() => window.location.reload()}>
+            다시 시도
+          </button>
+        </Notice>
+      )}
+
       {/* ── 주인공 ── */}
       {pet ? (
         <>
@@ -282,7 +316,9 @@ function Home() {
             더 보기 <HiChevronRight aria-hidden="true" />
           </More>
         </SectionHead>
-        {posts.length === 0 ? (
+        {postsFailed ? (
+          <Muted>글을 불러오지 못했어요.</Muted>
+        ) : posts.length === 0 ? (
           <Muted>아직 글이 없어요.</Muted>
         ) : (
           posts.map((p) => (
@@ -333,6 +369,33 @@ const Muted = styled.p`
   margin: 0;
   font-size: 13px;
   color: ${({ theme }) => theme.color.textMuted};
+`;
+
+/* 불러오기가 실패했을 때 맨 위에 한 줄. 다시 눌러 볼 자리까지 같이 줍니다. */
+const Notice = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: ${({ theme }) => theme.space.sm};
+  padding: ${({ theme }) => `${theme.space.sm} ${theme.space.md}`};
+  border: 1px solid ${({ theme }) => theme.color.dangerSoft};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  background-color: ${({ theme }) => theme.color.surfaceMuted};
+  font-size: 13px;
+  color: ${({ theme }) => theme.color.text};
+  word-break: keep-all;
+
+  button {
+    flex: none;
+    padding: 5px 10px;
+    border: 1px solid ${({ theme }) => theme.color.borderStrong};
+    border-radius: ${({ theme }) => theme.radius.pill};
+    background-color: ${({ theme }) => theme.color.surface};
+    font-family: inherit;
+    font-size: 12px;
+    color: ${({ theme }) => theme.color.text};
+    cursor: pointer;
+  }
 `;
 
 const PetTab = styled.button<{ $on: boolean }>`

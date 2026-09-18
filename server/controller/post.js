@@ -1,7 +1,7 @@
 const conn = require('../mysql');
 const { logError } = require('../logError');
 const { verifyToken, OWNER_OR_ADMIN } = require('./authUser');
-const { textField, richTextHasContent } = require('./validate');
+const { textField, intField, richTextHasContent } = require('./validate');
 const { findRemoteResource } = require('../postImages');
 
 /** posts.title 이 varchar(255) 라 그보다 낮게 둡니다. */
@@ -67,13 +67,22 @@ const getPostById = (req, res) => {
 
 // 새로운 게시글 추가
 const addPostById = (req, res) => {
-    const { category_id } = req.body;
     const token = req.headers.authorization?.split(' ')[1];
     const decoded = verifyToken(token);
 
     if (!decoded) {
         return res.status(401).send({ message: '유효하지 않은 토큰입니다.' });
     }
+
+    /*
+     * 분류는 반드시 받습니다.
+     *
+     * 예전에는 category_id 를 그대로 흘려보내서, 안 보내면 NULL 로 저장됐습니다.
+     * 목록은 전부 분류로 거르기 때문에(category.js) 그렇게 들어간 글은 어느
+     * 목록에도 안 잡힙니다 — 쓴 사람만 마이페이지에서 볼 수 있는 유령 글이 됩니다.
+     */
+    const category = intField(req.body.category_id, { label: '분류', min: 1, max: 100000 });
+    if (category.error) return res.status(400).send({ message: category.error });
 
     const { error, value } = validatePost(req.body);
     if (error) return res.status(400).send({ message: error });
@@ -91,8 +100,16 @@ const addPostById = (req, res) => {
         SELECT ?, user_id, ?, ?, NOW(), NOW()
           FROM users WHERE user_id = ? AND deleted_at IS NULL`;
 
-    conn.query(query, [category_id, value.title, value.content, user_id], (err, results) => {
+    conn.query(query, [category.value, value.title, value.content, user_id], (err, results) => {
         if (err) {
+            /*
+             * 없는 분류 번호. 보낸 쪽이 틀린 것이라 400 입니다.
+             * 예전에는 외래 키 오류가 그대로 500 으로 나가서, 사용자는 잘못 보낸 줄
+             * 모르고 "서버 에러 발생" 만 봤습니다.
+             */
+            if (err.code === 'ER_NO_REFERENCED_ROW_2' || err.code === 'ER_NO_REFERENCED_ROW') {
+                return res.status(400).send({ message: '없는 분류입니다.' });
+            }
             logError('post', err);
             return res.status(500).send({ message: '서버 에러 발생' });
         }

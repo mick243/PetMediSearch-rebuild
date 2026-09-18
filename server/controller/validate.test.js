@@ -6,6 +6,7 @@ const {
     intField,
     decimalField,
     dateField,
+    yearsFromToday,
     timeField,
     richTextHasContent,
 } = require('./validate');
@@ -213,4 +214,29 @@ test('timeField: 없는 시각은 거부한다', () => {
 
 test('timeField: required 면 빈 값을 막는다', () => {
     assert.ok(timeField('', { label: '시각', required: true }).error);
+});
+
+/*
+ * 접종 일정은 지난 날도 받아야 합니다(놓친 일정, 이미 맞힌 기록). 다만 범위가 없으면
+ * 1900-01-01 짜리가 등록되고, 홈의 D-day 타일이 "D+46000" 같은 수를 보여 줍니다.
+ */
+test('dateField: min·max 로 범위를 끊는다', () => {
+    const opts = { label: '날짜', min: '2020-01-01', max: '2030-12-31' };
+    assert.deepEqual(dateField('2025-06-01', opts), { value: '2025-06-01' });
+    // 경계는 통과합니다.
+    assert.deepEqual(dateField('2020-01-01', opts), { value: '2020-01-01' });
+    assert.deepEqual(dateField('2030-12-31', opts), { value: '2030-12-31' });
+    assert.ok(dateField('2019-12-31', opts).error);
+    assert.ok(dateField('2031-01-01', opts).error);
+});
+
+test('dateField: min·max 를 안 주면 범위를 보지 않는다', () => {
+    assert.deepEqual(dateField('1900-01-01', { label: '날짜' }), { value: '1900-01-01' });
+});
+
+test('yearsFromToday: YYYY-MM-DD 로 돌려준다', () => {
+    const now = new Date().getFullYear();
+    assert.match(yearsFromToday(0), /^\d{4}-\d{2}-\d{2}$/);
+    assert.strictEqual(Number(yearsFromToday(-30).slice(0, 4)), now - 30);
+    assert.strictEqual(Number(yearsFromToday(30).slice(0, 4)), now + 30);
 });

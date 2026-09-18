@@ -1,7 +1,7 @@
 const conn = require('../mysql');
 const { logError } = require('../logError');
 const { verifyToken } = require('./authUser');
-const { textField, decimalField, dateField, timeField } = require('./validate');
+const { textField, decimalField, dateField, timeField, yearsFromToday } = require('./validate');
 
 /** pets.weight_kg 는 decimal(5,2) 라 999.99 까지 들어가지만, 실제로 가능한 범위로 좁힙니다. */
 const MAX_WEIGHT_KG = 200;
@@ -180,8 +180,19 @@ const validateVaccination = (body) => {
     const name = textField(body.name, { label: '일정 이름', max: 80 });
     if (name.error) return { error: name.error };
 
-    // 접종·검진은 앞날 일정이라 미래 날짜를 막지 않습니다.
-    const dueDate = dateField(body.due_date, { label: '날짜' });
+    /*
+     * 접종·검진은 앞날 일정이라 미래 날짜를 막지 않습니다. 지난 날짜도 받습니다 —
+     * 놓친 일정이나 이미 맞힌 기록을 적을 수 있어야 합니다.
+     *
+     * 다만 범위는 둡니다. 예전에는 아무 값이나 받아서 1900-01-01 짜리 일정이
+     * 그대로 등록됐고, 그러면 홈의 D-day 타일이 "D+46000" 같은 수를 보여 줍니다.
+     * 반려동물이 사는 기간을 넉넉히 덮는 앞뒤 30년으로 끊습니다.
+     */
+    const dueDate = dateField(body.due_date, {
+        label: '날짜',
+        min: yearsFromToday(-30),
+        max: yearsFromToday(30),
+    });
     if (dueDate.error) return { error: dueDate.error };
 
     const dueTime = timeField(body.due_time, { label: '시각' });

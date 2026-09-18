@@ -39,6 +39,8 @@ function Posts() {
   /** 서버가 알려 주는 전체 글 수. 쪽 번호를 그리는 데만 씁니다. */
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  /** 불러오기가 실패한 것과 정말로 글이 없는 것은 다릅니다. */
+  const [failed, setFailed] = useState(false);
   const [currentPage, setCurrentPage] = useState(() =>
     !hasParam || paramId === saved?.categoryId ? (saved?.page ?? 1) : 1
   );
@@ -48,11 +50,23 @@ function Posts() {
     ? paramId
     : (saved?.categoryId ?? categories[0]?.category_id ?? null);
 
+  /*
+   * 분류 목록을 못 받으면 selectedId 가 null 이 되고, 아래 목록 effect 는 그대로
+   * return 합니다. 그러면 loading 을 false 로 돌릴 자리가 없어 "불러오는 중" 에서
+   * 영원히 멈췄습니다. 실패를 따로 들고 화면에 말해 줍니다.
+   */
   useEffect(() => {
     axios
       .get<Category[]>(`${BASE_URL}/category`)
-      .then((res) => setCategories(res.data))
-      .catch((err) => console.error('카테고리를 불러오지 못했습니다:', err));
+      .then((res) => {
+        setCategories(res.data);
+        setFailed(false);
+      })
+      .catch((err) => {
+        console.error('카테고리를 불러오지 못했습니다:', err);
+        setFailed(true);
+        setLoading(false);
+      });
   }, []);
 
   useEffect(() => {
@@ -82,6 +96,7 @@ function Posts() {
         if (alive) {
           setPosts([]);
           setTotal(0);
+          setFailed(true);
         }
       })
       .finally(() => {
@@ -148,7 +163,9 @@ function Posts() {
 
       <Toolbar>
         {/* 한 쪽 건수가 아니라 그 분류의 전체 글 수입니다. */}
-        <Count>{loading ? '불러오는 중' : `글 ${total}개`}</Count>
+        <Count>
+          {failed ? '불러오지 못함' : loading ? '불러오는 중' : `글 ${total}개`}
+        </Count>
         <WriteBt
           type="button"
           onClick={() => navigate('/createpost')}
@@ -158,7 +175,20 @@ function Posts() {
         </WriteBt>
       </Toolbar>
 
-      {!loading && posts.length === 0 && (
+      {/*
+        실패했을 때 "첫 글 쓰기" 를 띄우면 안 됩니다. 글이 없는 게 아니라 못 불러온
+        것이고, 눌러 봐야 같은 이유로 또 막힙니다.
+      */}
+      {failed && (
+        <Empty role="alert">
+          <p>글을 불러오지 못했어요. 연결을 확인해 주세요.</p>
+          <button type="button" onClick={() => window.location.reload()}>
+            다시 시도
+          </button>
+        </Empty>
+      )}
+
+      {!failed && !loading && posts.length === 0 && (
         <Empty>
           <p>아직 이 분류에 올라온 글이 없어요.</p>
           <button type="button" onClick={() => navigate('/createpost')}>
