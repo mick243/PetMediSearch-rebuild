@@ -1,4 +1,5 @@
 import { useSelector } from 'react-redux';
+import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 import { RootState } from '../store';
 import MyReview from '../components/myProfile/MyReview';
@@ -43,11 +44,18 @@ function MyProfile() {
       <PasswordSection />
       {/* 관리자 전용 화면으로 가는 길. 관리자가 아니면 스스로 아무것도 그리지 않습니다. */}
       <AdminMenu />
+      {/*
+        아래 세 개는 <a href> 였습니다. 주소는 맞게 가지만 브라우저가 문서를 새로
+        받아 앱이 통째로 다시 뜹니다 — 스플래시부터 다시 돌아 4초가 걸렸고, 로그인
+        상태를 들고 있는 store 도 비워졌다 다시 채워집니다. 지도 정보창에서 똑같은
+        일이 있었고 그 기록이 SearchMapOverlay.tsx 주석에 남아 있습니다.
+        (/category 는 /posts 로 보내기만 하는 자리라, 한 번 덜 거치게 바로 씁니다.)
+      */}
       <div className="userSection">
         <div className="post">
           <div className="title">
             <p>내가 작성한 게시판 글</p>
-            <a href="/category">카테고리별 게시판으로 이동</a>
+            <Link to="/posts">카테고리별 게시판으로 이동</Link>
           </div>
           <div className="table">
             <MyPosts />
@@ -57,7 +65,7 @@ function MyProfile() {
         <div className="comment">
           <div className="title">
             <p>내가 작성한 댓글</p>
-            <a href="/category">카테고리별 게시판으로 이동</a>
+            <Link to="/posts">카테고리별 게시판으로 이동</Link>
           </div>
           <div className="table">
             <MyComments />
@@ -66,7 +74,7 @@ function MyProfile() {
         <div className="review">
           <div className="title">
             <p>내가 작성한 후기 글</p>
-            <a href="/review">후기 게시판으로 이동</a>
+            <Link to="/Review">후기 게시판으로 이동</Link>
           </div>
           <div className="table">
             <MyReview />

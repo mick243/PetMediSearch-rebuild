@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import styled, { createGlobalStyle } from 'styled-components';
 import { useSelector } from 'react-redux';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { FaRegSmile } from 'react-icons/fa';
 import { Comment } from '../types/post.type';
 import { RootState } from '../store';
@@ -12,6 +13,7 @@ import { emoticonToken, TOKEN_BEFORE_CARET } from '../utils/emoticon';
 import { formatDateTime } from '../utils/postContent';
 import PaginationComp from '../components/common/PaginationComp';
 import { apiErrorMessage } from '../utils/apiError';
+import { nextFrom } from '../utils/afterLogin';
 import EmoticonPicker from './EmoticonPicker';
 import CommentText from './CommentText';
 
@@ -51,6 +53,10 @@ export default function CommentSection({ postId, postAuthorId }: Props) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const composerRef = useRef<HTMLFormElement>(null);
   const emoticonBtRef = useRef<HTMLButtonElement>(null);
+
+  /* 비회원이 댓글을 쓰려고 하면 로그인으로 보내고, 끝나면 이 글로 돌려보냅니다. */
+  const navigate = useNavigate();
+  const location = useLocation();
 
   /*
    * 이모티콘 목록. 그림은 들어 있지 않고 id·이름만입니다.
@@ -254,8 +260,13 @@ export default function CommentSection({ postId, postAuthorId }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    /*
+     * 예전에는 알림만 띄우고 그 자리에 세워 뒀습니다. 사용자는 댓글을 다 써서
+     * 등록을 누른 참이라 다음에 뭘 해야 하는지 알려 줘야 합니다. 로그인 화면으로
+     * 보내고, 끝나면 읽던 글로 돌려보냅니다 (utils/afterLogin.ts).
+     */
     if (!isLoggedIn) {
-      alert('로그인 후 댓글을 남길 수 있습니다.');
+      navigate(`/login?next=${encodeURIComponent(nextFrom(location))}`);
       return;
     }
     if (!draft.trim() || sending) return;
@@ -471,8 +482,16 @@ export default function CommentSection({ postId, postAuthorId }: Props) {
               <FaRegSmile />
             </EmoticonBt>
           </FieldBox>
-          <SendBt type="submit" disabled={!draft.trim() || sending}>
-            등록
+          {/*
+            비회원에게는 "등록" 대신 "로그인" 이라고 씁니다. 예전에는 "등록" 이었고
+            글자를 넣으면 버튼이 켜져서, 댓글을 다 쓴 다음에야 막혔습니다.
+            비어 있어도 누를 수 있어야 로그인으로 갈 수 있으므로 회원일 때만 잠급니다.
+          */}
+          <SendBt
+            type="submit"
+            disabled={isLoggedIn && (!draft.trim() || sending)}
+          >
+            {isLoggedIn ? '등록' : '로그인'}
           </SendBt>
         </ComposerRow>
       </Composer>

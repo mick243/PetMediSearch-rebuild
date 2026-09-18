@@ -112,9 +112,14 @@ function SearchMapOverlay({ onClick, place }: Props) {
           ) : (
             notPrepared()
           )}
+          {/*
+            "후기 작성하기" 였습니다. 그런데 이 버튼이 후기 화면으로 가는 사실상
+            유일한 입구라, 읽으러 온 사람은 누를 이유가 없어 후기를 영영 못 봤습니다.
+            화면에서 하는 일도 읽기가 먼저이고 쓰기는 그 위에 붙어 있습니다.
+          */}
           <div className="review">
             <button type="button" onClick={goToReview}>
-              후기 작성하기
+              후기 보기
             </button>
           </div>
         </div>

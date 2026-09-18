@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import styled from 'styled-components';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import LoginKakao from '../components/login/LoginKakao';
 import LoginNaver from '../components/login/LoginNaver';
@@ -8,6 +8,7 @@ import LoginGoogle from '../components/login/LoginGoogle';
 import { login } from '../apis/auth.api';
 import { apiErrorMessage } from '../utils/apiError';
 import { setLogin } from '../store/slices/authSlice';
+import { rememberNext, takeNext } from '../utils/afterLogin';
 
 /**
  * 로그인.
@@ -18,10 +19,18 @@ import { setLogin } from '../store/slices/authSlice';
 function Login() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  const [params] = useSearchParams();
 
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+
+  /*
+   * 어디서 막혀 왔는지 맡아 둡니다. 소셜 로그인은 바깥으로 나갔다 /oauth/... 로
+   * 돌아오면서 주소의 ?next= 를 잃어버리므로, 주소가 아니라 sessionStorage 로 옮깁니다.
+   */
+  const next = params.get('next');
+  useEffect(() => rememberNext(next), [next]);
 
   const handleSubmit = async () => {
     if (!form.email.trim() || !form.password) {
@@ -34,7 +43,8 @@ function Login() {
     try {
       const data = await login(form);
       dispatch(setLogin({ token: data.token, user: data.user }));
-      navigate('/', { replace: true });
+      // 막혔던 자리로 돌려보냅니다. 그런 자리가 없으면 홈입니다.
+      navigate(takeNext() ?? '/', { replace: true });
     } catch (err) {
       setError(apiErrorMessage(err, '로그인에 실패했습니다.'));
     } finally {

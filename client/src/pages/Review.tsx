@@ -88,12 +88,16 @@ function Review() {
   );
 }
 
+/*
+ * justify-content: end 였습니다. 세로로 꽉 차는 열이라, 내용을 바닥 쪽으로 밀어
+ * 헤더 아래에 266px 짜리 빈 칸이 생겼습니다 — 검색창이 화면 한가운데 떠 있고
+ * 그 위가 통째로 비어서 화면이 덜 그려진 것처럼 보였습니다. 위에서부터 채웁니다.
+ */
 const ReviewStyle = styled.div`
   display: flex;
   flex-direction: column;
-  padding: 0px 30px;
+  padding: 20px 30px 0;
   align-items: center;
-  justify-content: end;
   gap: 20px;
 `;
 
