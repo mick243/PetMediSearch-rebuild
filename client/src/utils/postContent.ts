@@ -8,8 +8,15 @@
 
 import { parseServerTime } from './format';
 
-/** img src 로 허용할 스킴. javascript: 같은 건 걸러냅니다. */
-const ALLOWED_SRC = /^(https?:\/\/|data:image\/|\/)/i;
+/*
+ * 썸네일로 띄울 img src.
+ *
+ * 예전에는 https?:// 도 허용했습니다. 서버가 본문에 남의 서버 주소가 들어오는 것을
+ * 막지 않던 때라, 글 하나로 게시판 목록을 연 모든 사람의 브라우저가 그 주소를 대신
+ * 불러 줬습니다(IP·브라우저 정보가 그쪽에 남습니다). 서버에서 막았고(server/postImages.js),
+ * 여기서도 직접 올린 사진과 우리 주소만 받습니다.
+ */
+const ALLOWED_SRC = /^(data:image\/|\/)/i;
 
 /**
  * DOMParser 로 파싱만 합니다.

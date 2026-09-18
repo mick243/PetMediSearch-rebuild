@@ -2,6 +2,7 @@ const conn = require('../mysql');
 const { logError } = require('../logError');
 const { verifyToken, OWNER_OR_ADMIN } = require('./authUser');
 const { textField, richTextHasContent } = require('./validate');
+const { findRemoteResource } = require('../postImages');
 
 /** posts.title 이 varchar(255) 라 그보다 낮게 둡니다. */
 const MAX_TITLE_LENGTH = 200;
@@ -26,6 +27,16 @@ const validatePost = (body) => {
     if (content.error) return { error: content.error };
     if (!richTextHasContent(content.value)) {
         return { error: '내용을 입력해주세요.' };
+    }
+
+    /*
+     * 본문이 바깥 주소를 받아오게 두지 않습니다 (../postImages.js 에 이유를 적었습니다).
+     * 후기 사진에 이미 같은 잣대가 있는데(controller/review.js 의 IMAGE_DATA_URL)
+     * 글 본문에만 없어서, 남의 서버 이미지가 그대로 저장되고 있었습니다.
+     */
+    const remote = findRemoteResource(content.value);
+    if (remote) {
+        return { error: '본문에는 직접 올린 사진만 넣을 수 있습니다.' };
     }
 
     return { value: { title: title.value, content: content.value } };

@@ -59,6 +59,17 @@ export default function CommentSection({ postId, postAuthorId }: Props) {
   const location = useLocation();
 
   /*
+   * 보내는 중인지를 ref 로도 들고 있습니다.
+   *
+   * sending 상태만으로는 막히지 않습니다. setSending(true) 는 다음 렌더에서야
+   * 반영되는데, 손가락이 빠르면 그 전에 submit 이 또 들어옵니다. 실제로 등록을
+   * 연달아 세 번 눌렀더니 댓글이 3개 달렸습니다. ref 는 그 자리에서 바뀌므로
+   * 같은 순간에 들어온 두 번째부터는 여기서 걸립니다.
+   * (버튼을 흐리게 하는 것은 여전히 sending 이 맡습니다 — 그건 보여 주는 일입니다.)
+   */
+  const sendingRef = useRef(false);
+
+  /*
    * 이모티콘 목록. 그림은 들어 있지 않고 id·이름만입니다.
    *
    * 피커를 열 때가 아니라 화면에 들어올 때 받아 옵니다 — 댓글에 이미 들어 있는
@@ -269,10 +280,11 @@ export default function CommentSection({ postId, postAuthorId }: Props) {
       navigate(`/login?next=${encodeURIComponent(nextFrom(location))}`);
       return;
     }
-    if (!draft.trim() || sending) return;
+    if (!draft.trim() || sendingRef.current) return;
 
     const wasReply = replyTo !== null;
 
+    sendingRef.current = true;
     setSending(true);
     try {
       await addComment(
@@ -297,6 +309,7 @@ export default function CommentSection({ postId, postAuthorId }: Props) {
     } catch (error: any) {
       alert(apiErrorMessage(error, '댓글을 등록하지 못했습니다.'));
     } finally {
+      sendingRef.current = false;
       setSending(false);
     }
   };

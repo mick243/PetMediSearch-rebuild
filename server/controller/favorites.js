@@ -33,21 +33,34 @@ const getFavorites = (req, res) => {
     });
 };
 
-// 즐겨찾기 추가. 이미 있으면 그대로 성공 처리
+/*
+ * 즐겨찾기 추가. 이미 있으면 그대로 성공 처리합니다(같은 별을 두 번 눌러도 오류가 아닙니다).
+ *
+ * 예전에는 INSERT IGNORE 였습니다. IGNORE 는 중복만이 아니라 **외래 키 오류까지**
+ * 경고로 낮춥니다. 그래서 없는 시설 번호를 보내도 err 이 null 로 돌아왔고,
+ * 아래에 준비해 둔 ER_NO_REFERENCED_ROW_2 분기는 한 번도 실행된 적이 없습니다.
+ * 화면에는 "즐겨찾기에 추가했습니다" 가 뜨는데 목록은 비어 있었습니다.
+ *
+ * 그냥 INSERT 로 넣고, 중복(ER_DUP_ENTRY)만 성공으로 받습니다.
+ */
 const addFavorite = (req, res) => {
     const user_id = requireUser(req, res);
     if (!user_id) return;
 
     conn.query(
-        'INSERT IGNORE INTO favorite_facilities (user_id, facility_id) VALUES (?, ?)',
+        'INSERT INTO favorite_facilities (user_id, facility_id) VALUES (?, ?)',
         [user_id, req.params.facility_id],
         (err) => {
             if (err) {
-                logError('favorites', err);
-                // 없는 시설 id 면 FK 에러
-                if (err.code === 'ER_NO_REFERENCED_ROW_2') {
+                // 이미 즐겨찾기한 곳. 누르기 전과 결과가 같으므로 성공으로 답합니다.
+                if (err.code === 'ER_DUP_ENTRY') {
+                    return res.send({ message: '즐겨찾기에 추가했습니다.' });
+                }
+                // 없는 시설 번호(외래 키). 이제 여기로 옵니다.
+                if (err.code === 'ER_NO_REFERENCED_ROW_2' || err.code === 'ER_NO_REFERENCED_ROW') {
                     return res.status(404).send({ message: '해당 시설을 찾을 수 없습니다.' });
                 }
+                logError('favorites', err);
                 return res.status(500).send({ message: '서버 에러 발생' });
             }
             return res.send({ message: '즐겨찾기에 추가했습니다.' });
