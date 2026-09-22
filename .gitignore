@@ -6,4 +6,6 @@ node_modules
 
 .DS_Store
 # Claude Code 작업 디렉터리 (워크트리·실행 설정)
-.claude/
+.claude/*
+# 단, 상시 규칙은 버전 관리에 남깁니다.
+!.claude/rules/
