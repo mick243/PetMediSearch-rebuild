@@ -5,6 +5,7 @@ import Spinner from '../../components/common/Spinner';
 import { useDispatch } from 'react-redux';
 import { setLogin } from '../../store/slices/authSlice';
 import { verifyOAuthState } from '../../utils/oauthState';
+import { takeNext } from '../../utils/afterLogin';
 
 const BASE_URL = import.meta.env.VITE_BASE_URL;
 
@@ -41,7 +42,8 @@ function LoginRedirectKakao() {
               user: data.user,
             })
           );
-          navigate('/myprofile');
+          /* 로그인하러 오기 전에 막혔던 자리로 돌려보냅니다 (utils/afterLogin.ts). */
+          navigate(takeNext() ?? '/myprofile');
         } else {
           throw new Error('Login failed');
         }

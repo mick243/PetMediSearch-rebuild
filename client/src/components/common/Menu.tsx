@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { BsFileEarmarkRichtextFill } from 'react-icons/bs';
-import { FaSearchLocation, FaUser } from 'react-icons/fa';
+import { FaSearchLocation, FaStar, FaSyringe, FaUser } from 'react-icons/fa';
 import { HiBars3, HiXMark } from 'react-icons/hi2';
+import { MdRateReview } from 'react-icons/md';
 import { RiLoginBoxFill, RiLogoutBoxFill } from 'react-icons/ri';
 import { useDispatch, useSelector } from 'react-redux';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -21,6 +22,14 @@ interface MenuItem {
  *
  * 예전에는 아이콘 3~4개가 그대로 노출돼 있어서, 무엇을 뜻하는지 눌러봐야 알았습니다.
  * 햄버거로 접고 펼쳤을 때 아이콘과 기능 이름을 함께 보여줍니다.
+ *
+ * 앱 전체에서 화면을 옮기는 길은 여기뿐입니다(하단 탭 같은 것이 없습니다).
+ * 그래서 화면 하나가 여기 빠지면 사실상 없는 기능이 됩니다 — 후기·즐겨찾기·
+ * 접종 일정이 그랬습니다. 후기는 지도에서 시설 정보창을 열어야만 닿을 수 있었고,
+ * 즐겨찾기와 접종 일정은 홈의 작은 타일 두 개가 유일한 입구였습니다.
+ *
+ * 로그인해야 열리는 화면은 로그인한 뒤에만 보여 줍니다. 비회원에게 보여 주면
+ * 눌렀을 때 LoginProtect 가 알림을 띄우고 로그인으로 튕겨내기만 합니다.
  */
 function Menu() {
   const [open, setOpen] = useState(false);
@@ -75,6 +84,24 @@ function Menu() {
     },
     ...(isLogin
       ? [
+          {
+            key: 'review',
+            label: '시설 후기',
+            icon: <MdRateReview />,
+            onSelect: () => navigate('/Review'),
+          },
+          {
+            key: 'favorites',
+            label: '즐겨찾기',
+            icon: <FaStar />,
+            onSelect: () => navigate('/favorites'),
+          },
+          {
+            key: 'vaccinations',
+            label: '접종·검진 일정',
+            icon: <FaSyringe />,
+            onSelect: () => navigate('/vaccinations'),
+          },
           {
             key: 'myprofile',
             label: '마이페이지',

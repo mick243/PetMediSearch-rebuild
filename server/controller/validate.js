@@ -93,7 +93,17 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
  * YYYY-MM-DD 날짜. `future: false` 면 미래 날짜를 거부합니다.
  * 생일에 미래 날짜가 들어가면 홈의 나이 계산이 음수가 됩니다.
  */
-const dateField = (raw, { label, required = true, future = true }) => {
+/**
+ * YYYY-MM-DD 날짜.
+ *
+ * @param {object} opts
+ * @param {boolean} [opts.future] false 면 오늘 이후를 막습니다 (생일처럼 지난 날만 되는 값).
+ * @param {string}  [opts.min] 이 날짜(YYYY-MM-DD)보다 앞서면 막습니다.
+ * @param {string}  [opts.max] 이 날짜보다 뒤면 막습니다.
+ *
+ * min·max 는 ISO 문자열이라 사전순 비교가 곧 날짜순 비교입니다.
+ */
+const dateField = (raw, { label, required = true, future = true, min, max } = {}) => {
     if (raw === undefined || raw === null || raw === '') {
         return required ? { error: `${eul(label)} 입력해주세요.` } : { value: null };
     }
@@ -128,7 +138,22 @@ const dateField = (raw, { label, required = true, future = true }) => {
         today.setHours(23, 59, 59, 999);
         if (parsed > today) return { error: `${eun(label)} 오늘 이후일 수 없습니다.` };
     }
+    if (min && value < min) return { error: `${eun(label)} ${min} 이후여야 합니다.` };
+    if (max && value > max) return { error: `${eun(label)} ${max} 이전이어야 합니다.` };
     return { value };
+};
+
+/**
+ * 오늘에서 몇 해 떨어진 날을 YYYY-MM-DD 로.
+ *
+ * 값 자체가 상한·하한이라 하루 어긋나도 뜻이 달라지지 않습니다. 시간대를 따지지
+ * 않고 그 기계의 달력을 그대로 씁니다.
+ */
+const yearsFromToday = (years) => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() + years);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 };
 
 /*
@@ -162,5 +187,6 @@ module.exports = {
     decimalField,
     dateField,
     timeField,
+    yearsFromToday,
     richTextHasContent,
 };

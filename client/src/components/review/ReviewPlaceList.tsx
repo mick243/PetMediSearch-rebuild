@@ -5,7 +5,7 @@ import { PlaceData } from '../../types/place.type';
 import { setSelectPlace } from '../../store/slices/placeSlice';
 import PaginationComp from '../common/PaginationComp';
 import { useState } from 'react';
-import { MdInbox } from 'react-icons/md';
+import { MdInbox, MdSearch } from 'react-icons/md';
 import {
   MdDoNotDisturbOnTotalSilence,
   MdExpandCircleDown,
@@ -18,7 +18,19 @@ import {
 
 function ReviewPlaceList() {
   const dispatch = useDispatch();
-  const { searchPlaceResults } = useSelector((state: RootState) => state.place);
+  const { searchPlaceResults, searchSeq } = useSelector(
+    (state: RootState) => state.place
+  );
+
+  /*
+   * 아직 한 번도 검색하지 않은 상태와, 검색했는데 없는 상태는 다릅니다.
+   * 예전에는 둘 다 "검색된 결과가 없습니다." 였습니다. 화면에 들어오자마자
+   * 그 문구가 크게 떠서, 이 앱에 후기가 하나도 없는 것처럼 읽혔습니다.
+   *
+   * searchSeq 는 검색 버튼을 누를 때마다 올라갑니다(store/slices/placeSlice.ts).
+   * 0 이면 아직 아무것도 찾아보지 않은 것입니다.
+   */
+  const notSearchedYet = searchSeq === 0 && searchPlaceResults.length === 0;
 
   const [currentPage, setCurrentPage] = useState(1);
   const postsPerPage = 6;
@@ -41,8 +53,21 @@ function ReviewPlaceList() {
     <ReviewPlaceListStyle>
       {searchPlaceResults.length === 0 ? (
         <div className="noResults">
-          <MdInbox className="emptyIcon" />
-          <p>검색된 결과가 없습니다.</p>
+          {notSearchedYet ? (
+            <MdSearch className="emptyIcon" />
+          ) : (
+            <MdInbox className="emptyIcon" />
+          )}
+          <p>
+            {notSearchedYet
+              ? '후기를 볼 시설을 검색해 주세요.'
+              : '검색된 결과가 없습니다.'}
+          </p>
+          {notSearchedYet && (
+            <span className="hint">
+              병원·약국 이름이나 주소를 위에 입력하면 이곳에 나옵니다.
+            </span>
+          )}
         </div>
       ) : (
         <>
@@ -229,6 +254,16 @@ const ReviewPlaceListStyle = styled.div`
       border-bottom: solid black;
       padding: 10px;
       font-size: 20px;
+      /* 상호가 긴 시설처럼 이 문구도 좁은 화면에서 줄이 바뀝니다. */
+      text-align: center;
+      word-break: keep-all;
+    }
+    .hint {
+      padding-top: 10px;
+      font-size: 12px;
+      color: #767676;
+      text-align: center;
+      word-break: keep-all;
     }
   }
 

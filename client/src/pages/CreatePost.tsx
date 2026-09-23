@@ -15,18 +15,32 @@ import {
   SubmitBt,
   TitleInput,
 } from '../components/board/postEditor';
+import {
+  useUnsavedGuard,
+  richTextIsEmpty,
+} from '../components/board/useUnsavedGuard';
 import { RootState } from '../store';
 import { addPosts } from '../apis/Posts.api';
+import { apiErrorMessage } from '../utils/apiError';
 
 const CreatePost = () => {
   const navigate = useNavigate();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  /** 등록·취소로 나갈 때는 이미 한 번 물었으므로 또 묻지 않습니다. */
+  const leavingRef = useRef(false);
   /** 따로 고르지 않으면 통합(1)에 올라갑니다. */
   const [categoryId, setCategoryId] = useState<number | null>(1);
   const quillRef = useRef<ReactQuill>(null);
   const modules = useQuillModules(quillRef);
   const user = useSelector((state: RootState) => state.auth.user);
+
+  useUnsavedGuard(
+    () =>
+      !leavingRef.current &&
+      (title.trim().length > 0 || !richTextIsEmpty(content)),
+    '쓰던 글이 사라집니다. 그래도 나가시겠습니까?'
+  );
 
   const formSubmit = async () => {
     if (categoryId == null) {
@@ -46,14 +60,17 @@ const CreatePost = () => {
     try {
       await addPosts(user.id, title, content, String(categoryId));
       alert('게시글이 등록되었습니다.');
+      leavingRef.current = true;
       navigate(`/posts?categoryId=${categoryId}`);
     } catch (error) {
       console.error(error);
+      alert(apiErrorMessage(error, '게시글을 등록하지 못했습니다.'));
     }
   };
 
   const formCancel = () => {
     if (window.confirm('게시글 작성을 취소하시겠습니까?')) {
+      leavingRef.current = true;
       navigate('/posts');
     }
   };
