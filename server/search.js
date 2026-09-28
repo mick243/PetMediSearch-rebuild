@@ -116,6 +116,25 @@ function keywordScoreExpr(keyword, values) {
   return `(${parts.join(' + ')})`;
 }
 
+/** medical_facilities.type 의 ENUM('약국', '병원') 과 같아야 합니다 (scripts/createFacilitiesTable.sql). */
+const FACILITY_TYPES = ['병원', '약국'];
+
+/**
+ * 시설 종류 조건. 안 보내면 둘 다이고, 보내면 두 값 중 하나여야 합니다.
+ *
+ * 예전에는 쿼리스트링 값을 그대로 넣었습니다. Express 는 같은 이름이 두 번 오면 배열을,
+ * `type[a]=` 같은 모양이면 객체를 만들어서, 그런 값은 DB 에 가서야 오류가 나 500 이
+ * 됐습니다. 화면은 '병원' · '약국' 둘 중 하나만 보냅니다(SearchMap.tsx).
+ *
+ * @returns {{ value: string | null } | { error: string }}
+ */
+function facilityTypeFilter(type) {
+  if (type === undefined || type === '') return { value: null };
+  if (!FACILITY_TYPES.includes(type)) {
+    return { error: `시설 종류는 ${FACILITY_TYPES.join(' · ')} 중 하나여야 합니다.` };
+  }
+  return { value: type };
+}
 
 module.exports = {
     REGION_ALIASES,
@@ -125,4 +144,5 @@ module.exports = {
     loosePattern,
     keywordClause,
     keywordScoreExpr,
+    facilityTypeFilter,
 };

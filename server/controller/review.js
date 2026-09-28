@@ -1,19 +1,13 @@
 const conn = require('../mysql');
 const { logError } = require('../logError');
 const { verifyToken } = require('./authUser');
-const { textField, intField } = require('./validate');
+const { textField, intField, idField, isImageDataUrl } = require('./validate');
 const { refreshSummary, refreshForReview, getSummary } = require('./reviewSummary');
 
 /*
  * 붙임 사진은 브라우저에서 줄인 JPEG 를 data URL 로 받습니다 (pets.photo 와 같은 방식).
- *
- * 화면이 이미 줄여서 보내지만 요청은 화면을 거치지 않고도 올 수 있어 여기서 한 번 더 봅니다.
- * 특히 data URL 이 아닌 값(예: 남의 서버 주소)을 그대로 저장하면, 후기를 보는 사람의
- * 브라우저가 그 주소를 대신 불러 주게 됩니다.
+ * 한 장 한 장의 규칙은 validate.js 의 isImageDataUrl 에 있고, 반려동물 사진도 같은 것을 씁니다.
  */
-const IMAGE_DATA_URL = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
-/** mediumtext 는 16MB 까지 들어가지만, 본문 상한(app.js 의 3mb)에 맞춰 더 좁게 둡니다. */
-const MAX_IMAGE_LENGTH = 2 * 1024 * 1024;
 
 /** 한 후기에 붙일 수 있는 장수. 본문 상한(app.js 의 3mb)과 보기 좋은 수를 함께 본 값입니다. */
 const MAX_IMAGES = 5;
@@ -30,11 +24,7 @@ const normalizeImages = (value) => {
     if (kept.length === 0) return null;
     if (kept.length > MAX_IMAGES) return false;
 
-    for (const one of kept) {
-        if (typeof one !== 'string') return false;
-        if (one.length > MAX_IMAGE_LENGTH) return false;
-        if (!IMAGE_DATA_URL.test(one)) return false;
-    }
+    if (!kept.every(isImageDataUrl)) return false;
     return JSON.stringify(kept);
 };
 
@@ -119,7 +109,7 @@ const getReviewImages = async (req, res) => {
 
 // 리뷰 등록
 const createReview = async (req, res) => {
-    const { facility_id, rating, review_content, images } = req.body;
+    const { rating, review_content, images } = req.body;
     const token = req.headers.authorization?.split(' ')[1];
     const decoded = verifyToken(token);
 
@@ -129,9 +119,9 @@ const createReview = async (req, res) => {
 
     const user_id = decoded.id;
 
-    if (!facility_id) {
-        return res.status(400).send({ message: '어느 곳의 후기인지 알 수 없습니다.' });
-    }
+    // 이 번호는 INSERT 뿐 아니라 뒤의 요약 갱신(refreshSummary)에도 그대로 넘어갑니다.
+    const facility = idField(req.body.facility_id, { label: '시설' });
+    if (facility.error) return res.status(400).send({ message: facility.error });
 
     const score = intField(rating, { label: '평점', min: 1, max: 5 });
     if (score.error) return res.status(400).send({ message: score.error });
@@ -150,8 +140,12 @@ const createReview = async (req, res) => {
         SELECT user_id, ?, ?, ?, ?, NOW()
           FROM users WHERE user_id = ? AND deleted_at IS NULL`;
 
-    conn.query(query, [facility_id, score.value, body.value, photos, user_id], (error, results) => {
+    conn.query(query, [facility.value, score.value, body.value, photos, user_id], (error, results) => {
         if (error) {
+            // 형식은 맞지만 없는 시설 번호(외래 키). favorites.js 와 같은 답입니다.
+            if (error.code === 'ER_NO_REFERENCED_ROW_2' || error.code === 'ER_NO_REFERENCED_ROW') {
+                return res.status(404).send({ message: '해당 시설을 찾을 수 없습니다.' });
+            }
             logError('review', error);
             return res.status(500).send({ message: '서버 오류 발생' });
         }
@@ -159,7 +153,7 @@ const createReview = async (req, res) => {
             return res.status(401).send({ message: '사용할 수 없는 계정입니다.' });
         }
         // 요약은 응답을 보낸 뒤 뒤에서 다시 만듭니다. 쓰는 사람이 모델을 기다리지 않습니다.
-        refreshSummary(facility_id);
+        refreshSummary(facility.value);
         return res.status(201).send({ message: '리뷰가 성공적으로 등록되었습니다' });
     });
 };

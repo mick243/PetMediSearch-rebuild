@@ -30,12 +30,25 @@ if [ ! -f "$ENV_FILE" ]; then
 fi
 
 # 주석과 빈 줄을 걸러 읽습니다.
-DB_NAME=$(grep -E '^DB_NAME=' "$ENV_FILE" | cut -d= -f2- | tr -d '\r')
-DB_USER=$(grep -E '^DB_USER=' "$ENV_FILE" | cut -d= -f2- | tr -d '\r')
-DB_PASSWORD=$(grep -E '^DB_PASSWORD=' "$ENV_FILE" | cut -d= -f2- | tr -d '\r')
+read_env() { grep -E "^$1=" "$ENV_FILE" | cut -d= -f2- | tr -d '\r'; }
 
-if [ -z "${DB_PASSWORD:-}" ]; then
-  echo "DB_PASSWORD 를 읽지 못했습니다." >&2
+DB_NAME=$(read_env DB_NAME)
+
+# 덤프는 root 로 뜹니다. 앱 계정은 행 읽기·쓰기만 있어(scripts/createDbUser.js) mysqldump 가
+# 쓰는 이벤트·루틴 조회 권한이 없습니다. DB_ROOT_PASSWORD 가 없는 예전 설정이면
+# DB_USER · DB_PASSWORD 로 뜹니다 — 그때는 그것이 root 였습니다.
+DB_ROOT_PASSWORD=$(read_env DB_ROOT_PASSWORD)
+if [ -n "$DB_ROOT_PASSWORD" ]; then
+  DUMP_USER=$(read_env DB_ROOT_USER)
+  DUMP_USER="${DUMP_USER:-root}"
+  DUMP_PASSWORD="$DB_ROOT_PASSWORD"
+else
+  DUMP_USER=$(read_env DB_USER)
+  DUMP_PASSWORD=$(read_env DB_PASSWORD)
+fi
+
+if [ -z "${DUMP_PASSWORD:-}" ]; then
+  echo "DB_ROOT_PASSWORD 를 읽지 못했습니다." >&2
   exit 1
 fi
 
@@ -53,13 +66,15 @@ echo "백업 시작: $OUT"
 #
 # 비밀번호는 인자가 아니라 환경변수로 넘깁니다. 인자로 주면 같은 서버의 다른
 # 사용자가 ps 로 볼 수 있습니다.
-if ! MYSQL_PWD="$DB_PASSWORD" docker compose exec -T \
-      -e MYSQL_PWD="$DB_PASSWORD" "$DB_SERVICE" \
+#
+# --env-file 은 compose 파일의 ${DB_…} 를 채우는 데 필요합니다. 없으면 exec 도 멈춥니다.
+if ! MYSQL_PWD="$DUMP_PASSWORD" docker compose --env-file "$ENV_FILE" exec -T \
+      -e MYSQL_PWD="$DUMP_PASSWORD" "$DB_SERVICE" \
       mysqldump \
         --single-transaction \
         --routines --events \
         --default-character-set=utf8mb4 \
-        -u"$DB_USER" "$DB_NAME" \
+        -u"$DUMP_USER" "$DB_NAME" \
     | gzip > "$OUT"; then
   echo "백업 실패" >&2
   # 반쯤 쓰다 만 파일은 지웁니다. 남겨 두면 나중에 멀쩡한 백업으로 착각합니다.

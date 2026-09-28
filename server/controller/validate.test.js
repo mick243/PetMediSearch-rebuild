@@ -4,11 +4,13 @@ const assert = require('node:assert/strict');
 const {
     textField,
     intField,
+    idField,
     decimalField,
     dateField,
     yearsFromToday,
     timeField,
     richTextHasContent,
+    isImageDataUrl,
 } = require('./validate');
 
 /*
@@ -239,4 +241,41 @@ test('yearsFromToday: YYYY-MM-DD 로 돌려준다', () => {
     assert.match(yearsFromToday(0), /^\d{4}-\d{2}-\d{2}$/);
     assert.strictEqual(Number(yearsFromToday(-30).slice(0, 4)), now - 30);
     assert.strictEqual(Number(yearsFromToday(30).slice(0, 4)), now + 30);
+});
+
+test('idField: 숫자와 숫자만 든 문자열을 번호로 받는다', () => {
+    assert.deepEqual(idField(12, { label: '글' }), { value: 12 });
+    assert.deepEqual(idField('12', { label: '글' }), { value: 12 });
+    assert.deepEqual(idField(2147483647, { label: '글' }), { value: 2147483647 });
+});
+
+test('idField: 숫자처럼 보이기만 하는 값은 번호로 받지 않는다', () => {
+    // Number() 에 맡기면 [5] 는 5, true 는 1, '1e3' 은 1000 이 되어 엉뚱한 번호로 통과합니다.
+    const notIds = [[5], { id: 5 }, true, '1e3', ' 5', '5abc', '0x10', 1.5, 0, -3, '2147483648'];
+    for (const raw of notIds) {
+        assert.equal(idField(raw, { label: '글' }).error, '글 번호가 올바르지 않습니다.', JSON.stringify(raw));
+    }
+});
+
+test('idField: 비어 있으면 필수는 오류, 선택은 null', () => {
+    assert.equal(idField(undefined, { label: '시설' }).error, '어느 시설인지 알 수 없습니다.');
+    assert.deepEqual(idField(null, { label: '원댓글', required: false }), { value: null });
+    assert.deepEqual(idField('', { label: '분류', required: false }), { value: null });
+});
+
+test('isImageDataUrl: 줄인 JPEG · PNG · WebP data URL 만 사진으로 받는다', () => {
+    assert.equal(isImageDataUrl('data:image/jpeg;base64,/9j/4AAQSkZJRg=='), true);
+    assert.equal(isImageDataUrl('data:image/png;base64,iVBORw0KGgo='), true);
+    assert.equal(isImageDataUrl('data:image/webp;base64,UklGRg=='), true);
+
+    // svg 는 스크립트가 들어가고, data URL 이 아닌 값은 보는 사람의 브라우저가 대신 불러 줍니다.
+    assert.equal(isImageDataUrl('data:image/svg+xml;base64,PHN2Zz4='), false);
+    assert.equal(isImageDataUrl('not-a-photo'), false);
+    assert.equal(isImageDataUrl(['data:image/jpeg;base64,AAAA']), false);
+});
+
+test('isImageDataUrl: 2MB 를 넘으면 받지 않는다', () => {
+    const head = 'data:image/jpeg;base64,';
+    assert.equal(isImageDataUrl(head + 'A'.repeat(2 * 1024 * 1024 - head.length)), true);
+    assert.equal(isImageDataUrl(head + 'A'.repeat(2 * 1024 * 1024)), false);
 });

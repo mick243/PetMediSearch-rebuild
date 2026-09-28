@@ -1,0 +1,11 @@
+# 로컬 개발용 덧붙임. 호스트에서 `node app.js` 로 띄운 서버가 DB 에 닿도록 3306 을 엽니다.
+#
+#   docker compose --env-file server/.env -f docker-compose.yml -f docker-compose.dev.yml up -d db
+#
+# 127.0.0.1 에만 엽니다. 예전 개발 DB 는 `-p 3306:3306` 으로 모든 주소에 열려 있어서,
+# 켜 둔 채 카페·사내 와이파이에 붙으면 같은 망의 누구나 DB 에 접속을 시도할 수 있었습니다.
+# 운영 구성(docker-compose.yml)은 DB 를 아예 바깥에 열지 않습니다.
+services:
+  db:
+    ports:
+      - '127.0.0.1:3306:3306'

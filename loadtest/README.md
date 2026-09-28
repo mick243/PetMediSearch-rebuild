@@ -63,6 +63,10 @@ k6 가 VU 마다 다른 `X-Forwarded-For` 를 붙이므로, 이 설정이 있어
 
 `DB_NAME` 은 `.env` 보다 우선합니다 (dotenv 는 이미 있는 환경변수를 덮지 않습니다).
 
+앱 계정(`DB_USER`)은 `petmedisearch` 에만 권한이 있어 사본 DB 에는 닿지 못합니다
+(`server/scripts/createDbUser.js`). 사본을 만들고 채우고 두드리는 명령(seedScale ·
+loadtestPrepare · 위 서버)은 앞에 `DB_USER=root DB_PASSWORD=<root 암호>` 를 붙여 root 로 돌립니다.
+
 ### 2. 준비물 만들기
 
 ```bash

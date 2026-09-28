@@ -1,0 +1,38 @@
+const test = require('node:test');
+const assert = require('node:assert');
+const mysql = require('mysql2');
+const { statements, checkSettings } = require('./createDbUser');
+
+/*
+ * 앱 계정의 권한 목록을 못박습니다(scripts/createDbUser.js).
+ * 넓혀도 앱은 그대로 돌아서 눈으로는 알 수 없는 자리입니다. 연결은 열지 않습니다.
+ */
+
+const settings = { user: 'petmedisearch_app', password: 'x'.repeat(24), database: 'petmedisearch' };
+const rendered = () => statements(settings).map(([sql, values]) => mysql.format(sql, values));
+
+test('앱 계정은 자기 DB 의 행 읽기·쓰기와 emoticons 의 ALTER 만 받는다', () => {
+    const grants = rendered().filter((sql) => sql.startsWith('GRANT'));
+
+    assert.deepStrictEqual(grants, [
+        "GRANT SELECT, INSERT, UPDATE, DELETE ON `petmedisearch`.* TO 'petmedisearch_app'@'%'",
+        "GRANT ALTER ON `petmedisearch`.`emoticons` TO 'petmedisearch_app'@'%'",
+    ]);
+});
+
+test('다시 돌리면 예전에 준 넓은 권한부터 걷어낸다', () => {
+    const sqls = rendered();
+    const revoke = sqls.findIndex((sql) => sql.startsWith('REVOKE ALL PRIVILEGES, GRANT OPTION'));
+
+    assert.ok(revoke >= 0);
+    assert.ok(revoke < sqls.findIndex((sql) => sql.startsWith('GRANT')));
+});
+
+test('root 로 두거나 짧은 암호면 돌지 않는다', () => {
+    const ok = { ...settings, rootPassword: 'r' };
+
+    assert.strictEqual(checkSettings(ok), null);
+    assert.match(checkSettings({ ...ok, user: 'root' }), /root/);
+    assert.match(checkSettings({ ...ok, password: 'password' }), /16자/);
+    assert.match(checkSettings({ ...ok, rootPassword: '' }), /DB_ROOT_PASSWORD/);
+});

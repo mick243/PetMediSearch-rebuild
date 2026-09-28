@@ -177,6 +177,10 @@ if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: '이�
 에디터 본문은 `trim` 으로 부족합니다. ReactQuill 이 빈 글을 `<p><br></p>` 로
 보내서 `!content` 에 걸리지 않습니다 — `richTextHasContent` 로 봅니다.
 
+다른 표를 가리키는 번호(`post_id` · `facility_id` · `category_id`)는 `idField` 로 봅니다.
+JSON 본문과 쿼리스트링의 값은 배열이나 객체일 수 있고, `Number()` 는 `[5]` 와 `true` 까지
+숫자로 바꿔 줍니다. 사진 data URL 은 `isImageDataUrl` 하나로 봅니다(후기·반려동물 공용).
+
 ### 2.11 오류는 `logError` 로 남긴다
 
 ```js
@@ -196,6 +200,11 @@ axios 오류를 통째로 찍으면 요청 config 에 실린 `client_secret` 까
 
 프록시 뒤에 두면 `TRUST_PROXY` 를 설정해야 합니다. 없으면 모든 사용자가
 프록시 주소 하나로 묶여, 한 사람 때문에 전부 막힙니다.
+
+반대로 **프록시를 거치지 않고 API 포트에 바로 닿는 길이 있으면 켜지 않습니다** — 한도가
+제 역할을 못 합니다. 그래서 `docker-compose.yml` 은 API 를 `127.0.0.1` 에만 열고, 이 값을
+박아 두지 않고 `server/.env` 에 둡니다. 값을 읽는 규칙은 `server/trustProxy.js` 입니다
+(`true` 는 서버가 뜨지 않습니다).
 
 ---
 
@@ -458,6 +467,10 @@ MySQL 설정 파일(`my.cnf`)로 푸는 방법은 **Windows 에서 통하지 않
   npm 을 거치면 SIGTERM 이 node 까지 가지 않아 위 처리가 동작하지 않습니다.
 - **환경변수를 늘리면 `server/.env.example` 에도 적습니다.** 실제 `.env` 는
   git 에 없어서, 그 파일이 유일한 목록입니다.
+- **앱은 root 로 DB 에 붙지 않습니다.** 전용 계정(`scripts/createDbUser.js`)은 자기 DB 의
+  행 읽기·쓰기와 `emoticons` 의 ALTER 만 갖습니다. 스키마 변경·백업·규모 시드는 root 로
+  하고, root 암호(`DB_ROOT_PASSWORD`)는 앱 컨테이너에 넘기지 않습니다. 비밀번호는 코드에
+  적지 않습니다 — `importData.js` 에 root 암호가 박혀 공개돼 있었습니다.
 
 ---
 

@@ -1,7 +1,9 @@
 const conn = require('../mysql');
 const { logError } = require('../logError');
 const { verifyToken } = require('./authUser');
-const { textField, decimalField, dateField, timeField, yearsFromToday } = require('./validate');
+const {
+    textField, idField, decimalField, dateField, timeField, yearsFromToday, isImageDataUrl,
+} = require('./validate');
 
 /** pets.weight_kg 는 decimal(5,2) 라 999.99 까지 들어가지만, 실제로 가능한 범위로 좁힙니다. */
 const MAX_WEIGHT_KG = 200;
@@ -33,17 +35,32 @@ const validatePet = (body) => {
     });
     if (weight.error) return { error: weight.error };
 
+    // 분류는 고르지 않아도 됩니다. 화면은 그때 null 을 보냅니다.
+    const category = idField(body.category_id, { label: '분류', required: false });
+    if (category.error) return { error: category.error };
+
+    /*
+     * 사진도 후기 사진과 같은 규칙으로 봅니다(validate.js 의 isImageDataUrl).
+     * 예전에는 받은 문자열을 그대로 저장해서, data URL 이 아닌 값도 들어갔습니다.
+     */
+    const photo = body.photo === undefined || body.photo === null || body.photo === '' ? null : body.photo;
+    if (photo !== null && !isImageDataUrl(photo)) return { error: '사진을 읽을 수 없습니다.' };
+
     return {
         value: {
             name: name.value,
             breed: breed.value,
             birth_date: birthDate.value,
             weight_kg: weight.value,
-            category_id: body.category_id || null,
-            photo: body.photo || null,
+            category_id: category.value,
+            photo,
         },
     };
 };
+
+/** 형식은 맞지만 없는 분류 번호(외래 키). post.js 와 같이 보낸 쪽이 틀린 것으로 봅니다. */
+const isMissingCategory = (err) =>
+    err.code === 'ER_NO_REFERENCED_ROW_2' || err.code === 'ER_NO_REFERENCED_ROW';
 
 /** 토큰에서 사용자 id 를 꺼냅니다. 없으면 401 을 보내고 null 을 돌려줍니다. */
 function requireUser(req, res) {
@@ -115,6 +132,7 @@ const addPet = (req, res) => {
 
     conn.query(query, values, (err, result) => {
         if (err) {
+            if (isMissingCategory(err)) return res.status(400).send({ message: '없는 분류입니다.' });
             logError('pets', err);
             return res.status(500).send({ message: '서버 에러 발생' });
         }
@@ -141,6 +159,7 @@ const updatePet = (req, res) => {
 
     conn.query(query, values, (err, result) => {
         if (err) {
+            if (isMissingCategory(err)) return res.status(400).send({ message: '없는 분류입니다.' });
             logError('pets', err);
             return res.status(500).send({ message: '서버 에러 발생' });
         }

@@ -2,12 +2,28 @@ const fs = require('fs');
 const mysql = require('mysql2/promise');
 const path = require('path');
 
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+
+/*
+ * 접속 정보는 다른 스크립트와 같이 server/.env 에서 읽습니다.
+ *
+ * 예전에는 localhost · root · 'password' 가 여기 박혀 있었습니다. 공개 저장소라 그 값이
+ * 첫 커밋부터 누구에게나 보였고, 개발 DB 의 root 암호가 실제로 그 값이었습니다.
+ * 호스트도 박혀 있어서 README 의 `docker compose exec api node scripts/importData.js`
+ * (DB 가 localhost 가 아니라 db 에 있음)는 한 번도 돌 수 없었습니다.
+ */
+const missing = ['DB_HOST', 'DB_USER', 'DB_NAME'].filter((key) => !process.env[key]);
+if (missing.length) {
+  console.error(`server/.env 에 다음 값이 필요합니다: ${missing.join(', ')}`);
+  process.exit(1);
+}
+
 const dbConfig = {
-  host: 'localhost',
-  port: 3306,
-  user: 'root',
-  password: 'password',
-  database: 'petmedisearch',
+  host: process.env.DB_HOST,
+  port: Number(process.env.DB_PORT) || 3306,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
 };
 
 function validateAndConvert(value, type) {

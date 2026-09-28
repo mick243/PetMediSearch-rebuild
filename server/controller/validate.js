@@ -71,6 +71,34 @@ const intField = (raw, { label, min, max, required = true }) => {
     return { value };
 };
 
+/** MySQL INT 의 상한. 이보다 큰 번호는 표에 있을 수 없습니다. */
+const MAX_ID = 2147483647;
+const ID_TEXT = /^[1-9]\d*$/;
+
+/**
+ * 다른 표의 행을 가리키는 번호 (post_id · facility_id · category_id …).
+ *
+ * 예전에는 본문에서 받은 번호를 그대로 쿼리에 넣었습니다. JSON 본문의 값은 숫자가
+ * 아니라 배열이나 객체일 수도 있어서, 그런 값은 DB 에 가서야 오류가 나 500 이 됐습니다
+ * (docs/QA-2026-09-13.md). mysql.js 의 stringifyObjects 는 그때 SQL 이 바뀌지 않게
+ * 막는 마지막 그물이고, 타입은 여기서 봅니다.
+ *
+ * intField 보다 좁게 받습니다. Number() 는 [5] 를 5 로, true 를 1 로, '1e3' 을 1000 으로
+ * 바꿔 주므로 숫자처럼 보이기만 하면 엉뚱한 번호가 됩니다. 화면은 숫자나 숫자만 든
+ * 문자열을 보내니 그 둘만 받습니다.
+ */
+const idField = (raw, { label, required = true }) => {
+    if (raw === undefined || raw === null || raw === '') {
+        return required ? { error: `어느 ${label}인지 알 수 없습니다.` } : { value: null };
+    }
+
+    const text = typeof raw === 'number' ? String(raw) : raw;
+    if (typeof text !== 'string' || !ID_TEXT.test(text) || Number(text) > MAX_ID) {
+        return { error: `${label} 번호가 올바르지 않습니다.` };
+    }
+    return { value: Number(text) };
+};
+
 /** 소수 범위. 몸무게처럼 정수가 아닐 수 있는 값에 씁니다. */
 const decimalField = (raw, { label, min, max, required = true }) => {
     if (raw === undefined || raw === null || raw === '') {
@@ -181,12 +209,31 @@ const timeField = (raw, { label, required = false }) => {
     return { value: value.slice(0, 5) };
 };
 
+/*
+ * 사진은 브라우저에서 줄인 JPEG 를 data URL 로 받습니다. 후기 사진(review.js)과
+ * 반려동물 사진(pets.js)이 같은 규칙을 씁니다.
+ *
+ * 화면이 이미 줄여서 보내지만 요청은 화면을 거치지 않고도 올 수 있어 여기서 한 번 더 봅니다.
+ * svg+xml 은 스크립트가 들어가서 막고, data URL 이 아닌 값(예: 남의 서버 주소)은 저장해 두면
+ * 그 사진을 보는 사람의 브라우저가 그 주소를 대신 불러 주게 돼서 막습니다.
+ * 반려동물 사진은 예전에 이 검사가 없어 아무 문자열이나 저장됐습니다.
+ */
+const IMAGE_DATA_URL = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
+/** mediumtext 는 16MB 까지 들어가지만, 본문 상한(app.js 의 3mb)에 맞춰 더 좁게 둡니다. */
+const MAX_IMAGE_LENGTH = 2 * 1024 * 1024;
+
+/** 길이를 먼저 봅니다. 상한을 넘는 문자열에 정규식을 돌릴 이유가 없습니다. */
+const isImageDataUrl = (value) =>
+    typeof value === 'string' && value.length <= MAX_IMAGE_LENGTH && IMAGE_DATA_URL.test(value);
+
 module.exports = {
     textField,
     intField,
+    idField,
     decimalField,
     dateField,
     timeField,
     yearsFromToday,
     richTextHasContent,
+    isImageDataUrl,
 };

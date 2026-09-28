@@ -276,7 +276,7 @@ async function fetchNationwide({ resource, since, label }) {
 // ---------------------------------------------------------------- DB
 
 function dbConfig() {
-  // importData.js 와 달리 .env 를 사용합니다. 배포 DB에도 그대로 쓸 수 있습니다.
+  // .env 를 사용합니다(importData.js 도 같습니다). 배포 DB에도 그대로 쓸 수 있습니다.
   const missing = ['DB_HOST', 'DB_USER', 'DB_NAME'].filter((k) => !process.env[k]);
   if (missing.length) {
     throw new Error(`.env 에 다음 값이 필요합니다: ${missing.join(', ')}`);
