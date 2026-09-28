@@ -5,12 +5,13 @@ import { PrismaClient } from '../generated/prisma/client.js';
 /*
  * Prisma 클라이언트 하나. 저장소(repositories/*)만 이것을 씁니다.
  *
- * mysql2 풀(mysql.ts)과 같은 접속 정보로 붙습니다. 모듈을 하나씩 옮기는 동안은 두 풀이
- * 같이 도므로, 이쪽 커넥션 수는 작게 둡니다 — 둘을 합친 수가 MySQL 의 max_connections(기본
- * 151)에 인스턴스 수를 곱한 만큼 잡습니다. 다 옮기면 mysql.ts 를 지우고 이 값을 DB_POOL_SIZE
- * 로 합칩니다.
+ * 예전에는 mysql2 로 커넥션 하나를 앱 전체가 나눠 썼습니다. 쿼리가 한 줄로 서고, MySQL 의
+ * wait_timeout(8시간)에 끊긴 뒤 되살아나지 않았습니다. 풀은 필요할 때 만들고 죽은 것은 버립니다.
+ *
+ * 동시에 열어 둘 커넥션 수. MySQL 의 max_connections 는 기본 151 입니다. 앱을 여러 개 띄우면
+ * 이 값에 인스턴스 수를 곱한 만큼 잡으므로, 늘릴 때는 DB 쪽도 함께 봐야 합니다.
  */
-const CONNECTION_LIMIT = Number(process.env.PRISMA_POOL_SIZE) || 5;
+const CONNECTION_LIMIT = Number(process.env.DB_POOL_SIZE) || 10;
 
 const adapter = new PrismaMariaDb({
     host: process.env.DB_HOST,
@@ -19,6 +20,17 @@ const adapter = new PrismaMariaDb({
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
     connectionLimit: CONNECTION_LIMIT,
+
+    /*
+     * MySQL 8 의 기본 인증(caching_sha2_password)은 계정이 **처음** 붙을 때 서버의 RSA 공개키로
+     * 암호를 감싸 보냅니다(TLS 가 없을 때). 이 드라이버는 기본으로 그 키를 서버에 요청하지 않아,
+     * 새 계정의 첫 접속이 실패했습니다 — 서버 재시작 뒤에도 마찬가지입니다(캐시가 비므로).
+     * mysql2 를 같이 쓰던 동안은 mysql2 가 먼저 붙어 캐시를 데워 놓아 드러나지 않았습니다.
+     * 기준선(앱 계정을 매번 새로 만듦)에서 모든 요청이 8초 뒤 P2010 으로 끝나 찾았습니다.
+     *
+     * DB 와 TLS 로 붙는다면 이 옵션은 필요 없습니다(그때는 ssl 을 켜고 이 줄을 지웁니다).
+     */
+    allowPublicKeyRetrieval: true,
 
     /*
      * 세션 시간대를 UTC 로 못박습니다.

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert';
 import axios from 'axios';
 import type { Request, Response } from 'express';
-import conn from '../mysql.js';
+import users from '../repositories/users.js';
 import * as authController from './auth.js';
 import authRouter from '../routes/auth.js';
 
@@ -40,13 +40,11 @@ test('소셜 로그인 중 DB 오류가 나도 500 으로 답하고 프로세스
     t.mock.method(axios, 'get', async () => ({ data: { id: 123, properties: { nickname: '테스트' } } }));
 
     /*
-     * 실제 mysql2 처럼 콜백을 다음 틱에 부릅니다. 같은 틱에 부르면 콜백에서 난 예외를
-     * Promise 가 삼켜 버려, 고치기 전 코드도 통과합니다. 예전 코드는 여기서 콜백 안의
-     * results[0] 이 TypeError 를 내 uncaughtException 으로 테스트가 깨집니다.
+     * 저장소가 DB 오류로 거부하는 상황입니다. 예전(mysql2 콜백) 코드는 오류일 때도 results[0] 을
+     * 읽어 TypeError 가 잡히지 않은 채 프로세스가 죽었습니다. 지금은 Promise 거부가 catch 로 갑니다.
      */
-    t.mock.method(conn, 'query', (sql: string, values: unknown, callback: (error: Error) => void) => {
-        const error = Object.assign(new Error('Connection lost'), { code: 'PROTOCOL_CONNECTION_LOST' });
-        setImmediate(() => callback(error));
+    t.mock.method(users, 'findBySocial', async () => {
+        throw Object.assign(new Error('Connection lost'), { code: 'PROTOCOL_CONNECTION_LOST' });
     });
     t.mock.method(console, 'error', () => {});
 

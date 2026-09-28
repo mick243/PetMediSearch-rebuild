@@ -93,7 +93,7 @@ const ID_TEXT = /^[1-9]\d*$/;
  *
  * 예전에는 본문에서 받은 번호를 그대로 쿼리에 넣었습니다. JSON 본문의 값은 숫자가
  * 아니라 배열이나 객체일 수도 있어서, 그런 값은 DB 에 가서야 오류가 나 500 이 됐습니다
- * (docs/QA-2026-09-13.md). mysql.ts 의 stringifyObjects 는 그때 SQL 이 바뀌지 않게
+ * (docs/QA-2026-09-13.md). Prisma 는 Int 자리에 숫자만 받아 그때 SQL 이 바뀌지 않게
  * 막는 마지막 그물이고, 타입은 여기서 봅니다.
  *
  * intField 보다 좁게 받습니다. Number() 는 [5] 를 5 로, true 를 1 로, '1e3' 을 1000 으로
@@ -110,6 +110,31 @@ const idField = (raw: unknown, { label, required = true }: FieldOptions): Checke
         return { error: `${label} 번호가 올바르지 않습니다.` };
     }
     return { value: Number(text) };
+};
+
+/**
+ * 경로의 번호(/posts/:post_id 처럼). 정수가 아니면 null.
+ *
+ * mysql2 는 경로 문자열을 그대로 넘겨 MySQL 이 숫자로 바꿨습니다('abc' → 0, 어느 행도 아님).
+ * Prisma 는 Int 자리에 숫자만 받으므로 여기서 먼저 봅니다. 부르는 쪽은 null 을 "없는 행"
+ * 으로 다뤄 그때와 같은 답(404 · 빈 성공)을 냅니다.
+ */
+const pathId = (raw: string | undefined): number | null =>
+    raw !== undefined && ID_TEXT.test(raw) && Number(raw) <= MAX_ID ? Number(raw) : null;
+
+/**
+ * 목록의 쪽 나누기(?page=&limit=). limit 은 반드시 서버에서 상한을 겁니다 — 클라이언트가
+ * limit=100000 을 보내면 쪽 나누기가 없는 것과 같습니다(CLAUDE.md §2.3).
+ */
+const pageWindow = (
+    query: { page?: unknown; limit?: unknown },
+    { defaultSize, maxSize }: { defaultSize: number; maxSize: number },
+): { take: number; skip: number } => {
+    const asked = Number(query.limit);
+    const take = Number.isInteger(asked) && asked > 0 ? Math.min(asked, maxSize) : defaultSize;
+    const askedPage = Number(query.page);
+    const skip = (Number.isInteger(askedPage) && askedPage > 0 ? askedPage - 1 : 0) * take;
+    return { take, skip };
 };
 
 /** 소수 범위. 몸무게처럼 정수가 아닐 수 있는 값에 씁니다. */
@@ -242,4 +267,4 @@ const MAX_IMAGE_LENGTH = 2 * 1024 * 1024;
 const isImageDataUrl = (value: unknown): value is string =>
     typeof value === 'string' && value.length <= MAX_IMAGE_LENGTH && IMAGE_DATA_URL.test(value);
 
-export { textField, intField, idField, decimalField, dateField, timeField, yearsFromToday, richTextHasContent, isImageDataUrl };
+export { textField, intField, idField, pathId, pageWindow, decimalField, dateField, timeField, yearsFromToday, richTextHasContent, isImageDataUrl };

@@ -80,5 +80,8 @@ async function removeFavorite(userId: number, facilityId: number): Promise<void>
     await prisma.favoriteFacility.deleteMany({ where: { user_id: userId, facility_id: facilityId } });
 }
 
-export { listFavorites, addFavorite, removeFavorite };
+/** 함수를 객체 하나로 묶어 내보냅니다. 테스트가 t.mock.method 로 한 함수씩 바꿔 끼울 수 있습니다(ESM 이름 내보내기는 바꿀 수 없음). */
+const favorites = { listFavorites, addFavorite, removeFavorite };
+
+export default favorites;
 export type { FavoriteRow, AddResult };
