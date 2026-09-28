@@ -10,30 +10,15 @@
  * 요약 때문에 후기 목록이 실패하는 일은 없어야 합니다. 요약 표가 없거나 모델이
  * 죽어도 목록은 summary: null 로 그대로 나갑니다.
  */
-import conn from '../mysql.js';
+import prisma from '../db/prisma.js';
 import { logError } from '../logError.js';
 import * as ai from '../ai/index.js';
 import { MIN_REVIEWS, MAX_REVIEWS_IN_PROMPT, SYSTEM_PROMPT, SUMMARY_SCHEMA, buildPrompt, parseSummary } from '../ai/reviewSummaryPrompt.js';
-import type { RowDataPacket, ResultSetHeader } from 'mysql2';
+import * as reviews from '../repositories/reviews.js';
+import * as summaries from '../repositories/reviewSummaries.js';
+import type { ReviewSummaryView } from '../repositories/reviewSummaries.js';
 
-/** 요약에 싣는 후기 한 건 (rebuild 가 읽는 칸). */
-interface ReviewRow extends RowDataPacket {
-    review_id: number;
-    rating: number;
-    review_content: string;
-    created_at: string;
-}
-
-/** 후기 목록 응답에 실리는 요약 (controller/review.ts 의 getReviewsByFacilityId). */
-export interface ReviewSummaryView {
-    summary: string;
-    good: unknown[];
-    caution: unknown[];
-    review_count: number;
-    updated_at: string;
-}
-
-const db = conn.promise();
+export type { ReviewSummaryView };
 
 /*
  * 시설별로 한 번에 하나만 돕니다. 도는 중에 또 요청이 오면 표시만 해 두고, 끝난 뒤
@@ -43,50 +28,23 @@ const db = conn.promise();
  */
 const inFlight = new Map<number, { again: boolean }>();
 
-/** json 컬럼은 mysql2 가 풀어서 주지만, 드라이버 설정에 따라 문자열로 올 수도 있습니다. */
-const asList = (value: unknown): unknown[] => {
-    if (Array.isArray(value)) return value;
-    if (typeof value === 'string') {
-        try {
-            const parsed = JSON.parse(value);
-            return Array.isArray(parsed) ? parsed : [];
-        } catch {
-            return [];
-        }
-    }
-    return [];
-};
-
 const rebuild = async (facilityId: number) => {
-    const [[{ total }]] = await db.query<RowDataPacket[]>(
-        'SELECT COUNT(*) AS total FROM reviews WHERE facility_id = ? AND deleted_at IS NULL',
-        [facilityId]
-    );
+    const total = await reviews.countOfFacility(facilityId);
 
     // 5건 아래로 내려갔으면 요약도 치웁니다. 한두 사람의 글이 전체 인상이 되면 안 됩니다.
     if (total < MIN_REVIEWS) {
-        await db.query<ResultSetHeader>('DELETE FROM review_summaries WHERE facility_id = ?', [facilityId]);
+        await summaries.remove(facilityId);
         return;
     }
 
-    /*
-     * 작성자(user_id)는 고르지 않습니다. 요약에 필요 없고, 외부로 보내는 개인정보를
-     * 줄입니다. 최신 순으로 상한까지만 봅니다 — 상한의 이유는 reviewSummaryPrompt.ts 에.
-     */
-    const [rows] = await db.query<ReviewRow[]>(
-        `SELECT review_id, rating, review_content, created_at
-           FROM reviews
-          WHERE facility_id = ? AND deleted_at IS NULL
-          ORDER BY created_at DESC, review_id DESC
-          LIMIT ?`,
-        [facilityId, MAX_REVIEWS_IN_PROMPT]
-    );
-    const [facility] = await db.query<RowDataPacket[]>('SELECT bplcnm FROM medical_facilities WHERE id = ?', [facilityId]);
+    // 최신 순으로 상한까지만 봅니다 — 상한의 이유는 reviewSummaryPrompt.ts 에.
+    const rows = await reviews.latestForPrompt(facilityId, MAX_REVIEWS_IN_PROMPT);
+    const facility = await prisma.medicalFacility.findUnique({ where: { id: facilityId }, select: { bplcnm: true } });
 
     const provider = ai.getProvider();
     const { text, model } = await provider.generateJson({
         system: SYSTEM_PROMPT,
-        user: buildPrompt(rows, { facilityName: facility[0]?.bplcnm ?? '', total }),
+        user: buildPrompt(rows, { facilityName: facility?.bplcnm ?? '', total }),
         schema: SUMMARY_SCHEMA,
         maxOutputTokens: 1024,
     });
@@ -95,26 +53,15 @@ const rebuild = async (facilityId: number) => {
     const parsed = parseSummary(text);
     if (!parsed) throw new Error('요약 응답을 형식대로 읽지 못했습니다.');
 
-    const lastReviewId = Math.max(...rows.map((r) => r.review_id));
-    await db.query<ResultSetHeader>(
-        `INSERT INTO review_summaries
-            (facility_id, summary, good, caution, review_count, last_review_id, provider, model, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW()) AS new
-         ON DUPLICATE KEY UPDATE
-            summary = new.summary, good = new.good, caution = new.caution,
-            review_count = new.review_count, last_review_id = new.last_review_id,
-            provider = new.provider, model = new.model, updated_at = NOW()`,
-        [
-            facilityId,
-            parsed.summary,
-            JSON.stringify(parsed.good),
-            JSON.stringify(parsed.caution),
-            total,
-            lastReviewId,
-            provider.name,
-            String(model).slice(0, 80),
-        ]
-    );
+    await summaries.save(facilityId, {
+        summary: parsed.summary,
+        good: parsed.good,
+        caution: parsed.caution,
+        review_count: total,
+        last_review_id: Math.max(...rows.map((r) => r.review_id)),
+        provider: provider.name,
+        model: String(model).slice(0, 80),
+    });
 };
 
 /**
@@ -143,46 +90,30 @@ const refreshSummary = (facilityId: unknown) => {
 };
 
 /** 후기 번호만 아는 자리(수정·삭제)에서 부릅니다. 지운 글도 facility_id 는 남아 있습니다. */
-const refreshForReview = (reviewId: unknown) => {
+const refreshForReview = (reviewId: number) => {
     if (!ai.isEnabled()) return;
-    conn.query<RowDataPacket[]>('SELECT facility_id FROM reviews WHERE review_id = ?', [reviewId], (error, rows) => {
-        if (error) return logError('reviewSummary:lookup', error);
-        if (rows[0]?.facility_id) refreshSummary(rows[0].facility_id);
-    });
+    reviews.facilityOf(reviewId)
+        .then((facilityId) => { if (facilityId) refreshSummary(facilityId); })
+        .catch((error) => logError('reviewSummary:lookup', error));
 };
 
 /**
- * 목록 응답에 실을 요약. 없으면 null 을 넘깁니다. 오류가 나도 null 입니다.
+ * 목록 응답에 실을 요약. 없으면 null. 오류가 나도 null 입니다.
  *
- * @param {number} total 지금 살아 있는 후기 수. 저장된 review_count 와 다르면 낡은
- *   것이라 뒤에서 다시 만들고, 이번 응답에는 있는 것을 그대로 실습니다.
- * @param {(summary: object | null) => void} callback
+ * @param total 지금 살아 있는 후기 수. 저장된 review_count 와 다르면 낡은 것이라 뒤에서
+ *   다시 만들고, 이번 응답에는 있는 것을 그대로 실습니다.
  */
-const getSummary = (facilityId: unknown, total: number, callback: (summary: ReviewSummaryView | null) => void) => {
-    if (total < MIN_REVIEWS) return callback(null);
-
-    conn.query<RowDataPacket[]>(
-        'SELECT summary, good, caution, review_count, updated_at FROM review_summaries WHERE facility_id = ?',
-        [facilityId],
-        (error, rows) => {
-            if (error) {
-                // 표가 없어도(마이그레이션 전) 목록은 나가야 합니다.
-                logError('reviewSummary:read', error);
-                return callback(null);
-            }
-            const row = rows[0];
-            if (!row || row.review_count !== total) refreshSummary(facilityId);
-            if (!row) return callback(null);
-
-            return callback({
-                summary: row.summary,
-                good: asList(row.good),
-                caution: asList(row.caution),
-                review_count: row.review_count,
-                updated_at: row.updated_at,
-            });
-        }
-    );
+const getSummary = async (facilityId: number, total: number): Promise<ReviewSummaryView | null> => {
+    if (total < MIN_REVIEWS) return null;
+    try {
+        const row = await summaries.read(facilityId);
+        if (!row || row.review_count !== total) refreshSummary(facilityId);
+        return row;
+    } catch (error) {
+        // 표가 없어도(마이그레이션 전) 목록은 나가야 합니다.
+        logError('reviewSummary:read', error);
+        return null;
+    }
 };
 
 export { refreshSummary, refreshForReview, getSummary };
