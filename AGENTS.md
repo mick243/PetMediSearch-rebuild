@@ -498,6 +498,22 @@ cd client && npm test     # vitest run
 
 CI 는 `.github/workflows/ci.yml` 에서 밀어 넣을 때마다 위를 전부 돕니다.
 
+### 응답 기준선 (`server/contract/`)
+
+고정 데이터를 깐 전용 DB 에 앱을 띄우고, 라우터를 전부 지나가는 81개 요청의 응답을
+`golden.json` 과 한 글자씩 비교합니다. 서버 내부를 바꾸는 작업(TypeScript·Prisma 이행)은
+**이게 통과해야 끝난 것**입니다. 날짜가 문자열에서 Date 로, DECIMAL 이 `'3.20'` 에서 `3.2` 로
+바뀌는 것처럼 눈으로는 놓치는 변화를 잡습니다(`dateStrings` 하나를 끄면 12단계가 깨짐).
+
+```bash
+docker run -d --name pms-contract-mysql -p 127.0.0.1:3307:3306 -e MYSQL_ROOT_PASSWORD=<암호> mysql:8.4.11 --default-time-zone=+09:00
+cd server && CONTRACT_DB_HOST=127.0.0.1 CONTRACT_DB_PORT=3307 CONTRACT_DB_PASSWORD=<암호> npm run test:contract
+```
+
+- 공유 개발 DB(3306)에 대고 돌리지 않습니다. `petmedisearch_contract` 를 지우고 새로 깝니다.
+- 응답이 **일부러** 바뀌었으면 `UPDATE_GOLDEN=1` 로 다시 뜨고, 무엇이 왜 바뀌었는지 커밋에 적습니다.
+- 앱은 root 가 아니라 앱 계정(`scripts/createDbUser.js`) 권한으로 붙습니다. 권한이 모자란 자리도 여기서 드러납니다.
+
 ---
 
 ## 7. 끝났다고 말하기 전 점검표

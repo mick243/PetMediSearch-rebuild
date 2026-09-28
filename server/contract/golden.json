@@ -1,0 +1,1526 @@
+[
+  {
+    "step": "상태 확인",
+    "request": "GET /health",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": "no-store",
+    "body": {
+      "status": "ok",
+      "db": "up",
+      "uptime": "<uptime>"
+    }
+  },
+  {
+    "step": "시설: 서울 범위의 병원",
+    "request": "GET /facilities?type=%EB%B3%91%EC%9B%90&swLat=37.4&swLng=126.8&neLat=37.7&neLng=127.2&limit=10",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": [
+      {
+        "id": 2,
+        "bplcnm": "강남 튼튼동물병원",
+        "type": "병원",
+        "sitewhladdr": "지번 주소 2",
+        "rdnwhladdr": "도로명 주소 2",
+        "sitetel": "02-000-0002",
+        "lat": "37.5000000",
+        "lng": "127.0300000",
+        "dtlstatenm": "정상",
+        "trdstatenm": "영업/정상"
+      },
+      {
+        "id": 1,
+        "bplcnm": "강남 행복동물병원",
+        "type": "병원",
+        "sitewhladdr": "지번 주소 1",
+        "rdnwhladdr": "도로명 주소 1",
+        "sitetel": "02-000-0001",
+        "lat": "37.4979000",
+        "lng": "127.0276000",
+        "dtlstatenm": "정상",
+        "trdstatenm": "영업/정상"
+      }
+    ]
+  },
+  {
+    "step": "시설: 서울 범위 전체(폐업 포함)",
+    "request": "GET /facilities?swLat=37.4&swLng=126.8&neLat=37.7&neLng=127.2&onlyOpened=false&limit=10",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": [
+      {
+        "id": 4,
+        "bplcnm": "종로 옛날동물병원",
+        "type": "병원",
+        "sitewhladdr": "지번 주소 4",
+        "rdnwhladdr": "도로명 주소 4",
+        "sitetel": "02-000-0004",
+        "lat": "37.5700000",
+        "lng": "126.9800000",
+        "dtlstatenm": "폐업",
+        "trdstatenm": "폐업"
+      },
+      {
+        "id": 2,
+        "bplcnm": "강남 튼튼동물병원",
+        "type": "병원",
+        "sitewhladdr": "지번 주소 2",
+        "rdnwhladdr": "도로명 주소 2",
+        "sitetel": "02-000-0002",
+        "lat": "37.5000000",
+        "lng": "127.0300000",
+        "dtlstatenm": "정상",
+        "trdstatenm": "영업/정상"
+      },
+      {
+        "id": 1,
+        "bplcnm": "강남 행복동물병원",
+        "type": "병원",
+        "sitewhladdr": "지번 주소 1",
+        "rdnwhladdr": "도로명 주소 1",
+        "sitetel": "02-000-0001",
+        "lat": "37.4979000",
+        "lng": "127.0276000",
+        "dtlstatenm": "정상",
+        "trdstatenm": "영업/정상"
+      },
+      {
+        "id": 3,
+        "bplcnm": "마포 초록동물약국",
+        "type": "약국",
+        "sitewhladdr": "지번 주소 3",
+        "rdnwhladdr": "도로명 주소 3",
+        "sitetel": "02-000-0003",
+        "lat": "37.5563000",
+        "lng": "126.9220000",
+        "dtlstatenm": "정상",
+        "trdstatenm": "영업/정상"
+      }
+    ]
+  },
+  {
+    "step": "시설: 검색어",
+    "request": "GET /facilities?keyword=%EA%B0%95%EB%82%A8+%EB%8F%99%EB%AC%BC%EB%B3%91%EC%9B%90&limit=10",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": [
+      {
+        "id": 1,
+        "bplcnm": "강남 행복동물병원",
+        "type": "병원",
+        "sitewhladdr": "지번 주소 1",
+        "rdnwhladdr": "도로명 주소 1",
+        "sitetel": "02-000-0001",
+        "lat": "37.4979000",
+        "lng": "127.0276000",
+        "dtlstatenm": "정상",
+        "trdstatenm": "영업/정상"
+      },
+      {
+        "id": 2,
+        "bplcnm": "강남 튼튼동물병원",
+        "type": "병원",
+        "sitewhladdr": "지번 주소 2",
+        "rdnwhladdr": "도로명 주소 2",
+        "sitetel": "02-000-0002",
+        "lat": "37.5000000",
+        "lng": "127.0300000",
+        "dtlstatenm": "정상",
+        "trdstatenm": "영업/정상"
+      }
+    ]
+  },
+  {
+    "step": "시설: 종류가 틀림",
+    "request": "GET /facilities?type=%EB%8F%99%EB%AC%BC%EB%B3%91%EC%9B%90",
+    "status": 400,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "시설 종류는 병원 · 약국 중 하나여야 합니다."
+    }
+  },
+  {
+    "step": "시설 격자",
+    "request": "GET /facilities/clusters?swLat=37.4&swLng=126.8&neLat=37.7&neLng=127.2&precision=1",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": [
+      {
+        "lat": 37.49895,
+        "lng": 127.0288,
+        "count": 2,
+        "hospitalCount": 2,
+        "pharmacyCount": 0
+      },
+      {
+        "lat": 37.5563,
+        "lng": 126.922,
+        "count": 1,
+        "hospitalCount": 0,
+        "pharmacyCount": 1
+      }
+    ]
+  },
+  {
+    "step": "분류 목록",
+    "request": "GET /category",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": [
+      {
+        "category_id": 1,
+        "category_name": "통합"
+      },
+      {
+        "category_id": 2,
+        "category_name": "강아지"
+      },
+      {
+        "category_id": 3,
+        "category_name": "고양이"
+      },
+      {
+        "category_id": 4,
+        "category_name": "포유류"
+      },
+      {
+        "category_id": 5,
+        "category_name": "양서류"
+      },
+      {
+        "category_id": 6,
+        "category_name": "파충류"
+      },
+      {
+        "category_id": 7,
+        "category_name": "조류"
+      },
+      {
+        "category_id": 8,
+        "category_name": "어류"
+      },
+      {
+        "category_id": 9,
+        "category_name": "기타"
+      }
+    ]
+  },
+  {
+    "step": "통합 목록 1쪽",
+    "request": "GET /category?category=1&limit=2&page=1",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "posts": [
+        {
+          "post_id": 3,
+          "title": "예방접종 후기",
+          "content": "<p>접종 잘 끝났어요</p>",
+          "created_at": "2026-09-06 08:30:00",
+          "username": "테스트회원",
+          "category_id": 2,
+          "category_name": "강아지"
+        },
+        {
+          "post_id": 2,
+          "title": "고양이 사료 질문",
+          "content": "<p>어떤 사료가 좋을까요?</p><p><img src=\"data:image/jpeg;base64,/9j/4AAQSkZJRg==\"></p>",
+          "created_at": "2026-09-05 10:00:00",
+          "username": "테스트관리자",
+          "category_id": 3,
+          "category_name": "고양이"
+        }
+      ],
+      "total": 4
+    }
+  },
+  {
+    "step": "통합 목록 2쪽",
+    "request": "GET /category?category=1&limit=2&page=2",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "posts": [
+        {
+          "post_id": 1,
+          "title": "산책 코스 추천",
+          "content": "<p>한강 산책로가 좋아요</p>",
+          "created_at": "2026-09-05 10:00:00",
+          "username": "테스트회원",
+          "category_id": 2,
+          "category_name": "강아지"
+        }
+      ],
+      "total": 4
+    }
+  },
+  {
+    "step": "강아지 목록",
+    "request": "GET /category?category=2",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "posts": [
+        {
+          "post_id": 3,
+          "title": "예방접종 후기",
+          "content": "<p>접종 잘 끝났어요</p>",
+          "created_at": "2026-09-06 08:30:00",
+          "username": "테스트회원",
+          "category_id": 2,
+          "category_name": "강아지"
+        },
+        {
+          "post_id": 1,
+          "title": "산책 코스 추천",
+          "content": "<p>한강 산책로가 좋아요</p>",
+          "created_at": "2026-09-05 10:00:00",
+          "username": "테스트회원",
+          "category_id": 2,
+          "category_name": "강아지"
+        }
+      ],
+      "total": 3
+    }
+  },
+  {
+    "step": "글 상세",
+    "request": "GET /posts/1",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "post_id": 1,
+      "user_id": 7,
+      "category_id": 2,
+      "title": "산책 코스 추천",
+      "content": "<p>한강 산책로가 좋아요</p>",
+      "created_at": "2026-09-05 10:00:00",
+      "author": "테스트회원"
+    }
+  },
+  {
+    "step": "지워진 글 상세",
+    "request": "GET /posts/4",
+    "status": 404,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "해당 게시글을 찾을 수 없습니다."
+    }
+  },
+  {
+    "step": "댓글 1쪽",
+    "request": "GET /comments/1?page=1&limit=2",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "comments": [
+        {
+          "comment_id": 1,
+          "user_id": 8,
+          "content": "좋은 정보 감사합니다",
+          "created_at": "2026-09-05 11:00:00",
+          "author": "테스트관리자",
+          "parent_comment_id": null
+        },
+        {
+          "comment_id": 2,
+          "user_id": 7,
+          "content": "도움이 됐다니 다행이에요",
+          "created_at": "2026-09-05 11:05:00",
+          "author": "테스트회원",
+          "parent_comment_id": 1
+        },
+        {
+          "comment_id": 3,
+          "user_id": 8,
+          "content": "[emoticon:1] 다음에도 부탁해요",
+          "created_at": "2026-09-05 11:10:00",
+          "author": "테스트관리자",
+          "parent_comment_id": 2
+        },
+        {
+          "comment_id": 5,
+          "user_id": 8,
+          "content": "원댓글이 지워진 답글",
+          "created_at": "2026-09-05 12:10:00",
+          "author": "테스트관리자",
+          "parent_comment_id": 4
+        }
+      ],
+      "total": 3,
+      "count": 5
+    }
+  },
+  {
+    "step": "댓글 2쪽",
+    "request": "GET /comments/1?page=2&limit=2",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "comments": [
+        {
+          "comment_id": 6,
+          "user_id": 7,
+          "content": "마지막 원댓글",
+          "created_at": "2026-09-05 13:00:00",
+          "author": "테스트회원",
+          "parent_comment_id": null
+        }
+      ],
+      "total": 3,
+      "count": 5
+    }
+  },
+  {
+    "step": "시설 후기 1쪽(요약 포함)",
+    "request": "GET /reviews/facility/1?page=1&limit=3",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "reviews": [
+        {
+          "review_id": 5,
+          "user_id": 7,
+          "facility_id": 1,
+          "rating": 2,
+          "review_content": "주차가 불편해요",
+          "created_at": "2026-09-04 10:00:00",
+          "image_count": 0
+        },
+        {
+          "review_id": 4,
+          "user_id": 8,
+          "facility_id": 1,
+          "rating": 5,
+          "review_content": "설명이 자세해요",
+          "created_at": "2026-09-03 10:00:00",
+          "image_count": 0
+        },
+        {
+          "review_id": 3,
+          "user_id": 7,
+          "facility_id": 1,
+          "rating": 3,
+          "review_content": "보통이에요",
+          "created_at": "2026-09-03 10:00:00",
+          "image_count": 0
+        }
+      ],
+      "total": 5,
+      "summary": {
+        "summary": "친절하고 설명이 자세하다는 평이 많습니다.",
+        "good": [
+          "친절함",
+          "설명이 자세함"
+        ],
+        "caution": [
+          "대기 시간",
+          "주차"
+        ],
+        "review_count": 5,
+        "updated_at": "2026-09-05 00:00:00"
+      }
+    }
+  },
+  {
+    "step": "시설 후기 2쪽",
+    "request": "GET /reviews/facility/1?page=2&limit=3",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "reviews": [
+        {
+          "review_id": 2,
+          "user_id": 8,
+          "facility_id": 1,
+          "rating": 4,
+          "review_content": "대기가 조금 길어요",
+          "created_at": "2026-09-02 11:00:00",
+          "image_count": 1
+        },
+        {
+          "review_id": 1,
+          "user_id": 7,
+          "facility_id": 1,
+          "rating": 5,
+          "review_content": "친절해요",
+          "created_at": "2026-09-02 10:00:00",
+          "image_count": 0
+        }
+      ],
+      "total": 5,
+      "summary": {
+        "summary": "친절하고 설명이 자세하다는 평이 많습니다.",
+        "good": [
+          "친절함",
+          "설명이 자세함"
+        ],
+        "caution": [
+          "대기 시간",
+          "주차"
+        ],
+        "review_count": 5,
+        "updated_at": "2026-09-05 00:00:00"
+      }
+    }
+  },
+  {
+    "step": "후기 사진",
+    "request": "GET /reviews/2/images",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "images": [
+        "data:image/jpeg;base64,/9j/4AAQSkZJRg=="
+      ]
+    }
+  },
+  {
+    "step": "후기 없는 시설",
+    "request": "GET /reviews/facility/2",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "reviews": [],
+      "total": 0,
+      "summary": null
+    }
+  },
+  {
+    "step": "이모티콘 목록",
+    "request": "GET /emoticons",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": "no-cache",
+    "body": {
+      "emoticons": [
+        {
+          "emoticon_id": 1,
+          "name": "웃음",
+          "v": "02a3e298f1533f62"
+        }
+      ]
+    }
+  },
+  {
+    "step": "이모티콘 그림",
+    "request": "GET /emoticons/1/image?v=02a3e298f1533f62",
+    "status": 200,
+    "type": "image/png",
+    "cacheControl": "public, max-age=31536000, immutable",
+    "body": {
+      "bytes": 16,
+      "sha256": "02a3e298f1533f62558c58e4c70edcab9af5a50d62d925fd5390942020fb0fb8"
+    }
+  },
+  {
+    "step": "푸시 공개키(설정 없음)",
+    "request": "GET /push/key",
+    "status": 503,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "푸시 알림이 설정되지 않았습니다."
+    }
+  },
+  {
+    "step": "로그인 실패",
+    "request": "POST /auth/login",
+    "status": 401,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "이메일 또는 비밀번호가 올바르지 않습니다."
+    }
+  },
+  {
+    "step": "로그인(회원)",
+    "request": "POST /auth/login",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "token": "<token>",
+      "user": {
+        "id": 7,
+        "username": "테스트회원",
+        "socialType": "",
+        "role": "user"
+      }
+    }
+  },
+  {
+    "step": "로그인(관리자)",
+    "request": "POST /auth/login",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "token": "<token>",
+      "user": {
+        "id": 8,
+        "username": "테스트관리자",
+        "socialType": "",
+        "role": "admin"
+      }
+    }
+  },
+  {
+    "step": "토큰 없이 내 정보",
+    "request": "GET /auth/me",
+    "status": 401,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "유효하지 않은 토큰입니다."
+    }
+  },
+  {
+    "step": "내 정보",
+    "request": "GET /auth/me",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "id": 7,
+      "username": "테스트회원",
+      "email": "member@contract.test",
+      "phone": "01011112222",
+      "socialType": "",
+      "role": "user"
+    }
+  },
+  {
+    "step": "내가 쓴 글",
+    "request": "GET /mypage/posts",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": [
+      {
+        "post_id": 3,
+        "title": "예방접종 후기",
+        "created_at": "2026-09-06 08:30:00"
+      },
+      {
+        "post_id": 1,
+        "title": "산책 코스 추천",
+        "created_at": "2026-09-05 10:00:00"
+      }
+    ]
+  },
+  {
+    "step": "내가 쓴 후기",
+    "request": "GET /mypage/reviews",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": [
+      {
+        "review_id": 7,
+        "user_id": 7,
+        "facility_id": 3,
+        "rating": 4,
+        "review_content": "약 설명을 잘 해 주세요",
+        "created_at": "2026-09-05 10:00:00",
+        "image_count": 0
+      },
+      {
+        "review_id": 5,
+        "user_id": 7,
+        "facility_id": 1,
+        "rating": 2,
+        "review_content": "주차가 불편해요",
+        "created_at": "2026-09-04 10:00:00",
+        "image_count": 0
+      },
+      {
+        "review_id": 3,
+        "user_id": 7,
+        "facility_id": 1,
+        "rating": 3,
+        "review_content": "보통이에요",
+        "created_at": "2026-09-03 10:00:00",
+        "image_count": 0
+      },
+      {
+        "review_id": 1,
+        "user_id": 7,
+        "facility_id": 1,
+        "rating": 5,
+        "review_content": "친절해요",
+        "created_at": "2026-09-02 10:00:00",
+        "image_count": 0
+      }
+    ]
+  },
+  {
+    "step": "내가 쓴 댓글",
+    "request": "GET /mypage/comments",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": [
+      {
+        "comment_id": 6,
+        "post_id": 1,
+        "content": "마지막 원댓글",
+        "created_at": "2026-09-05 13:00:00",
+        "post_title": "산책 코스 추천"
+      },
+      {
+        "comment_id": 2,
+        "post_id": 1,
+        "content": "도움이 됐다니 다행이에요",
+        "created_at": "2026-09-05 11:05:00",
+        "post_title": "산책 코스 추천"
+      }
+    ]
+  },
+  {
+    "step": "즐겨찾기",
+    "request": "GET /favorites",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": [
+      {
+        "facility_id": 3,
+        "created_at": "2026-09-06 11:00:00",
+        "bplcnm": "마포 초록동물약국",
+        "type": "약국",
+        "rdnwhladdr": "도로명 주소 3",
+        "sitewhladdr": "지번 주소 3",
+        "sitetel": "02-000-0003",
+        "lat": "37.5563000",
+        "lng": "126.9220000",
+        "dtlstatenm": "정상"
+      },
+      {
+        "facility_id": 1,
+        "created_at": "2026-09-06 10:00:00",
+        "bplcnm": "강남 행복동물병원",
+        "type": "병원",
+        "rdnwhladdr": "도로명 주소 1",
+        "sitewhladdr": "지번 주소 1",
+        "sitetel": "02-000-0001",
+        "lat": "37.4979000",
+        "lng": "127.0276000",
+        "dtlstatenm": "정상"
+      }
+    ]
+  },
+  {
+    "step": "반려동물",
+    "request": "GET /pets",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": [
+      {
+        "pet_id": 1,
+        "user_id": 7,
+        "name": "콩이",
+        "category_id": 2,
+        "category_name": "강아지",
+        "breed": "말티즈",
+        "birth_date": "2020-05-01",
+        "weight_kg": "3.20",
+        "photo": "data:image/jpeg;base64,/9j/4AAQSkZJRg==",
+        "created_at": "2026-09-01 10:00:00",
+        "vaccinations": [
+          {
+            "vaccination_id": 2,
+            "pet_id": 1,
+            "name": "광견병",
+            "due_date": "2026-08-15",
+            "due_time": null,
+            "done": 1
+          },
+          {
+            "vaccination_id": 1,
+            "pet_id": 1,
+            "name": "종합백신 2차",
+            "due_date": "2026-10-01",
+            "due_time": "10:30:00",
+            "done": 0
+          }
+        ]
+      },
+      {
+        "pet_id": 2,
+        "user_id": 7,
+        "name": "나비",
+        "category_id": 3,
+        "category_name": "고양이",
+        "breed": null,
+        "birth_date": null,
+        "weight_kg": null,
+        "photo": null,
+        "created_at": "2026-09-01 11:00:00",
+        "vaccinations": [
+          {
+            "vaccination_id": 3,
+            "pet_id": 2,
+            "name": "심장사상충",
+            "due_date": "2026-10-01",
+            "due_time": null,
+            "done": 0
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "step": "푸시 구독 여부",
+    "request": "GET /push/subscriptions?endpoint=https%3A%2F%2Fpush.example.test%2Fsub%2F1",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "subscribed": true
+    }
+  },
+  {
+    "step": "글 쓰기",
+    "request": "POST /posts",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "새로운 게시글이 등록되었습니다.",
+      "postId": 6
+    }
+  },
+  {
+    "step": "새 글 상세",
+    "request": "GET /posts/6",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "post_id": 6,
+      "user_id": 7,
+      "category_id": 2,
+      "title": "새 글",
+      "content": "<p>새 글 본문</p>",
+      "created_at": "<방금>",
+      "author": "테스트회원"
+    }
+  },
+  {
+    "step": "글 고치기",
+    "request": "PUT /posts/6",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "게시글이 수정되었습니다."
+    }
+  },
+  {
+    "step": "고친 글 상세",
+    "request": "GET /posts/6",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "post_id": 6,
+      "user_id": 7,
+      "category_id": 2,
+      "title": "고친 글",
+      "content": "<p>고친 본문</p>",
+      "created_at": "<방금>",
+      "author": "테스트회원"
+    }
+  },
+  {
+    "step": "댓글 쓰기",
+    "request": "POST /comments",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "새로운 댓글이 등록되었습니다.",
+      "commentId": 9
+    }
+  },
+  {
+    "step": "답글 쓰기",
+    "request": "POST /comments",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "새로운 댓글이 등록되었습니다.",
+      "commentId": 10
+    }
+  },
+  {
+    "step": "댓글 고치기",
+    "request": "PUT /comments/9",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "댓글이 수정되었습니다."
+    }
+  },
+  {
+    "step": "새 글의 댓글",
+    "request": "GET /comments/6",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "comments": [
+        {
+          "comment_id": 9,
+          "user_id": 7,
+          "content": "고친 댓글",
+          "created_at": "<방금>",
+          "author": "테스트회원",
+          "parent_comment_id": null
+        },
+        {
+          "comment_id": 10,
+          "user_id": 8,
+          "content": "관리자 답글",
+          "created_at": "<방금>",
+          "author": "테스트관리자",
+          "parent_comment_id": 9
+        }
+      ],
+      "total": 1,
+      "count": 2
+    }
+  },
+  {
+    "step": "댓글: 글 번호가 틀림",
+    "request": "POST /comments",
+    "status": 400,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "글 번호가 올바르지 않습니다."
+    }
+  },
+  {
+    "step": "댓글: 없는 글",
+    "request": "POST /comments",
+    "status": 404,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "댓글을 달 글이나 원댓글을 찾을 수 없습니다."
+    }
+  },
+  {
+    "step": "관리자가 댓글 스레드 지우기",
+    "request": "DELETE /comments/9",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "댓글이 삭제되었습니다.",
+      "deletedCount": 2
+    }
+  },
+  {
+    "step": "스레드를 지운 뒤 댓글",
+    "request": "GET /comments/6",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "comments": [],
+      "total": 0,
+      "count": 0
+    }
+  },
+  {
+    "step": "후기 쓰기",
+    "request": "POST /reviews",
+    "status": 201,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "리뷰가 성공적으로 등록되었습니다"
+    }
+  },
+  {
+    "step": "후기 쓴 뒤 시설 후기",
+    "request": "GET /reviews/facility/2",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "reviews": [
+        {
+          "review_id": 8,
+          "user_id": 7,
+          "facility_id": 2,
+          "rating": 4,
+          "review_content": "깨끗해요",
+          "created_at": "<방금>",
+          "image_count": 1
+        }
+      ],
+      "total": 1,
+      "summary": null
+    }
+  },
+  {
+    "step": "후기 고치기(사진은 그대로)",
+    "request": "PUT /reviews/8",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "리뷰가 수정되었습니다."
+    }
+  },
+  {
+    "step": "고친 후기의 사진",
+    "request": "GET /reviews/8/images",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "images": [
+        "data:image/jpeg;base64,/9j/4AAQSkZJRg=="
+      ]
+    }
+  },
+  {
+    "step": "후기 지우기",
+    "request": "DELETE /reviews/8",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "리뷰가 삭제되었습니다."
+    }
+  },
+  {
+    "step": "후기 지운 뒤 시설 후기",
+    "request": "GET /reviews/facility/2",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "reviews": [],
+      "total": 0,
+      "summary": null
+    }
+  },
+  {
+    "step": "즐겨찾기 넣기",
+    "request": "POST /favorites/2",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "즐겨찾기에 추가했습니다."
+    }
+  },
+  {
+    "step": "즐겨찾기 다시 넣기",
+    "request": "POST /favorites/2",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "즐겨찾기에 추가했습니다."
+    }
+  },
+  {
+    "step": "없는 시설 즐겨찾기",
+    "request": "POST /favorites/999999",
+    "status": 404,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "해당 시설을 찾을 수 없습니다."
+    }
+  },
+  {
+    "step": "즐겨찾기 넣은 뒤",
+    "request": "GET /favorites",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": [
+      {
+        "facility_id": 2,
+        "created_at": "<방금>",
+        "bplcnm": "강남 튼튼동물병원",
+        "type": "병원",
+        "rdnwhladdr": "도로명 주소 2",
+        "sitewhladdr": "지번 주소 2",
+        "sitetel": "02-000-0002",
+        "lat": "37.5000000",
+        "lng": "127.0300000",
+        "dtlstatenm": "정상"
+      },
+      {
+        "facility_id": 3,
+        "created_at": "2026-09-06 11:00:00",
+        "bplcnm": "마포 초록동물약국",
+        "type": "약국",
+        "rdnwhladdr": "도로명 주소 3",
+        "sitewhladdr": "지번 주소 3",
+        "sitetel": "02-000-0003",
+        "lat": "37.5563000",
+        "lng": "126.9220000",
+        "dtlstatenm": "정상"
+      },
+      {
+        "facility_id": 1,
+        "created_at": "2026-09-06 10:00:00",
+        "bplcnm": "강남 행복동물병원",
+        "type": "병원",
+        "rdnwhladdr": "도로명 주소 1",
+        "sitewhladdr": "지번 주소 1",
+        "sitetel": "02-000-0001",
+        "lat": "37.4979000",
+        "lng": "127.0276000",
+        "dtlstatenm": "정상"
+      }
+    ]
+  },
+  {
+    "step": "즐겨찾기 빼기",
+    "request": "DELETE /favorites/2",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "즐겨찾기에서 뺐습니다."
+    }
+  },
+  {
+    "step": "반려동물 등록",
+    "request": "POST /pets",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "반려동물이 등록되었습니다.",
+      "petId": 4
+    }
+  },
+  {
+    "step": "일정 추가",
+    "request": "POST /pets/4/vaccinations",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "일정이 추가되었습니다.",
+      "vaccinationId": 4
+    }
+  },
+  {
+    "step": "일정 완료",
+    "request": "PATCH /pets/vaccinations/4",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "저장되었습니다."
+    }
+  },
+  {
+    "step": "일정 고치기",
+    "request": "PUT /pets/vaccinations/4",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "수정되었습니다."
+    }
+  },
+  {
+    "step": "반려동물 고치기",
+    "request": "PUT /pets/4",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "수정되었습니다."
+    }
+  },
+  {
+    "step": "반려동물 추가한 뒤",
+    "request": "GET /pets",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": [
+      {
+        "pet_id": 1,
+        "user_id": 7,
+        "name": "콩이",
+        "category_id": 2,
+        "category_name": "강아지",
+        "breed": "말티즈",
+        "birth_date": "2020-05-01",
+        "weight_kg": "3.20",
+        "photo": "data:image/jpeg;base64,/9j/4AAQSkZJRg==",
+        "created_at": "2026-09-01 10:00:00",
+        "vaccinations": [
+          {
+            "vaccination_id": 2,
+            "pet_id": 1,
+            "name": "광견병",
+            "due_date": "2026-08-15",
+            "due_time": null,
+            "done": 1
+          },
+          {
+            "vaccination_id": 1,
+            "pet_id": 1,
+            "name": "종합백신 2차",
+            "due_date": "2026-10-01",
+            "due_time": "10:30:00",
+            "done": 0
+          }
+        ]
+      },
+      {
+        "pet_id": 2,
+        "user_id": 7,
+        "name": "나비",
+        "category_id": 3,
+        "category_name": "고양이",
+        "breed": null,
+        "birth_date": null,
+        "weight_kg": null,
+        "photo": null,
+        "created_at": "2026-09-01 11:00:00",
+        "vaccinations": [
+          {
+            "vaccination_id": 3,
+            "pet_id": 2,
+            "name": "심장사상충",
+            "due_date": "2026-10-01",
+            "due_time": null,
+            "done": 0
+          }
+        ]
+      },
+      {
+        "pet_id": 4,
+        "user_id": 7,
+        "name": "보리",
+        "category_id": 3,
+        "category_name": "고양이",
+        "breed": null,
+        "birth_date": null,
+        "weight_kg": null,
+        "photo": null,
+        "created_at": "<방금>",
+        "vaccinations": [
+          {
+            "vaccination_id": 4,
+            "pet_id": 4,
+            "name": "종합백신 3차",
+            "due_date": "2026-11-02",
+            "due_time": null,
+            "done": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "step": "일정 지우기",
+    "request": "DELETE /pets/vaccinations/4",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "삭제되었습니다."
+    }
+  },
+  {
+    "step": "반려동물 지우기",
+    "request": "DELETE /pets/4",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "삭제되었습니다."
+    }
+  },
+  {
+    "step": "남의 반려동물 지우기",
+    "request": "DELETE /pets/3",
+    "status": 404,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "본인의 반려동물만 삭제할 수 있습니다."
+    }
+  },
+  {
+    "step": "푸시 구독",
+    "request": "POST /push/subscriptions",
+    "status": 201,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "알림을 켰습니다."
+    }
+  },
+  {
+    "step": "푸시 구독 끄기",
+    "request": "DELETE /push/subscriptions",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "알림을 껐습니다."
+    }
+  },
+  {
+    "step": "이름 바꾸기",
+    "request": "PATCH /auth/me",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "id": 7,
+      "username": "바뀐회원",
+      "email": "member@contract.test",
+      "phone": "01011112222",
+      "socialType": "",
+      "role": "user"
+    }
+  },
+  {
+    "step": "이모티콘 등록(회원)",
+    "request": "POST /emoticons",
+    "status": 403,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "관리자만 이모티콘을 등록할 수 있습니다."
+    }
+  },
+  {
+    "step": "이모티콘 등록(관리자)",
+    "request": "POST /emoticons",
+    "status": 201,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "이모티콘을 등록했습니다.",
+      "emoticon": {
+        "emoticon_id": 2,
+        "name": "새 얼굴",
+        "v": "02a3e298f1533f62"
+      }
+    }
+  },
+  {
+    "step": "이모티콘 지우기(관리자)",
+    "request": "DELETE /emoticons/1",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "이모티콘을 삭제했습니다."
+    }
+  },
+  {
+    "step": "이모티콘 지운 뒤 목록",
+    "request": "GET /emoticons",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": "no-cache",
+    "body": {
+      "emoticons": [
+        {
+          "emoticon_id": 1,
+          "name": "새 얼굴",
+          "v": "02a3e298f1533f62"
+        }
+      ]
+    }
+  },
+  {
+    "step": "이모티콘 지운 뒤 댓글",
+    "request": "GET /comments/1?page=1&limit=5",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "comments": [
+        {
+          "comment_id": 1,
+          "user_id": 8,
+          "content": "좋은 정보 감사합니다",
+          "created_at": "2026-09-05 11:00:00",
+          "author": "테스트관리자",
+          "parent_comment_id": null
+        },
+        {
+          "comment_id": 2,
+          "user_id": 7,
+          "content": "도움이 됐다니 다행이에요",
+          "created_at": "2026-09-05 11:05:00",
+          "author": "바뀐회원",
+          "parent_comment_id": 1
+        },
+        {
+          "comment_id": 3,
+          "user_id": 8,
+          "content": "[emoticon:0] 다음에도 부탁해요",
+          "created_at": "2026-09-05 11:10:00",
+          "author": "테스트관리자",
+          "parent_comment_id": 2
+        },
+        {
+          "comment_id": 5,
+          "user_id": 8,
+          "content": "원댓글이 지워진 답글",
+          "created_at": "2026-09-05 12:10:00",
+          "author": "테스트관리자",
+          "parent_comment_id": 4
+        },
+        {
+          "comment_id": 6,
+          "user_id": 7,
+          "content": "마지막 원댓글",
+          "created_at": "2026-09-05 13:00:00",
+          "author": "바뀐회원",
+          "parent_comment_id": null
+        }
+      ],
+      "total": 3,
+      "count": 5
+    }
+  },
+  {
+    "step": "관리자가 글 지우기",
+    "request": "DELETE /posts/6",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "게시글이 삭제되었습니다."
+    }
+  },
+  {
+    "step": "지운 글 상세",
+    "request": "GET /posts/6",
+    "status": 404,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "해당 게시글을 찾을 수 없습니다."
+    }
+  },
+  {
+    "step": "가입",
+    "request": "POST /auth/signup",
+    "status": 201,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "token": "<token>",
+      "user": {
+        "id": 10,
+        "username": "새회원",
+        "socialType": "",
+        "role": "user"
+      }
+    }
+  },
+  {
+    "step": "같은 이메일로 가입",
+    "request": "POST /auth/signup",
+    "status": 409,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "이미 가입된 이메일입니다."
+    }
+  },
+  {
+    "step": "새 계정 내 정보",
+    "request": "GET /auth/me",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "id": 10,
+      "username": "새회원",
+      "email": "new@contract.test",
+      "phone": "01033334444",
+      "socialType": "",
+      "role": "user"
+    }
+  },
+  {
+    "step": "비밀번호 바꾸기",
+    "request": "PATCH /auth/me/password",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "비밀번호를 바꿨습니다.",
+      "token": "<token>"
+    }
+  },
+  {
+    "step": "비밀번호 바꾼 뒤 이전 토큰",
+    "request": "GET /auth/me",
+    "status": 401,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "유효하지 않은 토큰입니다."
+    }
+  },
+  {
+    "step": "탈퇴",
+    "request": "DELETE /auth/me",
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "탈퇴가 완료되었습니다."
+    }
+  },
+  {
+    "step": "탈퇴한 계정으로 로그인",
+    "request": "POST /auth/login",
+    "status": 401,
+    "type": "application/json; charset=utf-8",
+    "cacheControl": null,
+    "body": {
+      "message": "이메일 또는 비밀번호가 올바르지 않습니다."
+    }
+  }
+]
