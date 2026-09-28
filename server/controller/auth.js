@@ -109,20 +109,6 @@ exports.naverLogin = async (req, res) => {
   }
 };
 
-exports.socialLogin = async (req, res) => {
-  const { socialId, socialType, username } = req.body;
-
-  try {
-    const user = await processUser(socialId, socialType, username);
-    const token = generateToken(user);
-
-    res.json({ token, user: toClientUser(user) });
-  } catch (error) {
-    logError('Social login error', error);
-    res.status(500).json({ message: '소셜 로그인 처리 중 오류가 발생했습니다.' });
-  }
-};
-
 const processUser = async (socialId, socialType, username) => {
   let user = await getUserBySocialId(socialId, socialType);
   if (!user) {
@@ -163,8 +149,17 @@ const getUserBySocialId = (socialId, socialType) => {
       'SELECT * FROM users WHERE social_id = ? AND social_type = ? AND deleted_at IS NULL',
       [socialId, socialType],
       (error, results) => {
-        if (error) reject(error);
-        resolve(results[0]);
+        /*
+         * 오류면 여기서 끝냅니다.
+         *
+         * 예전에는 return 이 없어 오류일 때도 다음 줄의 results[0] 을 읽었습니다.
+         * 그때 results 는 undefined 라 TypeError 가 나는데, 이 콜백은 mysql2 가 소켓
+         * 이벤트에서 부르는 자리라 잡아 줄 곳이 없습니다. 프로세스가 통째로 죽고
+         * 모든 사용자의 요청이 끊겼습니다(재현: 요청 한 번에 141ms 뒤 종료,
+         * docs/QA-2026-09-13.md P0 #2). 소셜 로그인 중 DB 가 잠깐 끊겨도 같았습니다.
+         */
+        if (error) return reject(error);
+        return resolve(results[0]);
       }
     );
   });

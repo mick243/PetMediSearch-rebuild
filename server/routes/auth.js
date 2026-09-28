@@ -16,8 +16,16 @@ router.get('/google', authController.googleLogin);
 // 네이버 로그인
 router.get('/naver', authController.naverLogin);
 
-// 소셜 로그인 (공통)
-router.post('/social-login', authController.socialLogin);
+/*
+ * 소셜 계정의 로그인 경로는 위 셋뿐입니다. 셋 다 받은 code 를 서버가 제공자에게
+ * 직접 바꿔 사용자를 확인합니다.
+ *
+ * 예전에는 POST /social-login 이 하나 더 있었습니다. 본문의 socialId 를 제공자에게
+ * 확인하지 않고 그대로 믿어 토큰을 내줘서, 남의 id 를 넣으면 그 사람으로 로그인됐고
+ * 요청 제한도 없어 계정을 끝없이 만들 수 있었습니다(docs/QA-2026-09-13.md P0 #1).
+ * 화면은 그 경로를 한 번도 쓰지 않았습니다. 되살리지 마세요 —
+ * controller/auth.test.js 가 막습니다.
+ */
 
 // 일반 회원가입 (이름·전화번호·이메일·주소 + 비밀번호)
 router.post('/signup', signupLimiter, authController.signup);

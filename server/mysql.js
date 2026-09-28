@@ -37,6 +37,22 @@ const pool = mysql.createPool({
   dateStrings: true,
 
   /**
+   * 자리표시자(?)에 객체가 오면 문자열로만 넣습니다.
+   *
+   * 기본값에서 mysql2 는 객체를 `컬럼 = 값` 목록으로 풀어 SQL 에 끼워 넣습니다.
+   * 요청 본문(JSON)과 쿼리스트링(Express 4 는 `?a[b]=1` 을 객체로 만듭니다)은 객체가
+   * 될 수 있어서, 값 하나로 WHERE 조건의 모양이 바뀌었습니다. 실제로
+   * `social_id = ?` 가 `` social_id = `x` = 1 `` 이 되어 DB 오류로 서버가 죽었고,
+   * `` email = `email` = 1 `` 은 모든 행을 잡았습니다. 이 앱은 `SET ?` 처럼 객체를
+   * 풀어 쓰는 곳이 없어 막아도 잃는 것이 없습니다. Date·Buffer·배열(IN (?))은
+   * 그대로입니다.
+   *
+   * 값의 타입은 여전히 입구에서 봐야 합니다(controller/validate.js). 이 설정은
+   * 거기서 빠뜨린 곳이 SQL 을 바꾸지 못하게 하는 마지막 그물입니다.
+   */
+  stringifyObjects: true,
+
+  /**
    * Node 가 보내는 Date 를 어느 시간대의 벽시계로 적을지.
    *
    * 기본값은 'local' 이라 프로세스가 도는 기계의 시간대를 따라갑니다. DB 세션은
