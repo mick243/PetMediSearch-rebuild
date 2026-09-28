@@ -1,32 +1,14 @@
 import { logError } from '../logError.js';
-import { verifyToken } from './authUser.js';
+import { requireUser } from './authUser.js';
+import { pathId } from './validate.js';
 import * as favorites from '../repositories/favorites.js';
 import type { Request, Response } from 'express';
 
 /*
  * 즐겨찾기. DB 는 repositories/favorites.ts 가 만지고 여기는 토큰 · 경로 · 응답만 다룹니다.
  * Prisma 로 옮긴 첫 모듈입니다 — 응답은 mysql2 때와 같습니다(contract/golden.json).
+ * 경로의 시설 번호가 정수가 아니면 mysql2 때와 같게 — 넣기는 404, 빼기는 성공입니다.
  */
-
-function requireUser(req: Request, res: Response) {
-    const token = req.headers.authorization?.split(' ')[1];
-    const decoded = verifyToken(token);
-    if (!decoded) {
-        res.status(401).send({ message: '유효하지 않은 토큰입니다.' });
-        return null;
-    }
-    return decoded.id;
-}
-
-/**
- * 경로의 시설 번호. 정수가 아니면 null.
- *
- * mysql2 는 문자열을 그대로 넘겨 MySQL 이 숫자로 바꿨습니다('abc' → 0, 없는 시설). Prisma 는
- * Int 자리에 숫자만 받으므로 여기서 먼저 봅니다. 결과는 그때와 같게 — 넣기는 404, 빼기는 성공.
- */
-function facilityIdFromPath(raw: string): number | null {
-    return /^\d{1,10}$/.test(raw) && Number(raw) <= 2147483647 ? Number(raw) : null;
-}
 
 // 즐겨찾기한 병원·약국 목록 (시설 정보 포함)
 const getFavorites = async (req: Request, res: Response) => {
@@ -52,7 +34,7 @@ const addFavorite = async (req: Request, res: Response) => {
     const user_id = requireUser(req, res);
     if (!user_id) return;
 
-    const facility_id = facilityIdFromPath(req.params.facility_id);
+    const facility_id = pathId(req.params.facility_id);
     if (facility_id === null) return res.status(404).send({ message: '해당 시설을 찾을 수 없습니다.' });
 
     try {
@@ -70,7 +52,7 @@ const removeFavorite = async (req: Request, res: Response) => {
     const user_id = requireUser(req, res);
     if (!user_id) return;
 
-    const facility_id = facilityIdFromPath(req.params.facility_id);
+    const facility_id = pathId(req.params.facility_id);
     try {
         if (facility_id !== null) await favorites.removeFavorite(user_id, facility_id);
         return res.send({ message: '즐겨찾기에서 뺐습니다.' });

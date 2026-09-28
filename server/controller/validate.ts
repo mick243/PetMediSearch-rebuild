@@ -112,6 +112,31 @@ const idField = (raw: unknown, { label, required = true }: FieldOptions): Checke
     return { value: Number(text) };
 };
 
+/**
+ * 경로의 번호(/posts/:post_id 처럼). 정수가 아니면 null.
+ *
+ * mysql2 는 경로 문자열을 그대로 넘겨 MySQL 이 숫자로 바꿨습니다('abc' → 0, 어느 행도 아님).
+ * Prisma 는 Int 자리에 숫자만 받으므로 여기서 먼저 봅니다. 부르는 쪽은 null 을 "없는 행"
+ * 으로 다뤄 그때와 같은 답(404 · 빈 성공)을 냅니다.
+ */
+const pathId = (raw: string | undefined): number | null =>
+    raw !== undefined && ID_TEXT.test(raw) && Number(raw) <= MAX_ID ? Number(raw) : null;
+
+/**
+ * 목록의 쪽 나누기(?page=&limit=). limit 은 반드시 서버에서 상한을 겁니다 — 클라이언트가
+ * limit=100000 을 보내면 쪽 나누기가 없는 것과 같습니다(CLAUDE.md §2.3).
+ */
+const pageWindow = (
+    query: { page?: unknown; limit?: unknown },
+    { defaultSize, maxSize }: { defaultSize: number; maxSize: number },
+): { take: number; skip: number } => {
+    const asked = Number(query.limit);
+    const take = Number.isInteger(asked) && asked > 0 ? Math.min(asked, maxSize) : defaultSize;
+    const askedPage = Number(query.page);
+    const skip = (Number.isInteger(askedPage) && askedPage > 0 ? askedPage - 1 : 0) * take;
+    return { take, skip };
+};
+
 /** 소수 범위. 몸무게처럼 정수가 아닐 수 있는 값에 씁니다. */
 const decimalField = (raw: unknown, { label, min, max, required = true }: RangeOptions): Checked<number | null> => {
     if (raw === undefined || raw === null || raw === '') {
@@ -242,4 +267,4 @@ const MAX_IMAGE_LENGTH = 2 * 1024 * 1024;
 const isImageDataUrl = (value: unknown): value is string =>
     typeof value === 'string' && value.length <= MAX_IMAGE_LENGTH && IMAGE_DATA_URL.test(value);
 
-export { textField, intField, idField, decimalField, dateField, timeField, yearsFromToday, richTextHasContent, isImageDataUrl };
+export { textField, intField, idField, pathId, pageWindow, decimalField, dateField, timeField, yearsFromToday, richTextHasContent, isImageDataUrl };
