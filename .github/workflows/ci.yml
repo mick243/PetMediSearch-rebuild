@@ -5,6 +5,10 @@
 #
 # 오래 걸리는 것(도커 빌드·통합 테스트)은 넣지 않았습니다. 몇 분씩 걸리면
 # 결과를 기다리지 않게 되고, 기다리지 않는 검사는 없는 것과 같습니다.
+#
+# 예외는 응답 기준선(contract) 하나입니다. 서버를 TypeScript·Prisma 로 옮기는 동안
+# 화면이 받는 응답이 그대로인지를 사람 눈 대신 이것이 봅니다. 따로 도는 작업이라
+# 린트·단위 테스트 결과는 전처럼 먼저 나옵니다.
 
 name: CI
 
@@ -45,6 +49,45 @@ jobs:
 
       - run: npm test
         working-directory: server
+
+  contract:
+    name: 서버 (응답 기준선)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - run: npm ci
+        working-directory: server
+
+      # services: 로는 mysqld 에 옵션을 줄 수 없어 직접 띄웁니다. 운영 compose 와 같이
+      # 시간대를 +09:00 으로 못박아야 NOW() 가 넣는 시각이 기준선과 맞습니다.
+      # 태그는 운영의 mysql:8 이 지금 가리키는 판과 같게 고정합니다.
+      - name: 테스트 DB 띄우기
+        run: |
+          docker run -d --name contract-db -p 127.0.0.1:3306:3306 \
+            -e MYSQL_ROOT_PASSWORD=contract mysql:8.4.11 --default-time-zone=+09:00
+          # 초기화 중의 임시 서버는 TCP 를 받지 않습니다. TCP 로 붙어야 진짜 준비된 것입니다.
+          for i in $(seq 1 60); do
+            if docker exec contract-db mysql --protocol=TCP -h127.0.0.1 -uroot -pcontract -e 'SELECT 1' >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs contract-db
+          exit 1
+
+      - run: npm run test:contract
+        working-directory: server
+        env:
+          CONTRACT_DB_HOST: 127.0.0.1
+          CONTRACT_DB_PORT: '3306'
+          CONTRACT_DB_PASSWORD: contract
 
   client:
     name: 화면 (타입 · 린트 · 테스트 · 빌드)
