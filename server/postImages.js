@@ -1,7 +1,7 @@
 /*
  * 글 본문(ReactQuill HTML)이 바깥에서 무언가를 받아오게 만드는지 검사합니다.
  *
- * 후기 사진은 controller/review.js 의 IMAGE_DATA_URL 이 data URL 만 받아 남의 서버
+ * 후기 사진은 controller/validate.js 의 IMAGE_DATA_URL 이 data URL 만 받아 남의 서버
  * 주소를 막습니다. 글 본문에는 그 검사가 없어서 이런 글이 그대로 저장됐습니다.
  *
  *   <p><img src="https://남의서버/tracker.gif"></p>

@@ -31,7 +31,7 @@ const validatePost = (body) => {
 
     /*
      * 본문이 바깥 주소를 받아오게 두지 않습니다 (../postImages.js 에 이유를 적었습니다).
-     * 후기 사진에 이미 같은 잣대가 있는데(controller/review.js 의 IMAGE_DATA_URL)
+     * 후기 사진에 이미 같은 잣대가 있는데(controller/validate.js 의 IMAGE_DATA_URL)
      * 글 본문에만 없어서, 남의 서버 이미지가 그대로 저장되고 있었습니다.
      */
     const remote = findRemoteResource(content.value);

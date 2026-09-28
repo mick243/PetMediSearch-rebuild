@@ -1,7 +1,7 @@
 const conn = require('../mysql');
 const { logError } = require('../logError');
 const { verifyToken, IS_ADMIN } = require('./authUser');
-const { textField } = require('./validate');
+const { textField, idField } = require('./validate');
 
 /**
  * 댓글 길이 상한.
@@ -99,13 +99,19 @@ const getCommentsByPostId = async (req, res) => {
 
 // 댓글 작성
 const addComment = (req, res) => {
-    const { post_id, parent_comment_id } = req.body;
     const token = req.headers.authorization?.split(' ')[1];
     const decoded = verifyToken(token);
 
     if (!decoded) {
         return res.status(401).send({ message: '유효하지 않은 토큰입니다.' });
     }
+
+    const post = idField(req.body.post_id, { label: '글' });
+    if (post.error) return res.status(400).send({ message: post.error });
+
+    // 원댓글이 없으면 새 스레드입니다. 화면은 그때 null 을 보냅니다.
+    const parent = idField(req.body.parent_comment_id, { label: '원댓글', required: false });
+    if (parent.error) return res.status(400).send({ message: parent.error });
 
     const { error, value } = textField(req.body.content, {
         label: '댓글',
@@ -121,8 +127,15 @@ const addComment = (req, res) => {
         SELECT ?, user_id, ?, ?, NOW()
           FROM users WHERE user_id = ? AND deleted_at IS NULL`;
 
-    conn.query(query, [post_id, value, parent_comment_id || null, user_id], (err, results) => {
+    conn.query(query, [post.value, value, parent.value, user_id], (err, results) => {
         if (err) {
+            /*
+             * 형식은 맞지만 없는 글이나 원댓글 번호(외래 키). 보낸 쪽이 가리킨 것이 없으니 404 입니다.
+             * 예전에는 이것도 500 "서버 에러 발생" 이라 무엇이 잘못됐는지 알 수 없었습니다.
+             */
+            if (err.code === 'ER_NO_REFERENCED_ROW_2' || err.code === 'ER_NO_REFERENCED_ROW') {
+                return res.status(404).send({ message: '댓글을 달 글이나 원댓글을 찾을 수 없습니다.' });
+            }
             logError('comment', err);
             return res.status(500).send({ message: '서버 에러 발생' });
         }

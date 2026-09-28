@@ -25,10 +25,10 @@
 cp server/.env.example server/.env
 ```
 
-`server/.env` 를 열어 최소한 아래 셋을 채웁니다. 나머지 항목의 설명은 파일 안에
+`server/.env` 를 열어 최소한 아래를 채웁니다. 나머지 항목의 설명은 파일 안에
 있습니다.
 
-- `DB_PASSWORD`
+- `DB_PASSWORD` · `DB_ROOT_PASSWORD` — 앱 계정(`DB_USER`)과 root 의 암호. 서로 다르게, 16자 이상 무작위로
 - `JWT_SECRET` — `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"`
 - `CORS_ORIGIN` — 로컬이면 `http://localhost:5000`
 
@@ -38,7 +38,16 @@ cp server/.env.example server/.env
 ### 2. DB
 
 ```bash
-docker compose up -d db
+docker compose --env-file server/.env -f docker-compose.yml -f docker-compose.dev.yml up -d db
+```
+
+`docker-compose.dev.yml` 은 호스트에서 띄운 서버가 닿도록 3306 을 **127.0.0.1 에만** 엽니다.
+`docker run -p 3306:3306` 처럼 모든 주소에 열면 같은 와이파이·사내망의 누구나 DB 에 붙어 볼 수 있습니다.
+
+앱 계정의 권한을 행 읽기·쓰기로 좁힙니다(`DB_ROOT_PASSWORD` 는 `server/.env` 에서 읽습니다).
+
+```bash
+cd server && node scripts/createDbUser.js
 ```
 
 처음 뜰 때 `server/scripts/` 의 스키마가 자동으로 적용됩니다.
@@ -96,20 +105,31 @@ cp server/.env.example server/.env
 | `JWT_SECRET` | 새로 만든 값. 개발용과 같은 것을 쓰지 마세요 |
 | `CORS_ORIGIN` | 실제 화면 주소 (`https://...`) |
 | `URL`, `*_REDIRECT_URI` | 실제 주소. 각 소셜 제공자 콘솔에도 같은 값을 등록해야 합니다 |
+| `DB_USER` · `DB_PASSWORD` | 앱 전용 계정. root 는 쓸 수 없습니다 |
+| `DB_ROOT_PASSWORD` | DB 를 처음 만들 때의 root 암호. 앱 컨테이너에는 넘어가지 않습니다 |
 | `TRUST_PROXY` | nginx 등 프록시 뒤에 둘 때만 `1` |
 
 ### 2. 띄우기
 
+`docker compose` 에는 늘 `--env-file server/.env` 를 붙입니다. compose 파일의 `${DB_…}` 는
+`server/.env` 가 아니라 셸이나 루트 `.env` 에서 읽혀, 빼면 "required variable … is missing" 으로 멈춥니다.
+
 ```bash
-docker compose up -d
+docker compose --env-file server/.env up -d
+```
+
+앱 계정의 권한을 행 읽기·쓰기로 좁힙니다. root 암호는 이 명령에만 넘깁니다.
+
+```bash
+docker compose --env-file server/.env run --rm -e DB_ROOT_PASSWORD='root-암호' api node scripts/createDbUser.js
 ```
 
 ```bash
-docker compose exec api node scripts/importData.js
+docker compose --env-file server/.env exec api node scripts/importData.js
 ```
 
 ```bash
-docker compose exec -e ADMIN_PASSWORD='고른-비밀번호' api node scripts/createAdmin.js
+docker compose --env-file server/.env exec -e ADMIN_PASSWORD='고른-비밀번호' api node scripts/createAdmin.js
 ```
 
 ### 3. 확인
@@ -123,8 +143,9 @@ curl http://localhost:8081/health
 
 ### 남은 일 (이 저장소 밖)
 
-- **HTTPS** — nginx·Caddy 를 앞에 두거나 플랫폼이 제공하는 것을 씁니다.
-  붙인 뒤 `TRUST_PROXY=1` 을 켜세요.
+- **HTTPS** — nginx·Caddy 를 같은 서버에 두고 `127.0.0.1:8081` 로 넘기거나, 플랫폼이
+  제공하는 것을 씁니다. 붙인 뒤 `TRUST_PROXY=1` 을 켜세요. compose 는 API 를 127.0.0.1 에만
+  열어서, 바깥에서는 그 프록시를 거쳐야만 닿습니다.
 - **감시** — `/health` 를 주기적으로 찔러 실패하면 알리도록 걸어 둡니다.
   (UptimeRobot 같은 무료 도구로 충분합니다)
 - **백업을 서버 밖으로** — 아래 백업은 같은 서버에 쌓입니다.
@@ -133,7 +154,26 @@ curl http://localhost:8081/health
 
 `docker-compose.yml` 에서 `db` 서비스와 `depends_on` 을 지우고 `server/.env` 의
 `DB_HOST`·`DB_USER`·`DB_PASSWORD` 만 그쪽으로 바꾸면 됩니다. `api` 서비스는 그대로
-씁니다.
+씁니다. 앱 계정은 그 DB 의 관리자 계정으로 `createDbUser.js` 를 돌려 만듭니다
+(`DB_ROOT_USER` 에 관리자 이름, `DB_ROOT_PASSWORD` 에 그 암호).
+
+### 이미 띄워 둔 서버라면
+
+예전 구성은 앱이 root 로 붙었고, root 암호가 곧 `DB_PASSWORD` 였습니다. 볼륨은 그대로 두고
+계정만 바꿉니다.
+
+1. `server/.env` 에 `DB_ROOT_PASSWORD=<지금의 DB_PASSWORD>` 를 더합니다.
+2. `DB_USER=petmedisearch_app`, `DB_PASSWORD=<새로 만든 암호>` 로 바꿉니다.
+3. 새 설정으로 계정을 만들고, API 를 다시 띄웁니다. `exec` 가 아니라 `run --rm` 인 이유는
+   떠 있는 API 컨테이너가 아직 예전 설정을 들고 있어서입니다.
+
+```bash
+docker compose --env-file server/.env run --rm -e DB_ROOT_PASSWORD='지금-root-암호' api node scripts/createDbUser.js
+```
+
+```bash
+docker compose --env-file server/.env up -d
+```
 
 ---
 
@@ -155,7 +195,7 @@ sh server/scripts/backup.sh
 되돌리기:
 
 ```bash
-gunzip -c backups/petmedisearch-YYYYmmdd-HHMMSS.sql.gz | docker compose exec -T db mysql --default-character-set=utf8mb4 -uroot -p petmedisearch
+gunzip -c backups/petmedisearch-YYYYmmdd-HHMMSS.sql.gz | docker compose --env-file server/.env exec -T db mysql --default-character-set=utf8mb4 -uroot -p petmedisearch
 ```
 
 ### 시설 데이터 갱신
@@ -163,19 +203,19 @@ gunzip -c backups/petmedisearch-YYYYmmdd-HHMMSS.sql.gz | docker compose exec -T 
 원본은 매일 갱신되며 2일 전 기준으로 현행화됩니다.
 
 ```bash
-docker compose exec api node scripts/syncData.js
+docker compose --env-file server/.env exec api node scripts/syncData.js
 ```
 
 주 1회 정도면 충분합니다. `crontab -e` 에:
 
 ```bash
-0 5 * * 1 cd /path/to/PetMediSearch-rebuild && docker compose exec -T api node scripts/syncData.js >> /var/log/pms-sync.log 2>&1
+0 5 * * 1 cd /path/to/PetMediSearch-rebuild && docker compose --env-file server/.env exec -T api node scripts/syncData.js >> /var/log/pms-sync.log 2>&1
 ```
 
 ### 로그
 
 ```bash
-docker compose logs -f api
+docker compose --env-file server/.env logs -f api
 ```
 
 로그에는 개인정보와 쿼리 본문을 남기지 않습니다. 오류는 `[맥락] 코드: 문구`

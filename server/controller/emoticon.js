@@ -295,6 +295,9 @@ const deleteEmoticon = (req, res) =>
                      * 1,2,3 에서 하나 지워 1,2 가 된 다음 새로 올린 것이 4가 되어
                      * 방금 메운 자리가 도로 벌어집니다.
                      * ALTER 는 스스로 커밋하므로 트랜잭션 밖에서 합니다.
+                     *
+                     * 앱 DB 계정이 ALTER 를 가진 표는 여기 하나뿐입니다(scripts/createDbUser.js).
+                     * 앱이 다른 표에 DDL 을 쓰게 되면 그 권한 목록도 같이 고쳐야 합니다.
                      */
                     await run(`ALTER TABLE emoticons AUTO_INCREMENT = ${ids.length}`);
 

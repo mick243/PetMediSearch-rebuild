@@ -16,9 +16,13 @@ console.log('Current directory:', __dirname);
  * 프록시(nginx·플랫폼) 뒤에서는 req.ip 가 전부 프록시 주소가 됩니다.
  * 그러면 요청 제한이 모든 사용자를 한 사람으로 묶어 버려, 누구 하나가 많이 쓰면
  * 나머지가 같이 막힙니다. X-Forwarded-For 를 믿을지 환경변수로 정합니다.
+ *
+ * 반대로 프록시 없이 포트를 바깥에 연 채 켜면 한도가 제 역할을 못 합니다. 그래서
+ * docker-compose.yml 은 API 를 127.0.0.1 에만 엽니다. 값을 읽는 규칙은 trustProxy.js 에 있습니다.
  */
-if (process.env.TRUST_PROXY) {
-  app.set('trust proxy', Number(process.env.TRUST_PROXY) || 1);
+const trustProxy = require('./trustProxy').parseTrustProxy(process.env.TRUST_PROXY);
+if (trustProxy !== false) {
+  app.set('trust proxy', trustProxy);
 }
 
 /*
@@ -97,6 +101,7 @@ app.get("/search", (req, res) => {
 const {
   keywordClause,
   keywordScoreExpr,
+  facilityTypeFilter,
 } = require('./search');
 
 /**
@@ -129,12 +134,15 @@ app.get("/facilities", (req, res) => {
   const {
     type, keyword, swLat, swLng, neLat, neLng, onlyOpened, limit,
   } = req.query;
+  const facilityType = facilityTypeFilter(type);
+  if (facilityType.error) return res.status(400).json({ message: facilityType.error });
+
   let query = `SELECT ${FACILITY_COLUMNS} FROM medical_facilities WHERE 1=1`;
   const values = [];
 
-  if (type) {
+  if (facilityType.value) {
     query += " AND type = ?";
-    values.push(type);
+    values.push(facilityType.value);
   }
 
   if (keyword) {
@@ -250,6 +258,9 @@ app.get("/facilities/clusters", (req, res) => {
   const asked = Number(precision);
   const digits = Number.isFinite(asked) ? Math.min(Math.max(Math.floor(asked), 0), 3) : 1;
 
+  const facilityType = facilityTypeFilter(type);
+  if (facilityType.error) return res.status(400).json({ message: facilityType.error });
+
   const values = [];
   let where = "lat IS NOT NULL AND lng IS NOT NULL";
 
@@ -257,9 +268,9 @@ app.get("/facilities/clusters", (req, res) => {
   where += " AND lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?";
   values.push(Math.min(s, n), Math.max(s, n), Math.min(w, e), Math.max(w, e));
 
-  if (type) {
+  if (facilityType.value) {
     where += " AND type = ?";
-    values.push(type);
+    values.push(facilityType.value);
   }
 
   if (keyword) {

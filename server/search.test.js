@@ -8,6 +8,7 @@ const {
     loosePattern,
     keywordClause,
     keywordScoreExpr,
+    facilityTypeFilter,
 } = require('./search');
 
 /*
@@ -114,4 +115,18 @@ test('keywordScoreExpr: 한 글자 토큰은 느슨한 항이 빠진다', () => 
 
 test('keywordScoreExpr: 검색어가 없으면 null', () => {
     assert.equal(keywordScoreExpr('  ', []), null);
+});
+
+test('facilityTypeFilter: 안 보내면 둘 다, 보내면 병원·약국 중 하나', () => {
+    assert.deepEqual(facilityTypeFilter(undefined), { value: null });
+    assert.deepEqual(facilityTypeFilter(''), { value: null });
+    assert.deepEqual(facilityTypeFilter('병원'), { value: '병원' });
+    assert.deepEqual(facilityTypeFilter('약국'), { value: '약국' });
+});
+
+test('facilityTypeFilter: 쿼리스트링이 만든 배열·객체나 다른 글자는 받지 않는다', () => {
+    // Express 는 같은 이름이 두 번 오면 배열을, 괄호가 붙으면 객체를 만듭니다.
+    for (const raw of [['병원', '약국'], { a: '병원' }, '동물병원', '병원 ']) {
+        assert.ok(facilityTypeFilter(raw).error, JSON.stringify(raw));
+    }
 });
