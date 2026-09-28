@@ -1,3 +1,6 @@
 .env
 # TypeScript 빌드 결과 (npm run build). 소스에서 언제든 다시 만듭니다.
 dist/
+
+# Prisma 가 만드는 클라이언트 (npx prisma generate). 스키마에서 언제든 다시 만듭니다.
+generated/
