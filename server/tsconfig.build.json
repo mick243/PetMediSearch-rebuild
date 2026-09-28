@@ -1,0 +1,10 @@
+{
+  // 운영 빌드. 테스트와 기준선은 dist 에 넣지 않습니다.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    // 라우터의 JSDoc 주석으로 Swagger 문서를 만듭니다(swagger/swagger.ts). 주석을 지우면 문서가 빕니다.
+    "removeComments": false
+  },
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "contract/**"]
+}

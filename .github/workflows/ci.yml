@@ -24,7 +24,7 @@ concurrency:
 
 jobs:
   server:
-    name: 서버 (린트 · 테스트)
+    name: 서버 (린트 · 타입 · 테스트 · 빌드)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -42,12 +42,19 @@ jobs:
       - run: npm ci
         working-directory: server
 
-      # no-undef 가 "부르는데 require 하지 않은 식별자" 를 잡습니다.
-      # 실제로 그 부류의 버그가 두 파일에 있었습니다.
       - run: npm run lint
         working-directory: server
 
+      # "부르는데 가져오지 않은 식별자" 를 잡습니다. 실제로 그 부류의 버그가 두 파일에
+      # 있었습니다(예전에는 ESLint 의 no-undef 가 하던 일).
+      - run: npm run typecheck
+        working-directory: server
+
       - run: npm test
+        working-directory: server
+
+      # 운영 이미지가 쓰는 dist/ 가 실제로 만들어지는지. 타입은 맞는데 빌드 설정이 틀린 경우를 잡습니다.
+      - run: npm run build
         working-directory: server
 
   contract:

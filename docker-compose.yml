@@ -6,16 +6,16 @@
 # 처음 띄우기:
 #   cp server/.env.example server/.env   # 값을 채운 뒤
 #   docker compose --env-file server/.env up -d
-#   docker compose --env-file server/.env run --rm -e DB_ROOT_PASSWORD='root-암호' api node scripts/createDbUser.js
-#   docker compose --env-file server/.env exec api node scripts/importData.js   # 시설 데이터 적재
-#   docker compose --env-file server/.env exec -e ADMIN_PASSWORD='고른-비밀번호' api node scripts/createAdmin.js
+#   docker compose --env-file server/.env run --rm -e DB_ROOT_PASSWORD='root-암호' api node dist/scripts/createDbUser.js
+#   docker compose --env-file server/.env exec api node dist/scripts/importData.js   # 시설 데이터 적재
+#   docker compose --env-file server/.env exec -e ADMIN_PASSWORD='고른-비밀번호' api node dist/scripts/createAdmin.js
 #
 # --env-file 을 빼면 안 됩니다. 아래의 ${DB_…} 는 server/.env 가 아니라 셸이나 루트 .env 에서
 # 읽혀서, 빼면 "required variable … is missing" 으로 멈춥니다(docs/QA-2026-09-13.md).
 #
 # 관리형 DB(RDS·PlanetScale 등)를 쓴다면 db 서비스를 지우고 server/.env 의
 # DB_HOST 만 그쪽으로 바꾸면 됩니다. api 서비스는 그대로 씁니다. 앱 계정은 그 DB 의
-# 관리자 계정으로 createDbUser.js 를 돌려 만듭니다(DB_ROOT_USER 에 그 이름).
+# 관리자 계정으로 createDbUser.ts 를 돌려 만듭니다(DB_ROOT_USER 에 그 이름).
 
 services:
   db:
@@ -38,7 +38,7 @@ services:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?server/.env 에 DB_ROOT_PASSWORD 를 넣으세요}
       MYSQL_DATABASE: ${DB_NAME:-petmedisearch}
       # 볼륨이 비어 있을 때 한 번, 위 DB 에만 권한이 있는 앱 계정을 만듭니다(root 는 쓸 수 없음).
-      # 권한을 행 읽기·쓰기로 더 좁히는 것은 scripts/createDbUser.js 입니다.
+      # 권한을 행 읽기·쓰기로 더 좁히는 것은 scripts/createDbUser.ts 입니다.
       MYSQL_USER: ${DB_USER:?server/.env 에 DB_USER 를 넣으세요}
       MYSQL_PASSWORD: ${DB_PASSWORD:?server/.env 에 DB_PASSWORD 를 넣으세요}
       TZ: Asia/Seoul
@@ -70,7 +70,7 @@ services:
       NODE_ENV: production
       # 컨테이너에는 시간대가 없어 Node 가 UTC 로 돕니다. 로그 시각이 9시간
       # 어긋나고, 나중에 배치(접종 알림 등)를 붙이면 예약 시각도 UTC 로 잡힙니다.
-      # DB 에 넣는 값은 server/mysql.js 가 따로 못박아 두어 이것과 무관합니다.
+      # DB 에 넣는 값은 server/mysql.ts 가 따로 못박아 두어 이것과 무관합니다.
       TZ: Asia/Seoul
       # compose 안에서는 서비스 이름이 곧 호스트 이름입니다.
       DB_HOST: db
