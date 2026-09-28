@@ -1,0 +1,264 @@
+// PetMediSearch 데이터 모델.
+//
+// 신규 설치 스키마(scripts/createFacilitiesTable.sql · createTables.sql)를 끌어와(prisma db pull)
+// 다듬었습니다. 표 · 컬럼 이름은 그대로이고 모델 이름만 바꿨습니다(@@map).
+//
+// - 컬럼(스칼라 필드)은 DB 이름 그대로 snake_case 입니다. API 응답의 키가 곧 컬럼 이름이라,
+//   바꾸면 응답마다 이름을 다시 옮겨 적어야 합니다.
+// - 관계 필드는 DB 에 없는 이름이라 camelCase 로 씁니다(user · replies · facility …).
+// - 스키마 변경은 prisma/migrations 에 남깁니다. 이 파일만 고치고 마이그레이션을 빼먹으면
+//   CI 의 migrate diff 가 잡습니다.
+//
+// Prisma 가 표현하지 못해 migration.sql 에만 있는 것:
+//   reviews_chk_1 (rating 1~5 CHECK), emoticons.content_hash (STORED 생성 컬럼), 컬럼 COMMENT,
+//   posts.updated_at 의 ON UPDATE CURRENT_TIMESTAMP.
+//   → 이런 것을 바꿀 때는 migration.sql 을 손으로 쓰고(prisma migrate dev --create-only), CI 의
+//     migrate diff 가 0 인지 봅니다.
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../generated/prisma"
+  importFileExtension = "js"
+  moduleFormat        = "esm"
+  runtime             = "nodejs"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model Category {
+  category_id   Int    @id @default(autoincrement())
+  category_name String @db.VarChar(100)
+  pets          Pet[]
+  posts         Post[]
+
+  @@map("categories")
+}
+
+model Comment {
+  comment_id        Int       @id @default(autoincrement())
+  post_id           Int?
+  user_id           Int?
+  content           String    @db.Text
+  parent_comment_id Int?
+  created_at        DateTime? @default(now()) @db.Timestamp(0)
+  deleted_at        DateTime? @db.Timestamp(3)
+  post              Post?     @relation(fields: [post_id], references: [post_id], onDelete: Cascade, map: "comments_ibfk_1")
+  user              User?     @relation(fields: [user_id], references: [user_id], map: "comments_ibfk_2")
+  parent            Comment?  @relation("CommentReplies", fields: [parent_comment_id], references: [comment_id], onUpdate: NoAction, map: "comments_ibfk_3")
+  replies           Comment[] @relation("CommentReplies")
+
+  @@index([post_id], map: "comments_ibfk_1")
+  @@index([user_id], map: "comments_ibfk_2")
+  @@index([parent_comment_id], map: "comments_ibfk_3")
+  @@index([post_id, deleted_at, created_at], map: "idx_comments_post_recent")
+  @@index([user_id, deleted_at, created_at], map: "idx_comments_user_recent")
+  @@map("comments")
+}
+
+model Emoticon {
+  emoticon_id  Int       @id @default(autoincrement())
+  name         String    @db.VarChar(30)
+  mime         String    @db.VarChar(20)
+  data         Bytes     @db.MediumBlob
+  /// DB 가 data 에서 계산하는 생성 컬럼입니다(SHA2 앞 16자, migration.sql 의 GENERATED ALWAYS).
+  /// Prisma 는 생성 컬럼을 표현하지 못해 기본값 없는 필수 문자열로 보입니다 — @default(dbgenerated())
+  /// 를 달면 migrate diff 가 차이로 잡습니다. 그래서 이모티콘 INSERT 는 raw SQL 로 두고, 여기서는 읽기만 합니다.
+  content_hash String    @db.Char(16)
+  created_by   Int?
+  created_at   DateTime? @default(now()) @db.Timestamp(0)
+  creator      User?     @relation(fields: [created_by], references: [user_id], map: "emoticons_ibfk_1")
+
+  @@index([created_by], map: "emoticons_ibfk_1")
+  @@map("emoticons")
+}
+
+model FavoriteFacility {
+  user_id     Int
+  facility_id Int
+  created_at  DateTime?       @default(now()) @db.Timestamp(0)
+  user        User            @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction, map: "fav_ibfk_1")
+  facility    MedicalFacility @relation(fields: [facility_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fav_ibfk_2")
+
+  @@id([user_id, facility_id])
+  @@index([facility_id], map: "fav_ibfk_2")
+  @@map("favorite_facilities")
+}
+
+/// 동물병원·약국. 공공데이터를 적재한 표입니다(scripts/syncData.ts). 앱은 읽기만 합니다.
+model MedicalFacility {
+  id          Int                @id @default(autoincrement())
+  mgtno       String             @db.VarChar(255)
+  bplcnm      String             @db.VarChar(255)
+  sitewhladdr String?            @db.Text
+  rdnwhladdr  String?            @db.Text
+  sitetel     String?            @db.VarChar(20)
+  x           Decimal?           @db.Decimal(18, 6)
+  y           Decimal?           @db.Decimal(18, 6)
+  lat         Decimal?           @db.Decimal(10, 7)
+  lng         Decimal?           @db.Decimal(10, 7)
+  apvpermymd  DateTime?          @db.Date
+  dcbymd      DateTime?          @db.Date
+  dtlstatenm  String?            @db.VarChar(50)
+  trdstatenm  String?            @db.VarChar(50)
+  type        FacilityType
+  lastmodts   DateTime?          @db.Timestamp(0)
+  favorites   FavoriteFacility[]
+  summary     ReviewSummary?
+  reviews     Review[]
+
+  @@unique([mgtno, type], map: "mgtno")
+  @@index([lat, lng], map: "idx_latlng")
+  @@index([dtlstatenm], map: "idx_state")
+  @@map("medical_facilities")
+}
+
+model PetVaccination {
+  vaccination_id Int                   @id @default(autoincrement())
+  pet_id         Int
+  name           String                @db.VarChar(80)
+  due_date       DateTime              @db.Date
+  due_time       DateTime?             @db.Time(0)
+  done           Boolean               @default(false)
+  pet            Pet                   @relation(fields: [pet_id], references: [pet_id], onDelete: Cascade, onUpdate: NoAction, map: "vacc_ibfk_1")
+  reminders      VaccinationReminder[]
+
+  @@index([done, due_date], map: "idx_vacc_due")
+  @@index([pet_id], map: "vacc_pet")
+  @@map("pet_vaccinations")
+}
+
+model Pet {
+  pet_id       Int              @id @default(autoincrement())
+  user_id      Int
+  name         String           @db.VarChar(50)
+  category_id  Int?
+  breed        String?          @db.VarChar(50)
+  birth_date   DateTime?        @db.Date
+  weight_kg    Decimal?         @db.Decimal(5, 2)
+  photo        String?          @db.MediumText
+  created_at   DateTime?        @default(now()) @db.Timestamp(0)
+  vaccinations PetVaccination[]
+  user         User             @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction, map: "pets_ibfk_1")
+  category     Category?        @relation(fields: [category_id], references: [category_id], onUpdate: NoAction, map: "pets_ibfk_2")
+
+  @@index([category_id], map: "pets_ibfk_2")
+  @@index([user_id], map: "pets_user")
+  @@map("pets")
+}
+
+model Post {
+  post_id     Int       @id @default(autoincrement())
+  category_id Int?
+  user_id     Int?
+  title       String    @db.VarChar(255)
+  content     String    @db.MediumText
+  created_at  DateTime? @default(now()) @db.Timestamp(0)
+  updated_at  DateTime? @default(now()) @db.Timestamp(0)
+  deleted_at  DateTime? @db.Timestamp(3)
+  comments    Comment[]
+  category    Category? @relation(fields: [category_id], references: [category_id], onDelete: NoAction, onUpdate: NoAction, map: "posts_ibfk_1")
+  user        User?     @relation(fields: [user_id], references: [user_id], map: "posts_ibfk_2")
+
+  @@index([category_id], map: "category_id")
+  @@index([category_id, deleted_at, created_at], map: "idx_posts_category_recent")
+  @@index([deleted_at, created_at], map: "idx_posts_live_recent")
+  @@index([user_id, deleted_at, created_at], map: "idx_posts_user_recent")
+  @@index([user_id], map: "posts_ibfk_2")
+  @@map("posts")
+}
+
+model PushSubscription {
+  subscription_id Int       @id @default(autoincrement())
+  user_id         Int
+  endpoint        String    @unique(map: "uq_push_endpoint") @db.VarChar(512)
+  p256dh          String    @db.VarChar(255)
+  auth            String    @db.VarChar(255)
+  created_at      DateTime  @default(now()) @db.Timestamp(0)
+  last_sent_at    DateTime? @db.Timestamp(0)
+  user            User      @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction, map: "push_ibfk_1")
+
+  @@index([user_id], map: "push_user")
+  @@map("push_subscriptions")
+}
+
+model ReviewSummary {
+  facility_id    Int             @id
+  summary        String          @db.Text
+  good           Json
+  caution        Json
+  review_count   Int
+  last_review_id Int
+  provider       String          @db.VarChar(20)
+  model          String          @db.VarChar(80)
+  updated_at     DateTime        @default(now()) @db.Timestamp(0)
+  facility       MedicalFacility @relation(fields: [facility_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "review_summaries_ibfk_1")
+
+  @@map("review_summaries")
+}
+
+model Review {
+  review_id      Int              @id @default(autoincrement())
+  user_id        Int?
+  facility_id    Int?
+  /// 1~5. DB 의 CHECK(reviews_chk_1)가 막습니다.
+  rating         Int?             @db.TinyInt
+  review_content String?          @db.Text
+  /// 줄인 JPEG data URL 목록. 목록 조회에서는 빼고 장수만 보냅니다(CLAUDE.md §2.5).
+  images         Json?
+  created_at     DateTime?        @default(now()) @db.Timestamp(0)
+  deleted_at     DateTime?        @db.Timestamp(3)
+  user           User?            @relation(fields: [user_id], references: [user_id], map: "reviews_ibfk_1")
+  facility       MedicalFacility? @relation(fields: [facility_id], references: [id], map: "reviews_ibfk_2")
+
+  @@index([facility_id, deleted_at, created_at], map: "idx_reviews_facility_recent")
+  @@index([user_id, deleted_at, created_at], map: "idx_reviews_user_recent")
+  @@index([user_id], map: "reviews_ibfk_1")
+  @@index([facility_id], map: "reviews_ibfk_2")
+  @@map("reviews")
+}
+
+model User {
+  user_id           Int                @id @default(autoincrement())
+  username          String             @db.VarChar(50)
+  social_id         String?            @db.VarChar(100)
+  social_type       String?            @db.VarChar(20)
+  email             String?            @unique(map: "uq_users_email") @db.VarChar(255)
+  password          String?            @db.VarChar(255)
+  phone             String?            @db.VarChar(20)
+  address           String?            @db.VarChar(255)
+  role              String             @default("user") @db.VarChar(20)
+  token_version     Int                @default(0)
+  created_at        DateTime           @default(now()) @db.Timestamp(0)
+  terms_agreed_at   DateTime?          @db.Timestamp(3)
+  deleted_at        DateTime?          @db.Timestamp(3)
+  comments          Comment[]
+  emoticons         Emoticon[]
+  favorites         FavoriteFacility[]
+  pets              Pet[]
+  posts             Post[]
+  pushSubscriptions PushSubscription[]
+  reviews           Review[]
+
+  @@unique([social_id, social_type], map: "uq_users_social")
+  @@map("users")
+}
+
+model VaccinationReminder {
+  vaccination_id Int
+  days_before    Int            @db.UnsignedTinyInt
+  sent_at        DateTime       @default(now()) @db.Timestamp(3)
+  vaccination    PetVaccination @relation(fields: [vaccination_id], references: [vaccination_id], onDelete: Cascade, onUpdate: NoAction, map: "vacc_reminder_ibfk_1")
+
+  @@id([vaccination_id, days_before])
+  @@map("vaccination_reminders")
+}
+
+/// 값은 DB 에 한글로 저장됩니다. 응답에는 한글('병원' · '약국')을 그대로 보냅니다(db/facilityType.ts).
+enum FacilityType {
+  pharmacy @map("약국")
+  hospital @map("병원")
+
+  @@map("medical_facilities_type")
+}
