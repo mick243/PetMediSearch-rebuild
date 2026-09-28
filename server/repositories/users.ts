@@ -105,6 +105,15 @@ async function setPassword(userId: number, hash: string, tokenVersion: number): 
     await prisma.user.updateMany({ where: { user_id: userId, deleted_at: null }, data: { password: hash, token_version: tokenVersion } });
 }
 
+/**
+ * 살아 있는 계정의 역할. 없거나 탈퇴했으면 null.
+ * 토큰에도 role 이 실려 있지만 하루짜리라, 권한을 거둔 뒤에도 남은 토큰으로 관리자 일을 할 수 있으면 안 됩니다(§2.2).
+ */
+async function roleOf(userId: number): Promise<string | null> {
+    const row = await prisma.user.findFirst({ where: { user_id: userId, deleted_at: null }, select: { role: true } });
+    return row?.role ?? null;
+}
+
 /** 토큰 판번호. 행이 없으면 null. */
 async function tokenVersionOf(userId: number): Promise<number | null> {
     const row = await prisma.user.findUnique({ where: { user_id: userId }, select: { token_version: true } });
@@ -146,7 +155,7 @@ async function withdraw(userId: number, deletedAt: Date): Promise<boolean> {
 }
 
 /** 함수를 객체 하나로 묶어 내보냅니다. 테스트가 t.mock.method 로 한 함수씩 바꿔 끼울 수 있습니다(ESM 이름 내보내기는 바꿀 수 없음). */
-const users = { findBySocial, createSocial, createLocal, findForLogin, findAccount, updateAccount, findForPasswordChange, setPassword, tokenVersionOf, withdraw };
+const users = { findBySocial, createSocial, createLocal, findForLogin, findAccount, updateAccount, findForPasswordChange, setPassword, roleOf, tokenVersionOf, withdraw };
 
 export default users;
 export type { SessionUser, Account, Credential, LocalSignup, AccountChanges };

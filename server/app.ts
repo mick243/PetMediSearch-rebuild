@@ -1,8 +1,8 @@
 // 맨 먼저 둡니다. 아래 모듈 중에 불러오는 순간 환경변수를 읽는 것이 있습니다(loadEnv.ts).
 import './loadEnv.js';
 import express from 'express';
-import mysql from './mysql.js';
 import prisma from './db/prisma.js';
+import { decimalToString } from './db/format.js';
 import nodePath from 'path';
 import { execFile } from 'node:child_process';
 import cors from 'cors';
@@ -12,7 +12,6 @@ import { describe as describeSummaryProvider } from './ai/index.js';
 import { SERVER_ROOT } from './paths.js';
 import { parseTrustProxy } from './trustProxy.js';
 import type { NextFunction, Request, Response } from 'express';
-import type { RowDataPacket } from 'mysql2';
 
 const app = express();
 const port = Number(process.env.PORT) || 8080;
@@ -93,13 +92,12 @@ app.use(generalLimiter);
 app.get('/health', (req: Request, res: Response) => {
   res.set('Cache-Control', 'no-store');
 
-  mysql.query<RowDataPacket[]>('SELECT 1', (err) => {
-    if (err) {
+  prisma.$queryRaw`SELECT 1`
+    .then(() => res.json({ status: 'ok', db: 'up', uptime: Math.round(process.uptime()) }))
+    .catch((err: unknown) => {
       logError('health', err);
       return res.status(503).json({ status: 'error', db: 'down' });
-    }
-    return res.json({ status: 'ok', db: 'up', uptime: Math.round(process.uptime()) });
-  });
+    });
 });
 
 app.get("/search", (req: Request, res: Response) => {
@@ -134,6 +132,20 @@ const FACILITY_COLUMNS = [
   'id', 'bplcnm', 'type', 'sitewhladdr', 'rdnwhladdr',
   'sitetel', 'lat', 'lng', 'dtlstatenm', 'trdstatenm',
 ].join(', ');
+
+/** 위 컬럼의 raw 결과 한 줄. lat · lng 만 문자열로 바꿔 내보냅니다. */
+interface FacilityRow {
+  id: number;
+  bplcnm: string;
+  type: string;
+  sitewhladdr: string | null;
+  rdnwhladdr: string | null;
+  sitetel: string | null;
+  lat: { toFixed(digits: number): string } | null;
+  lng: { toFixed(digits: number): string } | null;
+  dtlstatenm: string | null;
+  trdstatenm: string | null;
+}
 
 app.get("/facilities", (req: Request, res: Response) => {
   const {
@@ -228,14 +240,17 @@ app.get("/facilities", (req: Request, res: Response) => {
    * 3만건짜리 표를 훑는 SQL 전문이 로그를 가득 채웁니다.
    */
 
-  mysql.query<RowDataPacket[]>(query, values, (err, results) => {
-    if (err) {
+  /*
+   * 조건이 요청마다 달라 문장을 조립하므로 raw 로 둡니다(값은 전부 자리표시자). Prisma 의 raw 는
+   * DECIMAL 을 Decimal 객체로 주고, 그대로 내보내면 뒷자리 0 이 떨어집니다("37.5"). 화면과 기준선은
+   * 컬럼 자릿수 그대로의 문자열('37.5000000')을 받습니다.
+   */
+  prisma.$queryRawUnsafe<FacilityRow[]>(query, ...values)
+    .then((rows) => res.json(rows.map((r) => ({ ...r, lat: decimalToString(r.lat, 7), lng: decimalToString(r.lng, 7) }))))
+    .catch((err: unknown) => {
       logError('search', err);
       return res.status(500).json({ message: '서버 오류 발생' });
-    }
-
-    res.json(results);
-  });
+    });
 });
 
 /**
@@ -266,7 +281,7 @@ app.get("/facilities/clusters", (req: Request, res: Response) => {
   const facilityType = facilityTypeFilter(type);
   if (facilityType.error) return res.status(400).json({ message: facilityType.error });
 
-  const values = [];
+  const values: unknown[] = [];
   let where = "lat IS NOT NULL AND lng IS NOT NULL";
 
   const [s, w, n, e] = bounds;
@@ -304,24 +319,23 @@ app.get("/facilities/clusters", (req: Request, res: Response) => {
      GROUP BY cellLat, cellLng
      ORDER BY count DESC`;
 
-  mysql.query<RowDataPacket[]>(query, values, (err, results) => {
-    if (err) {
+  // 집계값은 raw 에서 Decimal · BigInt 로 옵니다. 전부 Number 로 바꿔 내보냅니다(JSON 에 BigInt 는 못 실림).
+  prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(query, ...values)
+    .then((rows) =>
+      res.json(
+        rows.map((row) => ({
+          lat: Number(row.lat),
+          lng: Number(row.lng),
+          count: Number(row.count),
+          hospitalCount: Number(row.hospitalCount),
+          pharmacyCount: Number(row.pharmacyCount),
+        }))
+      )
+    )
+    .catch((err: unknown) => {
       logError('cluster', err);
-      return res
-        .status(500)
-        .json({ message: '서버 오류 발생' });
-    }
-
-    res.json(
-      results.map((row) => ({
-        lat: Number(row.lat),
-        lng: Number(row.lng),
-        count: Number(row.count),
-        hospitalCount: Number(row.hospitalCount),
-        pharmacyCount: Number(row.pharmacyCount),
-      }))
-    );
-  });
+      return res.status(500).json({ message: '서버 오류 발생' });
+    });
 });
 
 
@@ -471,7 +485,7 @@ const server = app.listen(port, () => {
  * 강제로 죽입니다. 아무 처리도 하지 않으면 그 순간 처리 중이던 요청이 끊기고,
  * 배포할 때마다 몇 건은 오류로 끝납니다.
  *
- * 새 요청을 받지 않고, 돌고 있는 것을 마친 뒤, DB 풀을 닫고 나갑니다.
+ * 새 요청을 받지 않고, 돌고 있는 것을 마친 뒤, DB 풀(db/prisma.ts)을 닫고 나갑니다.
  */
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
@@ -486,11 +500,7 @@ const shutdown = (signal: NodeJS.Signals) => {
   forceExit.unref();
 
   server.close(() => {
-    // 모듈을 옮기는 동안은 풀이 둘입니다(mysql.ts · db/prisma.ts). 둘 다 닫습니다.
-    mysql.end((error) => {
-      if (error) logError('shutdown', error);
-      prisma.$disconnect().catch((e: unknown) => logError('shutdown', e)).finally(() => process.exit(0));
-    });
+    prisma.$disconnect().catch((e: unknown) => logError('shutdown', e)).finally(() => process.exit(0));
   });
 };
 

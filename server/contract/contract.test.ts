@@ -92,6 +92,9 @@ async function waitHealthy(base: string, app: ReturnType<typeof startApp>) {
     throw new Error(`앱이 뜨지 않았습니다.\n${app.output().slice(-2000)}`);
 }
 
+/** 요청 하나를 기다리는 상한. bcrypt(비용 4)와 DB 를 거쳐도 1초 안입니다. */
+const REQUEST_TIMEOUT_MS = 15_000;
+
 const sha256 = (bytes: Buffer) => crypto.createHash('sha256').update(bytes).digest('hex');
 
 async function send(base: string, step: Step, ctx: Ctx) {
@@ -109,7 +112,16 @@ async function send(base: string, step: Step, ctx: Ctx) {
         body = JSON.stringify(typeof step.body === 'function' ? step.body(ctx) : step.body);
     }
 
-    const res = await fetch(base + target, { method, headers, body });
+    /*
+     * 응답이 안 오는 핸들러(res 를 부르지 않고 끝나는 경로)가 있으면 여기서 영원히 기다립니다 —
+     * 실제로 한 번 CI 가 6시간을 매달렸습니다. 어느 단계인지 이름을 달아 끊습니다.
+     */
+    let res: globalThis.Response;
+    try {
+        res = await fetch(base + target, { method, headers, body, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+    } catch (error) {
+        throw new Error(`${step.name} (${method} ${target}): ${REQUEST_TIMEOUT_MS / 1000}초 안에 응답이 없습니다.`, { cause: error });
+    }
     const type = res.headers.get('content-type') || '';
     const raw = Buffer.from(await res.arrayBuffer());
     const parsed: unknown = type.includes('application/json')
@@ -129,7 +141,7 @@ async function send(base: string, step: Step, ctx: Ctx) {
     };
 }
 
-/** 한국 벽시계 'YYYY-MM-DD HH:MM:SS'. DB 가 돌려주는 시각의 모양입니다(mysql.ts 의 dateStrings). */
+/** 한국 벽시계 'YYYY-MM-DD HH:MM:SS'. API 가 내보내는 시각의 모양입니다(db/format.ts 의 timestampToKst). */
 const WALL_CLOCK = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d{1,6})?$/;
 const NOW_TOLERANCE_MS = 10 * 60 * 1000;
 
