@@ -1,7 +1,9 @@
 # PetMediSearch — 프로젝트 SSOT
 
-> **기준 시각: 2026-09-23**
-> 근거: git 로컬 브랜치 8개 · 워크트리 6개 전수 · reflog · `server/` 테스트 실행 · 트리 mtime. DB 는 **오늘도 재지 못했습니다**(§4 · 컨테이너 정지).
+> **기준 시각: 2026-09-28**
+> 근거: git 로컬 브랜치 7개 + 원격 2개 · 워크트리 6개 전수 · reflog · `server/` 테스트 실행 · 트리 mtime. DB 는 **오늘도 재지 못했습니다**(§4 · Docker 데몬 정지).
+>
+> **2026-09-28 갱신** — 닷새(09-24~28) 커밋 0 · 새 미커밋 0. 로컬 main 이 09-23 SSOT 커밋 하나만큼 원격보다 앞섭니다(1 앞 · 0 뒤, push 안 됨). 테스트 78건 중 76 통과 그대로. §0 · §2 · §4 · §5 · §7 · §8(R2 재발 · R3 14일째) · §9 반영
 >
 > **2026-09-23 갱신** — PR #8 로 09-18 QA 수정 5커밋이 main 에 들어왔고 로컬 main 이 원격과 다시 같아졌다(0/0). 테스트 78건 중 76 통과. §0 · §1 · §2 · §4 · §5 · §7 · §8(R2 · R5 해결, R6 신설) · §9 반영
 >
@@ -16,12 +18,12 @@
 - **무엇** — 전국 동물병원·동물약국을 지도에서 찾고, 후기·게시판·이모티콘 댓글을 쓰고, 반려동물의 접종·검진 일정을 챙기는 앱. 화면은 React 18 + TypeScript + Vite(5000), API 는 Express + mysql2(8081), DB 는 MySQL 8(3306).
 - **어디까지** — 시설 검색·후기·게시판·즐겨찾기·마이페이지·접종 일정·푸시까지 **동작하는 상태**고, 그 위에 09-13 출시 전 점검과 09-15 부하 시험이 한 번씩 돌았습니다. 09-13 점검에서 나온 QA 수정이 **09-23 에 main 에 들어왔습니다**.
 - **가장 중요한 현재 사실 3가지**
-  1. **09-18 QA 수정이 main 에 들어왔습니다.** 09-23 18:40 GitHub PR #8(`f85dcec`)로 `claude/k6-load-test-vu200-57ad6a` 의 5커밋이 병합됐고, 18:44 에 로컬 main 을 `pull --rebase` 해 이 문서 커밋 셋이 그 위로 옮겨졌습니다. 로컬 `main` = `origin/main` = `2c2c5b1`, **0 앞 · 0 뒤**. → §2 · R2 · R5 해결
-  2. **방치된 미커밋 50건은 그대로입니다** — `project-ui-ux-review-eedd45` 워크트리에 수정·신규 **50개 파일**, 마지막 손댄 날 **2026-09-14~15**, 오늘 mtime 파일 0. 후기 속성 추출(`reviewAttributes.js` · `alterReviewAttributes.sql`)과 가입 임시저장(`signupDraft.ts`)은 **다른 곳에 없는 작업**입니다. 브랜치는 main 보다 46커밋 뒤라 살리려면 충돌 정리가 필요합니다. → §2 · §8 R3
-  3. **병합이 끝난 브랜치가 6개로 늘었습니다** — k6 브랜치까지 자기 커밋 0 이 됐고, `petmedisearch-work-log-organize-6d1b92` 의 3커밋은 main 의 SSOT 커밋과 내용이 같은 rebase 전 사본입니다(`git cherry` 전부 `-`). 살아 있는 브랜치는 사실상 `project-ui-ux-review` 하나입니다. → §2 · §9
-- **테스트는 늘었고 여전히 둘이 깨져 있습니다** — `server/` 에서 `node --test` **78건 중 76 통과 · 2 실패**(어제 59건 → QA 병합으로 19건 늘어남). 실패 둘은 여전히 `web-push` 모듈 누락, **환경 문제**입니다. → §7 · §8 R1
-- **데이터는 오늘도 재지 못했습니다** — Docker 데몬은 떠 있으나 `petmedisearch-mysql` 컨테이너가 5일 전 `Exited (137)` 이고 3306 이 닫혀 있습니다. 규칙상 띄우지 않았습니다. → §4
-- **다음 한 걸음** — 방치된 워크트리 50건을 살릴지 버릴지 판정. → §9
+  1. **닷새 동안 멈춰 있습니다.** 09-23 18:49 의 SSOT 커밋(`90f336c`) 이후 `git log --all` 에 새 커밋이 없고, 6개 워크트리 어디에도 09-24~28 mtime 파일이 없습니다. 주 체크아웃의 가장 최근 mtime 은 `2026-09-23 18:48 SSOT.md` 입니다. → §2
+  2. **로컬 main 이 원격보다 1커밋 앞섭니다** — 09-23 SSOT 커밋 `90f336c` 가 push 되지 않아 `main...origin/main` = **1 앞 · 0 뒤**(`origin/main` = `2c2c5b1`). 원격이 앞선 것은 아니므로 pull 할 것은 없고, push 여부만 결정하면 됩니다. → §2 · §8 R2
+  3. **방치된 미커밋 50건은 그대로이고 14일째입니다** — `project-ui-ux-review-eedd45` 워크트리에 수정 42 · 신규 8, 마지막 mtime **2026-09-15 14:38**. 후기 속성 추출(`reviewAttributes.js` · `alterReviewAttributes.sql`)과 가입 임시저장(`signupDraft.ts`)은 **다른 곳에 없는 작업**입니다. 브랜치는 main 보다 47커밋 뒤입니다. 병합 완료 브랜치 6개도 그대로 남아 있습니다. → §2 · §8 R3 · §9
+- **테스트는 그대로입니다** — `server/` 에서 `node --test` **78건 중 76 통과 · 2 실패**(09-23 과 같음). 실패 둘은 여전히 `Cannot find module 'web-push'`, **환경 문제**입니다(코드 변경 0). → §7 · §8 R1
+- **데이터는 오늘도 재지 못했습니다** — 오늘은 Docker 데몬 자체가 떠 있지 않고(`dockerDesktopLinuxEngine` 파이프 없음) 3306 도 닫혀 있습니다. 규칙상 띄우지 않았습니다. → §4
+- **다음 한 걸음** — 방치된 워크트리 50건을 살릴지 버릴지 판정(14일째). → §9
 
 ---
 
@@ -29,7 +31,7 @@
 
 | 알고 싶은 것 | 정본 | 위치 | 최신성 |
 |---|---|---|---|
-| **지금 상태 · 수치 · 미해결** | **이 문서** | `SSOT.md` (main 루트) | 2026-09-23 |
+| **지금 상태 · 수치 · 미해결** | **이 문서** | `SSOT.md` (main 루트) | 2026-09-28 |
 | **이 문서를 갱신하는 규칙** | `.claude/rules/daily-ssot-update.md` | main | 2026-09-22 |
 | 데이터 건수 (시설·후기·글 …) | **개발 DB 직접 조회** | `petmedisearch@localhost:3306` | 항상 |
 | 개발 규약 · 작업 지침 | `CLAUDE.md` (Codex 사본 `AGENTS.md`) | main | 2026-09-14 |
@@ -45,14 +47,21 @@
 
 | 브랜치 | HEAD | 워크트리 | main 대비(앞/뒤) | 상태 |
 |---|---|---|---|---|
-| **`main`** | `2c2c5b1` (09-23 rebase) | **주 체크아웃** (미커밋 0) | — | **정본.** 위 셋은 이 문서 커밋, 그 아래 코드 HEAD 는 PR #8 병합 `f85dcec`(09-23 18:40). `origin/main` 대비 **0 앞 · 0 뒤** |
-| `claude/k6-load-test-vu200-57ad6a` | `bc8fdc1` (09-18) | 있음 (미커밋 0) | 0 앞 / 8 뒤 | ✅ 병합 완료(PR #8, 09-23) — **삭제 후보**. `origin/` 에도 같은 브랜치가 남아 있음 |
-| `claude/project-ui-ux-review-eedd45` | `0729241` (09-14) | 있음 (**미커밋 50**) | 0 앞 / 46 뒤 | ⚠ **손대지 말 것.** 브랜치 자체는 병합 완료지만 워크트리에 09-14~15 미커밋 작업이 남아 있습니다 |
-| `claude/petmedisearch-work-log-organize-6d1b92` | `8650e28` (09-22) | 있음 — `mobile-board-ui-improvements-f99327` 폴더 (미커밋 0) | 3 앞 / 8 뒤 | ✅ 사실상 병합 완료 — 앞선 3커밋은 main SSOT 커밋의 rebase 전 사본(`git cherry` 전부 `-`). **삭제 후보** |
-| `claude/mobile-board-ui-improvements-f99327` | `7c10c84` (09-15) | 없음 (제 이름 폴더는 위 브랜치가 쓰는 중) | 0 앞 / 35 뒤 | ✅ 병합 완료 — **삭제 후보** |
-| `claude/petmedisearch-folder-check-dd8c3b` | `24b9931` (09-13) | 있음 · detached HEAD (`AGENTS.md` 미추적 1) | 0 앞 / 48 뒤 | ✅ 병합 완료 — **삭제 후보** |
-| `claude/tablist-slide-pet-flow-5034d0` | `883fd87` (09-14) | 있음 (`AGENTS.md` 미추적 1) | 0 앞 / 37 뒤 | ✅ 병합 완료 — **삭제 후보** |
-| `claude/resume-writing-ac8899` | `4d2a7ef` (09-17) | 없음 | 0 앞 / 10 뒤 | ✅ 병합 완료 — **삭제 후보** |
+| **`main`** | `90f336c` (09-23) | **주 체크아웃** (미커밋 0) | — | **정본.** 위 넷은 이 문서 커밋, 그 아래 코드 HEAD 는 PR #8 병합 `f85dcec`(09-23 18:40). `origin/main`(`2c2c5b1`) 대비 **1 앞 · 0 뒤** — `90f336c` 미push |
+| `claude/k6-load-test-vu200-57ad6a` | `bc8fdc1` (09-18) | 있음 (미커밋 0) | 0 앞 / 9 뒤 | ✅ 병합 완료(PR #8, 09-23) — **삭제 후보**. `origin/` 에도 같은 브랜치가 남아 있음 |
+| `claude/project-ui-ux-review-eedd45` | `0729241` (09-14) | 있음 (**미커밋 50**) | 0 앞 / 47 뒤 | ⚠ **손대지 말 것.** 브랜치 자체는 병합 완료지만 워크트리에 09-14~15 미커밋 작업이 남아 있습니다 |
+| `claude/petmedisearch-work-log-organize-6d1b92` | `8650e28` (09-22) | 있음 — `mobile-board-ui-improvements-f99327` 폴더 (미커밋 0) | 3 앞 / 9 뒤 | ✅ 사실상 병합 완료 — 앞선 3커밋은 main SSOT 커밋의 rebase 전 사본(`git cherry` 전부 `-`). **삭제 후보** |
+| `claude/mobile-board-ui-improvements-f99327` | `7c10c84` (09-15) | 없음 (제 이름 폴더는 위 브랜치가 쓰는 중) | 0 앞 / 36 뒤 | ✅ 병합 완료 — **삭제 후보** |
+| `claude/petmedisearch-folder-check-dd8c3b` | `24b9931` (09-13) | 있음 · detached HEAD (`AGENTS.md` 미추적 1) | 0 앞 / 49 뒤 | ✅ 병합 완료 — **삭제 후보** |
+| `claude/tablist-slide-pet-flow-5034d0` | `883fd87` (09-14) | 있음 (`AGENTS.md` 미추적 1) | 0 앞 / 38 뒤 | ✅ 병합 완료 — **삭제 후보** |
+| `claude/resume-writing-ac8899` | `4d2a7ef` (09-17) | 없음 | 0 앞 / 11 뒤 | ✅ 병합 완료 — **삭제 후보** |
+
+### 2026-09-28 상태
+
+- **커밋이 없습니다.** `git log --all --since=2026-09-23` 에 보이는 마지막 것이 09-23 18:49 의 `90f336c`(SSOT 갱신)이고, 09-24 · 25 · 26 · 27 · 28 에는 하나도 없습니다. reflog 도 09-23 18:49 이후 비어 있습니다.
+- **로컬이 원격보다 1 앞섭니다.** `rev-list --left-right --count main...origin/main` = `1 0`. 09-23 에 문서 커밋을 main 에 올린 뒤 push 하지 않았기 때문입니다(갱신 규칙은 push 하지 않음). 원격 쪽 새 커밋은 로컬 추적 ref 기준 0 입니다(`fetch` 는 하지 않았으므로 GitHub 에서 PR 이 또 병합됐다면 여기엔 안 보입니다).
+- **브랜치 뒤처짐이 하나씩 늘었습니다.** 위 `90f336c` 한 커밋 때문이며 각 브랜치 자체는 움직이지 않았습니다.
+- **미커밋은 여전히 한 곳**(`project-ui-ux-review-eedd45` 50건 · 수정 42 / 신규 8 · 마지막 mtime 09-15 14:38). 나머지 다섯은 깨끗합니다(`AGENTS.md` 미추적 사본 둘 제외). 오늘 mtime 파일은 전 워크트리에 0.
 
 ### 2026-09-23 상태
 
@@ -93,7 +102,9 @@
 
 ## 4. 데이터 — 개발 DB 실측
 
-> **2026-09-23 전부 미재측입니다 (Docker 정지 · 컨테이너 쪽).** 오늘은 Docker 데몬(29.7.2)이 떠 있지만 `petmedisearch-mysql` 컨테이너가 5일 전 `Exited (137)` 상태이고 `localhost:3306` 이 닫혀 있습니다. 규칙상 DB 를 띄우지 않았습니다. 또 `docker compose ps` 가 `DB_PASSWORD` 보간 오류로 멈춥니다 — `server/.env` 에는 그 키가 있지만 compose 의 `${DB_PASSWORD}` 는 루트 `.env` 나 셸 환경에서만 읽는데 루트 `.env` 가 없습니다. 부록 B 명령도 셸에 `DB_PASSWORD` 를 먼저 넣지 않으면 돌지 않습니다.
+> **2026-09-28 전부 미재측입니다 (Docker 정지).** Docker 데몬이 떠 있지 않고(`npipe:////./pipe/dockerDesktopLinuxEngine` 없음) `localhost:3306` 도 연결 거부입니다. 규칙상 띄우지 않았습니다. 아래 표는 한 번도 잰 적이 없습니다.
+>
+> 2026-09-23: 전부 미재측 (Docker 정지 · 컨테이너 쪽). 오늘은 Docker 데몬(29.7.2)이 떠 있지만 `petmedisearch-mysql` 컨테이너가 5일 전 `Exited (137)` 상태이고 `localhost:3306` 이 닫혀 있습니다. 규칙상 DB 를 띄우지 않았습니다. 또 `docker compose ps` 가 `DB_PASSWORD` 보간 오류로 멈춥니다 — `server/.env` 에는 그 키가 있지만 compose 의 `${DB_PASSWORD}` 는 루트 `.env` 나 셸 환경에서만 읽는데 루트 `.env` 가 없습니다. 부록 B 명령도 셸에 `DB_PASSWORD` 를 먼저 넣지 않으면 돌지 않습니다.
 >
 > 2026-09-22: Docker 데몬이 떠 있지 않고(`npipe` 연결 실패) `localhost:3306` 도 닫혀 있어 조회하지 못했습니다.
 
@@ -128,8 +139,8 @@
 
 - **푸시** — 코드는 있으나 `web-push` 가 설치돼 있지 않아 지금 트리에서는 테스트가 깨집니다(§7 · R1).
 - ~~**09-13 QA 에서 나온 수정** — 고쳐져 있지만 **main 이 아니라 병합 대기 브랜치에** 있습니다(§2 · R5).~~ ✅ 해결 2026-09-23 — PR #8 로 main 에 병합. 되는 것으로 옮겨 갔습니다.
-- **후기 AI 요약의 스키마** — `alterReviewSummaries.sql` 이 main 에 들어왔지만 쓰던 개발 DB 에 적용됐는지는 DB 가 꺼져 있어 확인하지 못했습니다(R6).
-- **후기 속성 추출** — `project-ui-ux-review` 워크트리에 미커밋으로만 존재(§2 · R3).
+- **후기 AI 요약의 스키마** — `alterReviewSummaries.sql` 이 main 에 들어왔지만 쓰던 개발 DB 에 적용됐는지는 DB 가 꺼져 있어 확인하지 못했습니다(R6 · 09-28 도 미확인).
+- **후기 속성 추출** — `project-ui-ux-review` 워크트리에 미커밋으로만 존재(§2 · R3 · 09-28 기준 14일째 그대로).
 
 ### 없는 것
 
@@ -146,14 +157,14 @@
 
 ## 7. 품질
 
-### 테스트 (2026-09-23 실측)
+### 테스트 (2026-09-28 실측)
 
 | 대상 | 명령 | 결과 |
 |---|---|---|
-| `server/` | `node --test` | **78건 중 76 통과 · 2 실패** (0.26초) — 09-22 의 59건에서 QA 병합으로 19건 늘었습니다. 테스트 파일 9개 |
+| `server/` | `node --test` | **78건 중 76 통과 · 2 실패** (0.37초) — 09-23 과 같습니다(코드 변경 0). 09-22 의 59건에서 09-23 QA 병합으로 19건 늘었던 것 |
 | `client/` | — | 테스트 스크립트 없음 |
 
-실패 2건은 어제와 같은 둘이고 둘 다 **환경 문제**입니다. `server/package.json` 에 `"web-push": "^3.6.7"` 이 있고 `server/node_modules/web-push` 가 없습니다.
+실패 2건은 09-23 과 같은 둘이고 둘 다 **환경 문제**입니다(09-28 재확인 — 두 파일 모두 `Error: Cannot find module 'web-push'`). `server/package.json` 에 `"web-push": "^3.6.7"` 이 있고 `server/node_modules/web-push` 가 없습니다.
 
 - `push.test.js` — `Cannot find module 'web-push'`
 - `scripts/sendReminders.test.js` — 같은 원인
@@ -170,12 +181,13 @@
 
 | # | 내용 | 근거 | 상태 |
 |---|---|---|---|
-| **R1** | `node_modules` 가 `package.json` 과 어긋나 서버 테스트 2건이 깨집니다 | 2026-09-23 `node --test` 78건 중 2 실패 · `node_modules/web-push` 없음 | 미해결 — `npm install` 로 확인 필요 |
+| **R1** | `node_modules` 가 `package.json` 과 어긋나 서버 테스트 2건이 깨집니다 | 2026-09-28 `node --test` 78건 중 2 실패 · `node_modules/web-push` 없음 | 미해결 — `npm install` 로 확인 필요 |
 | ~~**R2**~~ | ~~로컬 `main` 이 `origin/main` 과 갈라졌습니다~~ | `rev-list --count main...origin/main` = `0 0` | ✅ 해결 2026-09-23 — 18:44 `pull --rebase origin main` (reflog) |
-| **R3** | `project-ui-ux-review` 워크트리의 미커밋 50건이 **09-14~15 이후 방치**(9일째). 후기 속성 추출·가입 임시저장은 다른 어디에도 없습니다. 브랜치가 main 보다 46 뒤라 오래 둘수록 살리기 어려워집니다 | 워크트리 `git status --short` 50줄 · 오늘 mtime 0 | 미해결 — 살릴지 버릴지 판정 필요 |
+| **R2′** | 로컬 `main` 이 `origin/main` 보다 **1 앞**섭니다 — 09-23 SSOT 커밋 `90f336c` 미push. 뒤처진 것은 없습니다(추적 ref 기준, fetch 안 함) | 2026-09-28 `rev-list --left-right --count main...origin/main` = `1 0` | 미해결 — push 여부 사용자 결정. 이 갱신 커밋까지 합치면 2 앞이 됩니다 |
+| **R3** | `project-ui-ux-review` 워크트리의 미커밋 50건이 **09-14~15 이후 방치**(9일째). 후기 속성 추출·가입 임시저장은 다른 어디에도 없습니다. 브랜치가 main 보다 47 뒤라 오래 둘수록 살리기 어려워집니다. **09-28 기준 14일째** | 2026-09-28 워크트리 `git status --short` 50줄(M 42 · ?? 8) · 마지막 mtime 09-15 14:38 | 미해결 — 살릴지 버릴지 판정 필요 |
 | **R4** | 부하 시험(09-15) 이후 외부 LLM 호출 경로(후기 AI 요약, 09-17)가 들어왔는데 그 경로는 시험에 없습니다 | 커밋 `0339635` · `docs/LoadTest-2026-09-15.md` | 미해결 |
 | ~~**R5**~~ | ~~QA 점검(09-13)에서 나온 수정이 main 에 없습니다~~ | PR #8 `f85dcec` · k6 브랜치 0 앞 / 8 뒤 | ✅ 해결 2026-09-23 — GitHub 에서 병합 |
-| **R6** | main 에 새로 들어온 `server/scripts/alterReviewSummaries.sql` 이 쓰던 개발 DB 에 적용됐는지 모릅니다. 스키마는 빈 볼륨 첫 기동에만 자동 적용되므로, 안 됐다면 후기 AI 요약이 DB 오류로 떨어집니다 | PR #8 diff · DB 정지로 `SHOW TABLES` 못 함 | 미확인 — DB 를 띄운 날 확인 |
+| **R6** | main 에 새로 들어온 `server/scripts/alterReviewSummaries.sql` 이 쓰던 개발 DB 에 적용됐는지 모릅니다. 스키마는 빈 볼륨 첫 기동에만 자동 적용되므로, 안 됐다면 후기 AI 요약이 DB 오류로 떨어집니다 | PR #8 diff · DB 정지로 `SHOW TABLES` 못 함(09-28 도 Docker 데몬 정지) | 미확인 — DB 를 띄운 날 확인 |
 
 ---
 
@@ -183,13 +195,14 @@
 
 1. ~~**`git pull`** — 로컬 main 을 `origin/main` 에 맞춥니다.~~ ✅ 해결 2026-09-23 (R2)
 2. ~~**k6 브랜치 5커밋 병합 판정**~~ ✅ 해결 2026-09-23 — PR #8 (R5)
-3. **방치된 워크트리 50건 판정** — `project-ui-ux-review-eedd45`. 이제 이것이 맨 앞입니다. 살린다면 main 에서 브랜치를 새로 따서 옮겨 커밋(46커밋 뒤라 충돌 정리 필요), 버린다면 워크트리를 지웁니다. **판정 전에는 손대지 않습니다.** (R3)
+3. **방치된 워크트리 50건 판정** — `project-ui-ux-review-eedd45`. 이제 이것이 맨 앞이고 14일째입니다. 살린다면 main 에서 브랜치를 새로 따서 옮겨 커밋(47커밋 뒤라 충돌 정리 필요 · 코드 쪽은 09-23 이후 main 이 안 움직였으므로 지금이 충돌이 더 늘기 전입니다), 버린다면 워크트리를 지웁니다. **판정 전에는 손대지 않습니다.** (R3)
 4. **`npm install` 로 테스트 2건 복구** — `server/` 에서. (R1)
 5. **DB 를 띄우고 스키마 확인** — 셸에 `DB_PASSWORD` 를 넣거나(`server/.env` 값) `docker compose --env-file server/.env up -d db` 후 `SHOW TABLES` 로 `alterReviewSummaries.sql` 적용 여부 확인, 안 됐으면 적용. 그날부터 §4 가 채워집니다. (R6)
 6. **병합 완료 브랜치 6개 정리 제안** — `k6-load-test-vu200-57ad6a`(원격 브랜치 포함) · `petmedisearch-work-log-organize-6d1b92` · `mobile-board-ui-improvements-f99327` · `petmedisearch-folder-check-dd8c3b` · `tablist-slide-pet-flow-5034d0` · `resume-writing-ac8899`. 전부 main 에 없는 내용 0. 워크트리 폴더 이름과 브랜치가 어긋난 곳이 있으니(§2 함정) `git worktree list` 로 짝을 보고 지웁니다.
 7. 후기 AI 요약 경로 부하 재측정. (R4)
+8. **main push** — 로컬에만 있는 SSOT 커밋(`90f336c` + 오늘 것)을 `origin/main` 에 올릴지. 문서 커밋뿐이라 급하지 않습니다. (R2′)
 
-> 3 · 5 · 6 은 **사용자 결정 사항**입니다. 이 문서의 갱신 규칙은 병합·삭제·pull·DB 기동을 스스로 하지 않습니다.
+> 3 · 5 · 6 · 8 은 **사용자 결정 사항**입니다. 이 문서의 갱신 규칙은 병합·삭제·pull·push·DB 기동을 스스로 하지 않습니다.
 
 ---
 
