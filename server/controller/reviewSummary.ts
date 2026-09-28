@@ -14,8 +14,8 @@ import prisma from '../db/prisma.js';
 import { logError } from '../logError.js';
 import * as ai from '../ai/index.js';
 import { MIN_REVIEWS, MAX_REVIEWS_IN_PROMPT, SYSTEM_PROMPT, SUMMARY_SCHEMA, buildPrompt, parseSummary } from '../ai/reviewSummaryPrompt.js';
-import * as reviews from '../repositories/reviews.js';
-import * as summaries from '../repositories/reviewSummaries.js';
+import reviews from '../repositories/reviews.js';
+import summaries from '../repositories/reviewSummaries.js';
 import type { ReviewSummaryView } from '../repositories/reviewSummaries.js';
 
 export type { ReviewSummaryView };

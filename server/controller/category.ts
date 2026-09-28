@@ -1,6 +1,6 @@
 import { logError } from '../logError.js';
 import { pageWindow } from './validate.js';
-import * as posts from '../repositories/posts.js';
+import posts from '../repositories/posts.js';
 import type { Request, Response } from 'express';
 
 /** 한 번에 보낼 글 수. 화면 기본값과 맞춰 둡니다. */

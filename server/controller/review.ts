@@ -2,7 +2,7 @@ import { logError } from '../logError.js';
 import { requireUser } from './authUser.js';
 import { textField, intField, idField, pathId, pageWindow, isImageDataUrl } from './validate.js';
 import { refreshSummary, refreshForReview, getSummary } from './reviewSummary.js';
-import * as reviews from '../repositories/reviews.js';
+import reviews from '../repositories/reviews.js';
 import type { Request, Response } from 'express';
 
 /*

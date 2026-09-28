@@ -1,6 +1,6 @@
 import { logError } from '../logError.js';
 import { verifyToken } from './authUser.js';
-import * as mypage from '../repositories/mypage.js';
+import mypage from '../repositories/mypage.js';
 import type { Request, Response } from 'express';
 
 /*

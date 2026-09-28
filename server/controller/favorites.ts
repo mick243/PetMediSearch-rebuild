@@ -1,7 +1,7 @@
 import { logError } from '../logError.js';
 import { requireUser } from './authUser.js';
 import { pathId } from './validate.js';
-import * as favorites from '../repositories/favorites.js';
+import favorites from '../repositories/favorites.js';
 import type { Request, Response } from 'express';
 
 /*

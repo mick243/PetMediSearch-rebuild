@@ -3,7 +3,7 @@ import { requireUser } from './authUser.js';
 import { textField, intField, pathId, richTextHasContent } from './validate.js';
 import type { Checked } from './validate.js';
 import { findRemoteResource } from '../postImages.js';
-import * as posts from '../repositories/posts.js';
+import posts from '../repositories/posts.js';
 import type { Request, Response } from 'express';
 
 /*

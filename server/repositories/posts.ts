@@ -148,5 +148,8 @@ async function deletePost(postId: number, userId: number): Promise<boolean> {
     });
 }
 
-export { listCategories, listPosts, getPost, createPost, updatePost, deletePost };
+/** 함수를 객체 하나로 묶어 내보냅니다. 테스트가 t.mock.method 로 한 함수씩 바꿔 끼울 수 있습니다(ESM 이름 내보내기는 바꿀 수 없음). */
+const posts = { listCategories, listPosts, getPost, createPost, updatePost, deletePost };
+
+export default posts;
 export type { CategoryRow, PostListRow, PostRow, CreateResult };

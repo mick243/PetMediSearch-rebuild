@@ -1,7 +1,7 @@
 import { logError } from '../logError.js';
 import { requireUser } from './authUser.js';
 import { textField, idField, pathId, pageWindow } from './validate.js';
-import * as comments from '../repositories/comments.js';
+import comments from '../repositories/comments.js';
 import type { Request, Response } from 'express';
 
 /*
