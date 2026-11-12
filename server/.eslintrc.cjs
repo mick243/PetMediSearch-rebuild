@@ -6,7 +6,8 @@
  * 두 파일에 있었고, 오류 경로에서만 도는 자리라 DB 가 끊긴 순간에야
  * ReferenceError 로 프로세스가 죽었습니다.
  *
- * no-undef 하나만으로 그 부류는 전부 잡힙니다.
+ * 그 부류는 이제 TypeScript(npm run typecheck)가 잡습니다. no-undef 는 타입 이름을 몰라
+ * TS 코드에서는 틀린 경고만 내므로 끕니다 (typescript-eslint 의 권고).
  */
 module.exports = {
   root: true,
@@ -14,17 +15,21 @@ module.exports = {
     node: true,
     es2023: true,
   },
+  parser: '@typescript-eslint/parser',
   parserOptions: {
     ecmaVersion: 2023,
-    sourceType: 'script', // CommonJS (require/module.exports)
+    sourceType: 'module',
   },
-  extends: ['eslint:recommended'],
+  plugins: ['@typescript-eslint'],
+  extends: ['eslint:recommended', 'plugin:@typescript-eslint/recommended'],
   rules: {
+    'no-undef': 'off',
     /*
      * 쓰지 않는 변수. 다만 콜백에서 앞 인자만 쓰려고 뒤를 비워 두는 일이 흔해
      * (error, results) 처럼 뒤쪽 인자는 넘어갑니다.
      */
-    'no-unused-vars': [
+    'no-unused-vars': 'off',
+    '@typescript-eslint/no-unused-vars': [
       'error',
       { args: 'after-used', argsIgnorePattern: '^_', caughtErrors: 'none' },
     ],
@@ -33,10 +38,13 @@ module.exports = {
   },
   overrides: [
     {
-      // 테스트는 node:test 의 전역을 씁니다.
-      files: ['**/*.test.js'],
-      env: { node: true },
+      /*
+       * 테스트는 일부러 틀린 타입(배열·객체·참거짓)을 넣어 입구 검사를 보고, 응답 JSON 을
+       * 그대로 들여다봅니다. 그 자리의 any 는 받아 줍니다. 서버 코드에서는 여전히 오류입니다.
+       */
+      files: ['**/*.test.ts', 'contract/**/*.ts'],
+      rules: { '@typescript-eslint/no-explicit-any': 'off' },
     },
   ],
-  ignorePatterns: ['node_modules/', 'public/'],
+  ignorePatterns: ['node_modules/', 'public/', 'dist/'],
 };

@@ -1,9 +1,12 @@
 # PetMediSearch API 서버 이미지.
 #
-# 두 단계로 나눕니다. bcrypt 가 네이티브 모듈이라 설치할 때 컴파일 도구가 필요할
-# 수 있는데, 그 도구를 최종 이미지까지 들고 가면 크기도 커지고 공격 면도 넓어집니다.
+# 세 단계로 나눕니다.
+#   deps    운영 의존성만 설치. bcrypt 가 네이티브 모듈이라 컴파일 도구가 필요할 수 있습니다.
+#   build   TypeScript 를 dist/ 로 컴파일. 개발 의존성(typescript)은 여기서만 씁니다.
+#   runtime 위 둘의 결과만 가져옵니다. 컴파일 도구도 TypeScript 도 최종 이미지에 들어가지
+#           않아 크기가 작고 공격 면이 좁습니다.
 
-# ---------- 1단계: 의존성 설치 ----------
+# ---------- 1단계: 운영 의존성 ----------
 FROM node:22-slim AS deps
 
 # bcrypt 에 미리 빌드된 바이너리가 없을 때를 대비합니다.
@@ -20,7 +23,17 @@ COPY package*.json ./
 # npm ci 는 package-lock.json 그대로 설치합니다 (install 과 달리 잠금 파일을 고치지 않음).
 RUN npm ci --omit=dev
 
-# ---------- 2단계: 실행 ----------
+# ---------- 2단계: 컴파일 ----------
+FROM node:22-slim AS build
+
+WORKDIR /app
+COPY package*.json ./
+# 컴파일만 하므로 설치 스크립트(bcrypt 빌드 등)는 돌리지 않습니다. 결과물(dist)만 가져갑니다.
+RUN npm ci --ignore-scripts
+COPY . .
+RUN npm run build
+
+# ---------- 3단계: 실행 ----------
 FROM node:22-slim AS runtime
 
 # 컨테이너 안 시각을 한국 시간으로 맞춥니다. 로그의 시각과 사람이 보는 시각이 같아야
@@ -31,7 +44,14 @@ ENV NODE_ENV=production
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+COPY --from=build /app/dist ./dist
+# 컴파일하지 않는 파일들. package.json 은 "type": "module" 때문에 꼭 있어야 합니다 — 없으면
+# node 가 dist/*.js 를 CommonJS 로 읽어 import 에서 멈춥니다. 정적 파일(public)과 적재용
+# 원본(data, scripts/importData.ts 가 읽음)도 가져옵니다. 스키마(scripts/*.sql)는 compose 가
+# DB 컨테이너에 직접 붙이므로 여기 넣지 않습니다.
+COPY package.json ./
+COPY public ./public
+COPY data ./data
 
 # .env 는 이미지에 넣지 않습니다(.dockerignore). 실행할 때 넘깁니다.
 # 비밀값이 이미지에 박히면 이미지를 받을 수 있는 사람이 곧 비밀값을 가진 사람이 됩니다.
@@ -48,4 +68,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
 
 # npm start 를 거치지 않고 node 를 직접 띄웁니다.
 # npm 을 거치면 SIGTERM 이 node 까지 전달되지 않아 정상 종료가 동작하지 않습니다.
-CMD ["node", "app.js"]
+# 스크립트도 빌드한 것을 씁니다: docker compose exec api node dist/scripts/importData.js
+CMD ["node", "dist/app.js"]

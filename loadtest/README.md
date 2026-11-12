@@ -2,7 +2,7 @@
 
 동시 사용자 200명까지 걸어 보고, 화면별로 얼마나 기다리게 되는지 잽니다.
 
-`server/scripts/seedScale.js` 가 만든 **사본 DB** 에 대고 돕니다. 실제 DB 는 글이
+`server/scripts/seedScale.ts` 가 만든 **사본 DB** 에 대고 돕니다. 실제 DB 는 글이
 몇 건뿐이라 거기서 재면 어떤 쿼리도 빠릅니다 — 무엇이 문제인지 드러나지 않습니다.
 
 | 파일 | 하는 일 |
@@ -11,11 +11,11 @@
 | `k6/load.js` | 0 → 50 → 100 → 200 VU 로 올리며 10분 30초 |
 | `k6/lib/app.js` | 대상 주소·사용자 여정·화면별 예산 |
 | `k6/lib/summary.js` | 결과를 화면별 표로 |
-| `../server/scripts/loadtestPrepare.js` | 계정·토큰·두드릴 id 만들기 |
-| `../server/scripts/loadtestCleanup.js` | 시험이 남긴 것 되돌리기 |
+| `../server/scripts/loadtestPrepare.ts` | 계정·토큰·두드릴 id 만들기 |
+| `../server/scripts/loadtestCleanup.ts` | 시험이 남긴 것 되돌리기 |
 
 준비·정리 스크립트만 `server/scripts/` 에 있는 것은 `mysql2`·`bcrypt` 를 쓰기 때문입니다
-(`seedScale.js` 옆자리). k6 스크립트는 k6 가 자기 런타임으로 돌려서 `node_modules` 가
+(`seedScale.ts` 옆자리). k6 스크립트는 k6 가 자기 런타임으로 돌려서 `node_modules` 가
 필요 없습니다.
 
 ---
@@ -39,7 +39,7 @@ docker exec petmedisearch-mysql mysqldump -uroot --password=<암호> --no-data p
 ### 2. 실규모 데이터 넣기
 
 ```bash
-cd server && SCALE_DB=petmedisearch_scale node scripts/seedScale.js
+cd server && SCALE_DB=petmedisearch_scale npx tsx scripts/seedScale.ts
 ```
 
 사용자 1만 · 글 2만 · 댓글 6만 · 후기 1.5만 · 아이 6천 · 접종 일정 3만.
@@ -52,7 +52,7 @@ cd server && SCALE_DB=petmedisearch_scale node scripts/seedScale.js
 ### 1. 서버 띄우기
 
 ```bash
-cd server && DB_NAME=petmedisearch_scale TRUST_PROXY=1 NODE_ENV=production node app.js
+cd server && npm run build && DB_NAME=petmedisearch_scale TRUST_PROXY=1 NODE_ENV=production node dist/app.js
 ```
 
 `TRUST_PROXY=1` 이 **꼭 필요합니다.** 없으면 VU 200개가 전부 `::1` 한 사람으로 묶여,
@@ -64,13 +64,13 @@ k6 가 VU 마다 다른 `X-Forwarded-For` 를 붙이므로, 이 설정이 있어
 `DB_NAME` 은 `.env` 보다 우선합니다 (dotenv 는 이미 있는 환경변수를 덮지 않습니다).
 
 앱 계정(`DB_USER`)은 `petmedisearch` 에만 권한이 있어 사본 DB 에는 닿지 못합니다
-(`server/scripts/createDbUser.js`). 사본을 만들고 채우고 두드리는 명령(seedScale ·
+(`server/scripts/createDbUser.ts`). 사본을 만들고 채우고 두드리는 명령(seedScale ·
 loadtestPrepare · 위 서버)은 앞에 `DB_USER=root DB_PASSWORD=<root 암호>` 를 붙여 root 로 돌립니다.
 
 ### 2. 준비물 만들기
 
 ```bash
-cd server && SCALE_DB=petmedisearch_scale node scripts/loadtestPrepare.js
+cd server && SCALE_DB=petmedisearch_scale npx tsx scripts/loadtestPrepare.ts
 ```
 
 `loadtest/.data/` 에 계정 400개(토큰 포함)와 두드릴 id 목록이 생깁니다.
@@ -98,7 +98,7 @@ k6 run -e BASE_URL=http://10.0.0.5:8081 loadtest/k6/load.js
 ### 4. 되돌리기
 
 ```bash
-cd server && SCALE_DB=petmedisearch_scale node scripts/loadtestCleanup.js
+cd server && SCALE_DB=petmedisearch_scale npx tsx scripts/loadtestCleanup.ts
 ```
 
 쓰기 시나리오가 남긴 댓글·후기를 지우고, 바꿔 둔 비밀번호를 원래 값으로 돌립니다.

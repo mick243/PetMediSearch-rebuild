@@ -47,7 +47,7 @@ docker compose --env-file server/.env -f docker-compose.yml -f docker-compose.de
 앱 계정의 권한을 행 읽기·쓰기로 좁힙니다(`DB_ROOT_PASSWORD` 는 `server/.env` 에서 읽습니다).
 
 ```bash
-cd server && node scripts/createDbUser.js
+cd server && npx tsx scripts/createDbUser.ts
 ```
 
 처음 뜰 때 `server/scripts/` 의 스키마가 자동으로 적용됩니다.
@@ -59,13 +59,13 @@ cd server && node scripts/createDbUser.js
 ### 3. 시설 데이터 적재
 
 ```bash
-cd server && node scripts/importData.js
+cd server && npx tsx scripts/importData.ts
 ```
 
 ### 4. 실행
 
 ```bash
-cd server && npm install && node app.js
+cd server && npm install && npm run dev
 ```
 
 ```bash
@@ -131,15 +131,15 @@ docker compose --env-file server/.env up -d
 앱 계정의 권한을 행 읽기·쓰기로 좁힙니다. root 암호는 이 명령에만 넘깁니다.
 
 ```bash
-docker compose --env-file server/.env run --rm -e DB_ROOT_PASSWORD='root-암호' api node scripts/createDbUser.js
+docker compose --env-file server/.env run --rm -e DB_ROOT_PASSWORD='root-암호' api node dist/scripts/createDbUser.js
 ```
 
 ```bash
-docker compose --env-file server/.env exec api node scripts/importData.js
+docker compose --env-file server/.env exec api node dist/scripts/importData.js
 ```
 
 ```bash
-docker compose --env-file server/.env exec -e ADMIN_PASSWORD='고른-비밀번호' api node scripts/createAdmin.js
+docker compose --env-file server/.env exec -e ADMIN_PASSWORD='고른-비밀번호' api node dist/scripts/createAdmin.js
 ```
 
 ### 3. 확인
@@ -164,7 +164,7 @@ curl http://localhost:8081/health
 
 `docker-compose.yml` 에서 `db` 서비스와 `depends_on` 을 지우고 `server/.env` 의
 `DB_HOST`·`DB_USER`·`DB_PASSWORD` 만 그쪽으로 바꾸면 됩니다. `api` 서비스는 그대로
-씁니다. 앱 계정은 그 DB 의 관리자 계정으로 `createDbUser.js` 를 돌려 만듭니다
+씁니다. 앱 계정은 그 DB 의 관리자 계정으로 `createDbUser.ts` 를 돌려 만듭니다
 (`DB_ROOT_USER` 에 관리자 이름, `DB_ROOT_PASSWORD` 에 그 암호).
 
 ### 이미 띄워 둔 서버라면
@@ -178,7 +178,7 @@ curl http://localhost:8081/health
    떠 있는 API 컨테이너가 아직 예전 설정을 들고 있어서입니다.
 
 ```bash
-docker compose --env-file server/.env run --rm -e DB_ROOT_PASSWORD='지금-root-암호' api node scripts/createDbUser.js
+docker compose --env-file server/.env run --rm -e DB_ROOT_PASSWORD='지금-root-암호' api node dist/scripts/createDbUser.js
 ```
 
 ```bash
@@ -213,13 +213,13 @@ gunzip -c backups/petmedisearch-YYYYmmdd-HHMMSS.sql.gz | docker compose --env-fi
 원본은 매일 갱신되며 2일 전 기준으로 현행화됩니다.
 
 ```bash
-docker compose --env-file server/.env exec api node scripts/syncData.js
+docker compose --env-file server/.env exec api node dist/scripts/syncData.js
 ```
 
 주 1회 정도면 충분합니다. `crontab -e` 에:
 
 ```bash
-0 5 * * 1 cd /path/to/PetMediSearch-rebuild && docker compose --env-file server/.env exec -T api node scripts/syncData.js >> /var/log/pms-sync.log 2>&1
+0 5 * * 1 cd /path/to/PetMediSearch-rebuild && docker compose --env-file server/.env exec -T api node dist/scripts/syncData.js >> /var/log/pms-sync.log 2>&1
 ```
 
 ### 로그

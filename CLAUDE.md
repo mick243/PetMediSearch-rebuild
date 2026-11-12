@@ -5,7 +5,7 @@
 | 구성 | 스택 | 포트 |
 |---|---|---|
 | `client/` | React 18 + TypeScript + Vite, styled-components, Redux Toolkit, React Router v6 | 5000 |
-| `server/` | Express + mysql2(콜백 방식) | 8081 |
+| `server/` | Express + TypeScript(ESM) + mysql2(콜백 방식) | 8081 |
 | DB | MySQL 8 — Docker 컨테이너 `petmedisearch-mysql` | 3306 |
 
 ```bash
@@ -28,7 +28,7 @@ cd client && npm run start
 느릴 것 같다고 고치지 않고, 재서 느린 것만 고칩니다. 대신 잴 때는 **실제 규모로**
 잽니다. 시드 데이터가 100건이면 어떤 쿼리도 빠릅니다.
 
-`server/scripts/seedScale.js` 가 **복사본 DB** 에 사용자 1만·글 2만·댓글 6만·후기
+`server/scripts/seedScale.ts` 가 **복사본 DB** 에 사용자 1만·글 2만·댓글 6만·후기
 1.5만 건을 넣습니다. 운영 중인 DB 에는 넣지 않습니다.
 
 이 방식으로 찾은 것들입니다. 전부 눈으로 보면 멀쩡했습니다.
@@ -84,13 +84,13 @@ return res.status(404).json({ message: '글을 찾을 수 없습니다.' });
   한쪽만 보는 화면에서는 서버가 보낸 문구가 묻히고 기본 문구만 떴습니다.
 - **예외 객체를 응답에 싣지 않습니다.** 표 이름과 쿼리가 그대로 드러납니다.
   원인은 `console.error` 로 서버 로그에만 남깁니다.
-- 마지막 그물은 `server/app.js` 맨 아래의 404 핸들러와 오류 핸들러입니다.
+- 마지막 그물은 `server/app.ts` 맨 아래의 404 핸들러와 오류 핸들러입니다.
   이게 없으면 Express 기본 처리로 넘어가 HTML 이 돌아오고, JSON 을 기대하던
   화면이 엉뚱한 곳에서 터집니다.
 
 ### 2.2 권한은 토큰이 아니라 DB 에서 본다
 
-`server/controller/authUser.js`:
+`server/controller/authUser.ts`:
 
 ```js
 const IS_ADMIN = "(SELECT role FROM users WHERE user_id = ?) = 'admin'";
@@ -107,9 +107,9 @@ const OWNER_OR_ADMIN = `(user_id = ? OR ${IS_ADMIN})`;
 
 | 컨트롤러 | 기본 | 상한 | 응답 |
 |---|---|---|---|
-| `category.js` | 10 | 50 | `{ posts, total }` |
-| `comment.js` | 5 | 30 | `{ comments, total, count }` — `total` 은 스레드 수, `count` 는 전체 댓글 수 |
-| `review.js` | 5 | 20 | `{ reviews, total }` |
+| `category.ts` | 10 | 50 | `{ posts, total }` |
+| `comment.ts` | 5 | 30 | `{ comments, total, count }` — `total` 은 스레드 수, `count` 는 전체 댓글 수 |
+| `review.ts` | 5 | 20 | `{ reviews, total }` |
 
 - `limit` 은 **반드시 서버에서 상한을 건다**. 클라이언트가 `limit=100000` 을 보내면
   페이지네이션이 없는 것과 같습니다.
@@ -171,7 +171,7 @@ if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: '이�
 
 ### 2.10 받은 값은 DB 에 닿기 전에 검사한다
 
-`server/controller/validate.js` 를 씁니다. 그대로 INSERT 하면 빈 제목도 70KB
+`server/controller/validate.ts` 를 씁니다. 그대로 INSERT 하면 빈 제목도 70KB
 댓글도 통과한 뒤 DB 제약에서 500 으로 죽고, 로그에는 쿼리 전문이 남습니다.
 
 에디터 본문은 `trim` 으로 부족합니다. ReactQuill 이 빈 글을 `<p><br></p>` 로
@@ -195,7 +195,7 @@ axios 오류를 통째로 찍으면 요청 config 에 실린 `client_secret` 까
 
 ### 2.12 인증 경로에는 요청 제한을 건다
 
-`server/middleware/rateLimit.js` — 로그인 15분에 실패 10번, 가입 1시간에 5개,
+`server/middleware/rateLimit.ts` — 로그인 15분에 실패 10번, 가입 1시간에 5개,
 그 밖은 1분에 300번. 개발에서도 켜 둡니다.
 
 프록시 뒤에 두면 `TRUST_PROXY` 를 설정해야 합니다. 없으면 모든 사용자가
@@ -203,7 +203,7 @@ axios 오류를 통째로 찍으면 요청 config 에 실린 `client_secret` 까
 
 반대로 **프록시를 거치지 않고 API 포트에 바로 닿는 길이 있으면 켜지 않습니다** — 한도가
 제 역할을 못 합니다. 그래서 `docker-compose.yml` 은 API 를 `127.0.0.1` 에만 열고, 이 값을
-박아 두지 않고 `server/.env` 에 둡니다. 값을 읽는 규칙은 `server/trustProxy.js` 입니다
+박아 두지 않고 `server/.env` 에 둡니다. 값을 읽는 규칙은 `server/trustProxy.ts` 입니다
 (`true` 는 서버가 뜨지 않습니다).
 
 ---
@@ -390,7 +390,7 @@ useEffect(() => {
 - 한국어로, 단정적으로 씁니다
 - 숫자로 이유를 댈 수 있으면 숫자를 씁니다
 - 두 곳이 같은 값을 써야 하면 서로를 가리킵니다
-  (`/** 서버(server/controller/review.js 의 MAX_IMAGES)와 같은 값이어야 합니다. */`)
+  (`/** 서버(server/controller/review.ts 의 MAX_IMAGES)와 같은 값이어야 합니다. */`)
 - 예전에 뭐가 문제였는지가 다음 사람에게 제일 쓸모 있습니다
 
 ---
@@ -457,20 +457,20 @@ MySQL 설정 파일(`my.cnf`)로 푸는 방법은 **Windows 에서 통하지 않
 
 ## 6.6 배포 관련 규약
 
-- **DB 는 풀로 씁니다** (`server/mysql.js`). 커넥션 하나로 쓰면 쿼리가 한 줄로 서고,
+- **DB 는 풀로 씁니다** (`server/mysql.ts`). 커넥션 하나로 쓰면 쿼리가 한 줄로 서고,
   MySQL 의 `wait_timeout`(8시간)에 끊긴 뒤 되살아나지 않습니다.
 - **`/health` 는 실제로 쿼리를 던져 봅니다.** 프로세스만 떠 있고 DB 에 못 닿는
   상태가 가장 흔한데, 그때 200 을 주면 감시 도구가 멀쩡하다고 봅니다.
-- **`SIGTERM` 을 처리합니다** (`app.js` 아래쪽). `docker stop` 은 10초 뒤 강제로
+- **`SIGTERM` 을 처리합니다** (`app.ts` 아래쪽). `docker stop` 은 10초 뒤 강제로
   죽이므로, 처리 없이는 배포할 때마다 진행 중이던 요청이 끊깁니다.
-- **Dockerfile 의 `CMD` 는 `npm start` 가 아니라 `node app.js`** 입니다.
+- **Dockerfile 의 `CMD` 는 `npm start` 가 아니라 `node dist/app.js`** 입니다.
   npm 을 거치면 SIGTERM 이 node 까지 가지 않아 위 처리가 동작하지 않습니다.
 - **환경변수를 늘리면 `server/.env.example` 에도 적습니다.** 실제 `.env` 는
   git 에 없어서, 그 파일이 유일한 목록입니다.
-- **앱은 root 로 DB 에 붙지 않습니다.** 전용 계정(`scripts/createDbUser.js`)은 자기 DB 의
+- **앱은 root 로 DB 에 붙지 않습니다.** 전용 계정(`scripts/createDbUser.ts`)은 자기 DB 의
   행 읽기·쓰기와 `emoticons` 의 ALTER 만 갖습니다. 스키마 변경·백업·규모 시드는 root 로
   하고, root 암호(`DB_ROOT_PASSWORD`)는 앱 컨테이너에 넘기지 않습니다. 비밀번호는 코드에
-  적지 않습니다 — `importData.js` 에 root 암호가 박혀 공개돼 있었습니다.
+  적지 않습니다 — `importData.ts` 에 root 암호가 박혀 공개돼 있었습니다.
 
 ---
 
@@ -481,20 +481,21 @@ MySQL 설정 파일(`my.cnf`)로 푸는 방법은 **Windows 에서 통하지 않
 
 | 대상 | 도구 | 왜 |
 |---|---|---|
-| `server/search.js` | `node --test` | 검색 규칙이 눈으로 읽어서는 맞는지 모릅니다 |
-| `server/controller/validate.js` | `node --test` | 여기가 뚫리면 DB 제약에서 500 이 납니다 |
+| `server/search.ts` | `node --test` | 검색 규칙이 눈으로 읽어서는 맞는지 모릅니다 |
+| `server/controller/validate.ts` | `node --test` | 여기가 뚫리면 DB 제약에서 500 이 납니다 |
 | `client/src/utils/*.ts` | Vitest | 순수 함수라 값싸게 고정할 수 있습니다 |
 
 ```bash
-cd server && npm test     # node --test, 의존성 없음
+cd server && npm test     # node --test (tsx 로 .ts 를 바로 돌림), DB 없음
 cd client && npm test     # vitest run
 ```
 
-**`app.js` 에 순수 함수를 두지 않습니다.** `require` 하는 순간 서버가 떠서
-테스트에서 부를 수 없습니다. 검색 로직을 `server/search.js` 로 뺀 이유입니다.
+**`app.ts` 에 순수 함수를 두지 않습니다.** import 하는 순간 서버가 떠서
+테스트에서 부를 수 없습니다. 검색 로직을 `server/search.ts` 로 뺀 이유입니다.
 
-서버에도 ESLint 가 있습니다(`server/.eslintrc.cjs`). `no-undef` 가 "부르는데
-`require` 하지 않은 식별자" 를 잡습니다 — 실제로 그 버그가 두 파일에 있었습니다.
+서버는 TypeScript(strict)입니다. `npm run typecheck` 가 "부르는데 가져오지 않은 식별자" 를
+잡습니다 — 실제로 그 버그가 두 파일에 있었습니다(예전에는 ESLint 의 `no-undef` 가 하던 일).
+ESLint(`server/.eslintrc.cjs`, typescript-eslint)도 그대로 돕니다. 서버 코드에서 `any` 는 오류입니다.
 
 CI 는 `.github/workflows/ci.yml` 에서 밀어 넣을 때마다 위를 전부 돕니다.
 
@@ -512,13 +513,13 @@ cd server && CONTRACT_DB_HOST=127.0.0.1 CONTRACT_DB_PORT=3307 CONTRACT_DB_PASSWO
 
 - 공유 개발 DB(3306)에 대고 돌리지 않습니다. `petmedisearch_contract` 를 지우고 새로 깝니다.
 - 응답이 **일부러** 바뀌었으면 `UPDATE_GOLDEN=1` 로 다시 뜨고, 무엇이 왜 바뀌었는지 커밋에 적습니다.
-- 앱은 root 가 아니라 앱 계정(`scripts/createDbUser.js`) 권한으로 붙습니다. 권한이 모자란 자리도 여기서 드러납니다.
+- 앱은 root 가 아니라 앱 계정(`scripts/createDbUser.ts`) 권한으로 붙습니다. 권한이 모자란 자리도 여기서 드러납니다.
 
 ---
 
 ## 7. 끝났다고 말하기 전 점검표
 
-1. `cd client && npm run build` — `tsc -b` 통과
+1. `cd client && npm run build` — `tsc -b` 통과 · `cd server && npm run typecheck && npm run build`
 2. `cd client && npm run lint` · `cd server && npm run lint` — 경고 0
 3. `cd client && npm test` · `cd server && npm test` — 전부 통과
 4. 브라우저에서 **실제로 그 동작**을 해 봄 (로그인 → 클릭 → 화면 → 새로고침)
@@ -535,7 +536,7 @@ cd server && CONTRACT_DB_HOST=127.0.0.1 CONTRACT_DB_PORT=3307 CONTRACT_DB_PASSWO
 |---|---|
 | JWT 페이로드 | `{ id, role }`, 유효기간 1일 |
 | 비밀번호 해시 | bcrypt cost 12 |
-| 요청 본문 상한 | 3mb (`server/app.js`) |
+| 요청 본문 상한 | 3mb (`server/app.ts`) |
 | 관리자 계정 만들기 | `cd server && ADMIN_PASSWORD='...' npm run create-admin` (비밀번호 필수) |
 | 보안 헤더 | helmet (CSP 는 끔 — API 서버이고 Swagger UI 가 깨짐) |
 | Swagger | 개발에서만. `NODE_ENV=production` 이면 `/api` 미등록 |

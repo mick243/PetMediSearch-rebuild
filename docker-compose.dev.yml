@@ -1,4 +1,4 @@
-# 로컬 개발용 덧붙임. 호스트에서 `node app.js` 로 띄운 서버가 DB 에 닿도록 3306 을 엽니다.
+# 로컬 개발용 덧붙임. 호스트에서 `npm run dev` 로 띄운 서버가 DB 에 닿도록 3306 을 엽니다.
 #
 #   docker compose --env-file server/.env -f docker-compose.yml -f docker-compose.dev.yml up -d db
 #
