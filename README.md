@@ -6,7 +6,7 @@
 | 구성 | 스택 | 포트 |
 |---|---|---|
 | `client/` | React 18 + TypeScript + Vite | 5000 |
-| `server/` | Express + mysql2 | 8081 |
+| `server/` | Express + TypeScript + Prisma 7 | 8081 |
 | DB | MySQL 8 | 3306 |
 
 시설 데이터는 공공데이터포털(행정안전부 지방행정인허가데이터)에서 가져옵니다.

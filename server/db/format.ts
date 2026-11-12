@@ -11,7 +11,7 @@
  */
 import type { FacilityType } from '../generated/prisma/enums.js';
 
-/** 한국은 서머타임이 없어 고정 오프셋으로 정확합니다. mysql.ts 의 timezone: '+09:00' 과 같은 값입니다. */
+/** 한국은 서머타임이 없어 고정 오프셋으로 정확합니다. docker-compose 의 --default-time-zone 과 같은 값입니다. */
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
 const pad = (n: number, width = 2) => String(n).padStart(width, '0');

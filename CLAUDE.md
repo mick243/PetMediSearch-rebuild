@@ -5,7 +5,7 @@
 | 구성 | 스택 | 포트 |
 |---|---|---|
 | `client/` | React 18 + TypeScript + Vite, styled-components, Redux Toolkit, React Router v6 | 5000 |
-| `server/` | Express + TypeScript(ESM) + mysql2(콜백 방식) | 8081 |
+| `server/` | Express + TypeScript(ESM) + Prisma 7(`@prisma/adapter-mariadb`) | 8081 |
 | DB | MySQL 8 — Docker 컨테이너 `petmedisearch-mysql` | 3306 |
 
 ```bash
@@ -195,8 +195,9 @@ JSON 본문과 쿼리스트링의 값은 배열이나 객체일 수 있고, `Num
 logError('addPostById', err);   // console.error(err) 금지
 ```
 
-mysql2 오류는 `err.sql` 에 쿼리 전문을 들고 있습니다. 사진이 붙은 글 하나가
-실패하면 100KB base64 가 로그에 남고, 값으로 들어간 개인정보도 같이 남습니다.
+Prisma 오류의 message 에는 넘긴 인자가 값째로, meta 에는 중복된 키 값이 들어 있습니다(mysql2 때는
+`err.sql` 에 쿼리 전문이). 사진이 붙은 글 하나가 실패하면 100KB base64 가 로그에 남고, 값으로 들어간
+개인정보도 같이 남습니다. `logError` 는 Prisma 오류에서 코드 · 모델 · 필드 이름만 찍습니다.
 axios 오류를 통째로 찍으면 요청 config 에 실린 `client_secret` 까지 남습니다.
 
 같은 이유로 **쿼리·요청 본문·외부 API 응답을 `console.log` 하지 않습니다.**
@@ -474,7 +475,7 @@ MySQL 설정 파일(`my.cnf`)로 푸는 방법은 **Windows 에서 통하지 않
 
 ## 6.6 배포 관련 규약
 
-- **DB 는 풀로 씁니다** (`server/mysql.ts`). 커넥션 하나로 쓰면 쿼리가 한 줄로 서고,
+- **DB 는 풀로 씁니다** (`server/db/prisma.ts`, Prisma + `@prisma/adapter-mariadb`). 커넥션 하나로 쓰면 쿼리가 한 줄로 서고,
   MySQL 의 `wait_timeout`(8시간)에 끊긴 뒤 되살아나지 않습니다.
 - **`/health` 는 실제로 쿼리를 던져 봅니다.** 프로세스만 떠 있고 DB 에 못 닿는
   상태가 가장 흔한데, 그때 200 을 주면 감시 도구가 멀쩡하다고 봅니다.

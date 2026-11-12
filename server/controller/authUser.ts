@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import type { Request, Response } from 'express';
 
 /** 로그인 토큰에 싣는 값 (controller/auth.ts 의 generateToken). */
 export interface TokenPayload {
@@ -22,6 +23,19 @@ const verifyToken = (token: string | undefined): TokenPayload | null => {
 };
 
 /**
+ * 로그인한 사용자의 번호. 토큰이 없거나 틀리면 401 을 보내고 null 을 돌려줍니다.
+ * 부르는 쪽은 null 이면 그대로 return 합니다 — 응답은 이미 나갔습니다.
+ */
+const requireUser = (req: Request, res: Response): number | null => {
+    const decoded = verifyToken(req.headers.authorization?.split(' ')[1]);
+    if (!decoded) {
+        res.status(401).send({ message: '유효하지 않은 토큰입니다.' });
+        return null;
+    }
+    return decoded.id;
+};
+
+/**
  * 요청자가 관리자인지. 값으로 user_id 를 하나 넘깁니다.
  *
  * 토큰에도 role 이 실려 있지만 굳이 users 를 다시 보는 이유는, 토큰이 하루짜리라
@@ -36,4 +50,4 @@ const IS_ADMIN = "(SELECT role FROM users WHERE user_id = ?) = 'admin'";
  */
 const OWNER_OR_ADMIN = `(user_id = ? OR ${IS_ADMIN})`;
 
-export { verifyToken, IS_ADMIN, OWNER_OR_ADMIN };
+export { verifyToken, requireUser, IS_ADMIN, OWNER_OR_ADMIN };

@@ -22,8 +22,9 @@
 | 보안 3·4·5 | `claude/security-input-db-ratelimit` | #10 | ✅ main 에 병합(a322173) |
 | 0 응답 기준선 | `claude/prisma-0-contract-baseline` | #11 | 열림 · CI 6/6 통과 · **사용자 병합 대기** |
 | 1 TypeScript·ESM | `claude/prisma-1-typescript` (#11 위) | #12 | 열림 · CI 6/6 통과 · 기준선 82/82 · **병합 대기** |
-| 2 Prisma 기반 | `claude/prisma-2-foundation` (#12 위) | #13 | 열림 · 기준선 82/82 · migrate diff 0 · **병합 대기** |
-| 3~6 | — | — | 시작 전 |
+| 2 Prisma 기반 | `claude/prisma-2-foundation` (#12 위) | #13 | 열림 · CI 6/6 · 기준선 82/82 · migrate diff 0 · **병합 대기** |
+| 3 모듈 이행 | `claude/prisma-3-modules` (#13 위) | #14 | 열림 · 기준선 82/82 · **병합 대기** — mysql2 풀 제거 완료 |
+| 4~6 | — | — | 시작 전 |
 
 작업 위치는 워크트리 `.claude/worktrees/mobile-board-ui-improvements-f99327` 입니다. 이 워크트리의
 `server/node_modules` 는 **다른 워크트리와 연결되지 않은 독립 폴더**입니다(아래 5장).
@@ -31,7 +32,7 @@
 ### 2단계에서 한 것 (PR #13)
 
 - `db/prisma.ts` — PrismaClient 하나. 어댑터 `@prisma/adapter-mariadb`, `initSql` 로 세션 UTC,
-  `PRISMA_POOL_SIZE`(기본 5), 전역 omit(`review.images` · `emoticon.data` · `pet.photo` · `user.password`).
+  풀 크기 `DB_POOL_SIZE`(3단계에서 합침), 전역 omit(`review.images` · `emoticon.data` · `pet.photo` · `user.password`).
 - `db/format.ts` (+ 테스트) — TIMESTAMP → KST 문자열, DATE · TIME · DECIMAL(scale) · Boolean → 0/1 ·
   FacilityType → '병원'/'약국'.
 - `logError.ts` — Prisma 오류는 name · code · meta 의 모델 · 필드 이름만 찍습니다(테스트 있음).
@@ -46,7 +47,6 @@
   CI contract 작업에 migrate diff 단계 추가.
 - `schema.prisma` 의 `emoticons.content_hash` 는 **기본값 없는 필수 문자열**로 둡니다. `@default(dbgenerated())`
   를 달면 migrate diff 가 차이로 잡습니다. 그래서 이모티콘 INSERT 는 3단계에서도 raw SQL 로 남깁니다.
-- 앱 종료(SIGTERM)에서 mysql2 풀과 Prisma 둘 다 닫습니다.
 
 ### 2단계에서 잰 사실 (다시 재지 않아도 됩니다)
 
@@ -71,12 +71,30 @@
 
 ## 3. 다음에 할 일
 
-### 2단계 뒤 곧바로
+### 3단계에서 한 것 (PR #14)
 
-1. PR #11 → #12 → #13 이 병합되면 3단계 브랜치 `claude/prisma-3-modules` 를 main 위에 만듭니다.
-2. 3단계 첫 모듈은 글(`controller/post.ts` · `category.ts`)입니다. 즐겨찾기 · 마이페이지가 본보기입니다:
-   저장소 함수는 mysql2 때와 같은 키 이름 · 순서 · 타입을 돌려주고(`db/format.ts`), 컨트롤러는 토큰 · 검사 · 응답만.
-3. 모듈마다 `npm run test:contract` 82/82 를 지키고, 한 모듈씩 커밋합니다.
+- 전 모듈을 `server/repositories/*` 로 옮겼습니다: posts · comments · reviews · reviewSummaries · users ·
+  pets · pushSubscriptions · emoticons (+ 2단계의 favorites · mypage). 컨트롤러는 토큰 · 검사 · 응답만.
+- `server/mysql.ts`(mysql2 풀) 삭제. 앱은 Prisma 하나로 붙습니다. mysql2 는 스크립트(`scripts/*`)와
+  기준선 하네스(`contract/db.ts`)가 아직 씁니다 — 관리자(root) 작업이라 그대로 둡니다.
+- raw SQL 로 남긴 것: 댓글 스레드(재귀 CTE), `JSON_LENGTH`(후기 사진 장수), 시설 검색 · 격자(조건이
+  요청마다 달라 문장 조립), 이모티콘 INSERT(생성 컬럼) · 번호 당기기(FOR UPDATE · ORDER BY UPDATE).
+- 트랜잭션: 글 · 댓글 · 후기 쓰기(계정 생존 확인 + INSERT), 글 삭제(글 + 댓글), 탈퇴(6문장), 이모티콘 삭제.
+- 저장소는 **함수 객체 하나를 default export** 합니다. ESM 이름 내보내기는 `t.mock.method` 로 바꿀 수
+  없어서, 컨트롤러 테스트(`controller/inputTypes.test.ts` · `auth.test.ts`)가 저장소 함수를 바꿔 끼웁니다.
+- 공통 헬퍼: `validate.ts` 의 `pathId`(경로 번호) · `pageWindow`(쪽 나누기), `authUser.ts` 의 `requireUser`.
+- **접속 함정 하나**: MySQL 8 의 `caching_sha2_password` 는 계정의 첫 접속에 RSA 공개키가 필요한데
+  mariadb 드라이버는 기본으로 요청하지 않습니다. mysql2 가 사라지자 새 앱 계정이 붙지 못해 모든 요청이
+  8초 뒤 P2010 으로 끝났습니다(기준선이 3분 매달림). `db/prisma.ts` 에 `allowPublicKeyRetrieval: true`.
+  TLS 로 붙게 되면 그때 지웁니다.
+- 기준선 하네스에 요청당 15초 상한을 넣었습니다(`contract/contract.test.ts` 의 `REQUEST_TIMEOUT_MS`).
+  응답 없는 핸들러가 있으면 단계 이름과 함께 끊깁니다.
+
+### 3단계 뒤 곧바로
+
+1. PR #11 → #12 → #13 → #14 순서로 병합(사용자). 병합되면 4단계 브랜치를 main 위에 만듭니다.
+2. 4단계 첫 일: compose 의 DB 초기화를 `createTables.sql` 마운트에서 `prisma migrate deploy` + `db seed` 로.
+   그림자 DB 없이 돌게 `migrate deploy` 만 씁니다(deploy 는 그림자 DB 가 필요 없음).
 
 ### 3~6단계 (계획서 표 그대로)
 
@@ -132,7 +150,7 @@ cd server && CONTRACT_DB_HOST=127.0.0.1 CONTRACT_DB_PORT=3307 CONTRACT_DB_PASSWO
 
 ## 6. 사용자에게 물어볼 것 (정하지 않은 것)
 
-- PR #11 · #12 · #13 병합 — 사용자가 합니다. 병합되면 3단계 브랜치를 main 위에 만듭니다.
+- PR #11 · #12 · #13 · #14 병합 — 사용자가 합니다. 병합되면 4단계 브랜치를 main 위에 만듭니다.
 - 공유 개발 DB 두 가지(지난 보안 작업의 남은 일):
   - 컨테이너가 3306 을 모든 주소에 엽니다. 127.0.0.1 로 다시 만들지 정해야 합니다(데이터는 이름 없는 볼륨에 있음).
   - root 암호를 바꾸고 앱 계정을 만들지 정해야 합니다. 워크트리마다 `server/.env` 도 바뀝니다.

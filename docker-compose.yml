@@ -70,7 +70,7 @@ services:
       NODE_ENV: production
       # 컨테이너에는 시간대가 없어 Node 가 UTC 로 돕니다. 로그 시각이 9시간
       # 어긋나고, 나중에 배치(접종 알림 등)를 붙이면 예약 시각도 UTC 로 잡힙니다.
-      # DB 에 넣는 값은 server/mysql.ts 가 따로 못박아 두어 이것과 무관합니다.
+      # DB 에 넣는 값은 server/db/prisma.ts 가 세션을 UTC 로 못박아 두어 이것과 무관합니다.
       TZ: Asia/Seoul
       # compose 안에서는 서비스 이름이 곧 호스트 이름입니다.
       DB_HOST: db

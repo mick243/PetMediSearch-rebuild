@@ -2,32 +2,16 @@ import jwt from 'jsonwebtoken';
 import { logError } from '../logError.js';
 import bcrypt from 'bcrypt';
 import axios from 'axios';
-import conn from '../mysql.js';
+import users from '../repositories/users.js';
 import { verifyToken } from './authUser.js';
 import type { Checked } from './validate.js';
 
-/** users 표에서 이 파일이 읽는 칸. 쿼리마다 고르는 칸이 달라 대부분 선택입니다. */
-interface UserRow extends RowDataPacket {
-  user_id: number;
-  username: string;
-  email?: string | null;
-  password?: string | null;
-  phone?: string | null;
-  social_type?: string | null;
-  role?: string | null;
-  token_version?: number | null;
-}
-
-/** 토큰과 화면에 넘길 계정. DB 행이거나, 방금 만든 계정의 값입니다. */
-interface SessionUser {
-  user_id: number;
-  username: string;
-  social_type?: string | null;
-  role?: string | null;
-  token_version?: number | null;
-}
+/*
+ * DB 는 repositories/users.ts 가 만집니다. 여기는 제공자 호출 · 검사 · 토큰 · 응답만 다룹니다.
+ * 비밀번호 해시는 로그인과 비밀번호 변경의 확인 자리에서만 읽고, 응답에는 절대 싣지 않습니다.
+ */
 import type { Request, Response } from 'express';
-import type { RowDataPacket, ResultSetHeader } from 'mysql2';
+import type { SessionUser, Account, AccountChanges } from '../repositories/users.js';
 
 export const kakaoLogin = async (req: Request, res: Response) => {
   const { code } = req.query;
@@ -134,11 +118,12 @@ export const naverLogin = async (req: Request, res: Response) => {
 };
 
 const processUser = async (socialId: string | number, socialType: string, username?: string): Promise<SessionUser> => {
-  let user: SessionUser | undefined = await getUserBySocialId(socialId, socialType);
-  if (!user) {
-    user = await createUser(socialId, socialType, username);
-  }
-  return user;
+  // 카카오의 id 는 숫자로 옵니다. 문자열로 맞춥니다(varchar 컬럼).
+  const id = String(socialId);
+  const existing = await users.findBySocial(id, socialType);
+  if (existing) return existing;
+  // 예전에는 여기서 .substr 이 없어 이름 없는 카카오 가입이 500 이었습니다.
+  return users.createSocial(id, socialType, username || `User_${id.slice(0, 8)}`);
 };
 
 /**
@@ -168,55 +153,6 @@ const toClientUser = (user: SessionUser) => ({
   role: user.role || 'user',
 });
 
-const getUserBySocialId = (socialId: string | number, socialType: string) => {
-  return new Promise<UserRow | undefined>((resolve, reject) => {
-    conn.query<UserRow[]>(
-      'SELECT * FROM users WHERE social_id = ? AND social_type = ? AND deleted_at IS NULL',
-      [socialId, socialType],
-      (error, results) => {
-        /*
-         * 오류면 여기서 끝냅니다.
-         *
-         * 예전에는 return 이 없어 오류일 때도 다음 줄의 results[0] 을 읽었습니다.
-         * 그때 results 는 undefined 라 TypeError 가 나는데, 이 콜백은 mysql2 가 소켓
-         * 이벤트에서 부르는 자리라 잡아 줄 곳이 없습니다. 프로세스가 통째로 죽고
-         * 모든 사용자의 요청이 끊겼습니다(재현: 요청 한 번에 141ms 뒤 종료,
-         * docs/QA-2026-09-13.md P0 #2). 소셜 로그인 중 DB 가 잠깐 끊겨도 같았습니다.
-         */
-        if (error) return reject(error);
-        return resolve(results[0]);
-      }
-    );
-  });
-};
-
-const createUser = (socialId: string | number, socialType: string, username?: string) => {
-  return new Promise<SessionUser>((resolve, reject) => {
-    // 카카오의 id 는 숫자로 옵니다. 예전에는 여기서 .substr 이 없어 이름 없는 카카오 가입이 500 이었습니다.
-    const safeUsername = username || `User_${String(socialId).slice(0, 8)}`;
-    /*
-     * 소셜 계정은 가입 폼을 거치지 않아 체크박스를 보여 줄 자리가 없습니다.
-     * 로그인 화면의 소셜 버튼 아래에 "누르면 동의한 것으로 봅니다" 를 적어 두고,
-     * 계정이 처음 만들어지는 이 시점을 동의 시각으로 남깁니다.
-     */
-    conn.query<ResultSetHeader>(
-      'INSERT INTO users (social_id, social_type, username, terms_agreed_at) VALUES (?, ?, ?, ?)',
-      [socialId, socialType, safeUsername, new Date()],
-      (error, results) => {
-        if (error) {
-          logError('Error creating user', error);
-          reject(error);
-        } else if (results && results.insertId) {
-          resolve({ user_id: results.insertId, username: safeUsername });
-        } else {
-          // results 에는 사용자 행이 통째로 들어올 수 있어 내용은 남기지 않습니다.
-          console.error('[auth:createUser] insertId 가 없습니다.');
-          reject(new Error('Failed to create user: No insert ID returned'));
-        }
-      }
-    );
-  });
-};
 /* ------------------------------------------------------------------ *
  * 일반 회원가입 · 로그인
  *
@@ -234,14 +170,6 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** 010-1234-5678 이든 01012345678 이든 숫자만 남겨 한 모양으로 저장합니다. */
 const normalizePhone = (phone: unknown) => String(phone).replace(/[^0-9]/g, '');
-
-const query = <T extends RowDataPacket[] | ResultSetHeader>(sql: string, values: unknown[]) =>
-  new Promise<T>((resolve, reject) => {
-    conn.query<T>(sql, values, (error, results) => {
-      if (error) reject(error);
-      else resolve(results);
-    });
-  });
 
 /*
  * 항목별 검사.
@@ -353,25 +281,13 @@ export const signup = async (req: Request, res: Response) => {
 
   try {
     const hashed = await bcrypt.hash(value.password, SALT_ROUNDS);
-    const result = await query<ResultSetHeader>(
-      `INSERT INTO users (username, email, password, phone, address, role, terms_agreed_at)
-       VALUES (?, ?, ?, ?, ?, 'user', ?)`,
-      [value.username, value.email, hashed, value.phone, value.address, new Date()]
-    );
-
-    const user = {
-      user_id: result.insertId,
-      username: value.username,
-      social_type: null,
-      role: 'user',
-    };
-    res.status(201).json({ token: generateToken(user), user: toClientUser(user) });
-  } catch (err) {
     // 이메일 UNIQUE 제약에 걸린 경우입니다. 먼저 SELECT 로 확인하면 그 사이에 끼어드는
     // 가입을 막지 못하므로, DB 가 잡아준 것을 그대로 씁니다.
-    if ((err as { code?: string }).code === 'ER_DUP_ENTRY') {
-      return res.status(409).json({ message: '이미 가입된 이메일입니다.' });
-    }
+    const user = await users.createLocal({ ...value, password: hashed });
+    if (user === 'duplicate-email') return res.status(409).json({ message: '이미 가입된 이메일입니다.' });
+
+    res.status(201).json({ token: generateToken(user), user: toClientUser(user) });
+  } catch (err) {
     logError('Signup error', err);
     res.status(500).json({ message: '회원가입 처리 중 오류가 발생했습니다.' });
   }
@@ -388,12 +304,7 @@ export const login = async (req: Request, res: Response) => {
   }
 
   try {
-    // 탈퇴한 계정은 이메일이 비워지므로 이 조회에 걸리지 않지만, 뜻을 코드에 남겨 둡니다.
-    const rows = await query<UserRow[]>(
-      'SELECT * FROM users WHERE email = ? AND deleted_at IS NULL',
-      [email]
-    );
-    const user = rows[0];
+    const user = await users.findForLogin(email);
 
     // 없는 이메일인지 비밀번호가 틀렸는지 구분해서 알려주면 가입 여부가 새어 나갑니다.
     // 어느 쪽이든 같은 문구로 답합니다.
@@ -423,7 +334,7 @@ export const login = async (req: Request, res: Response) => {
  * 응답에 실려 localStorage 까지 들어가므로 이메일·전화번호를 넣지 않습니다.
  * 이쪽은 수정 폼이 열릴 때만 받아 가는 값입니다.
  */
-const toMyAccount = (user: SessionUser & { email?: string | null; phone?: string | null }) => ({
+const toMyAccount = (user: Account) => ({
   id: user.user_id,
   username: user.username,
   // 소셜 계정은 email·phone 이 비어 있습니다. 빈 문자열이 아니라 null 로 구분해 보냅니다.
@@ -434,14 +345,7 @@ const toMyAccount = (user: SessionUser & { email?: string | null; phone?: string
 });
 
 /** 수정 폼이 열릴 때 지금 값을 받아갑니다. 토큰에는 이름·이메일이 없습니다. */
-const findMyAccount = async (userId: number) => {
-  const rows = await query<UserRow[]>(
-    `SELECT user_id, username, email, phone, social_type, role
-       FROM users WHERE user_id = ? AND deleted_at IS NULL`,
-    [userId]
-  );
-  return rows[0];
-};
+const findMyAccount = (userId: number) => users.findAccount(userId);
 
 export const getMe = async (req: Request, res: Response) => {
   const decoded = verifyToken(req.headers.authorization?.split(' ')[1]);
@@ -486,7 +390,7 @@ export const updateMe = async (req: Request, res: Response) => {
     const current = await findMyAccount(decoded.id);
     if (!current) return res.status(404).json({ message: '계정을 찾을 수 없습니다.' });
 
-    const changes: Record<string, unknown> = {};
+    const changes: AccountChanges = {};
 
     if (req.body.username !== undefined) {
       const name = usernameField(req.body.username);
@@ -511,30 +415,19 @@ export const updateMe = async (req: Request, res: Response) => {
       changes.phone = tel.value;
     }
 
-    const columns = Object.keys(changes);
-    if (columns.length === 0) {
+    if (Object.keys(changes).length === 0) {
       return res.status(400).json({ message: '바꿀 내용이 없습니다.' });
     }
 
     /*
-     * 컬럼 이름을 문자열로 이어 붙이지만, 위 세 갈래에서만 채워지는 고정된 이름이라
-     * 요청 본문의 키가 SQL 로 들어가지는 않습니다. 값은 전부 자리표시자로 넘깁니다.
-     */
-    await query<ResultSetHeader>(
-      `UPDATE users SET ${columns.map((c) => `${c} = ?`).join(', ')}
-        WHERE user_id = ? AND deleted_at IS NULL`,
-      [...columns.map((c) => changes[c]), current.user_id]
-    );
-
-    return res.json(toMyAccount({ ...current, ...changes }));
-  } catch (err) {
-    /*
      * 이메일 UNIQUE 제약. 가입과 같은 판단입니다 — 먼저 SELECT 로 확인하면 그 사이에
      * 끼어드는 변경을 막지 못하므로, DB 가 잡아준 것을 그대로 씁니다.
      */
-    if ((err as { code?: string }).code === 'ER_DUP_ENTRY') {
-      return res.status(409).json({ message: '이미 가입된 이메일입니다.' });
-    }
+    const result = await users.updateAccount(current.user_id, changes);
+    if (result === 'duplicate-email') return res.status(409).json({ message: '이미 가입된 이메일입니다.' });
+
+    return res.json(toMyAccount({ ...current, ...changes }));
+  } catch (err) {
     logError('auth:updateMe', err);
     return res.status(500).json({ message: '내 정보를 바꾸지 못했습니다.' });
   }
@@ -569,11 +462,7 @@ export const changePassword = async (req: Request, res: Response) => {
   if (next.error !== undefined) return res.status(400).json({ message: next.error });
 
   try {
-    const rows = await query<UserRow[]>(
-      'SELECT user_id, password, role, token_version FROM users WHERE user_id = ? AND deleted_at IS NULL',
-      [decoded.id]
-    );
-    const user = rows[0];
+    const user = await users.findForPasswordChange(decoded.id);
     if (!user) return res.status(404).json({ message: '계정을 찾을 수 없습니다.' });
 
     if (!user.password) {
@@ -608,10 +497,7 @@ export const changePassword = async (req: Request, res: Response) => {
      */
     const hashed = await bcrypt.hash(next.value, SALT_ROUNDS);
     const nextVersion = Number(user.token_version ?? 0) + 1;
-    await query(
-      'UPDATE users SET password = ?, token_version = ? WHERE user_id = ? AND deleted_at IS NULL',
-      [hashed, nextVersion, user.user_id]
-    );
+    await users.setPassword(user.user_id, hashed, nextVersion);
 
     /*
      * 지금 쓰던 토큰도 방금 무효가 됐으므로 새 것을 함께 돌려줍니다.
@@ -662,35 +548,15 @@ export const withdraw = async (req: Request, res: Response) => {
   const deletedAt = new Date();
 
   try {
-    // 계정을 먼저 닫습니다. 여기서 걸리면 이미 탈퇴한 계정이라 글은 건드리지 않습니다.
     /*
-     * 판번호를 올려 남아 있던 토큰을 함께 끊습니다.
-     *
-     * 탈퇴한 계정의 토큰으로 할 수 있는 일은 대부분 쿼리의 deleted_at 조건이
-     * 막고 있었지만, 그건 길마다 따로 챙겨야 하는 방식입니다. 여기서 한 번 올리면
-     * 그 뒤의 모든 요청이 입구(middleware/tokenVersion.ts)에서 끝납니다.
+     * 여섯 문장을 한 트랜잭션으로(repositories/users.ts 의 withdraw). 계정을 먼저 닫고 판번호를
+     * 올려 남아 있던 토큰을 끊습니다 — 그 뒤의 모든 요청이 입구(middleware/tokenVersion.ts)에서
+     * 끝납니다. 이미 탈퇴한 계정이면 글은 건드리지 않습니다.
      */
-    const closed = await query<ResultSetHeader>(
-      `UPDATE users
-          SET deleted_at = ?, username = '탈퇴한 사용자',
-              email = NULL, password = NULL, phone = NULL, address = NULL,
-              social_id = NULL, social_type = NULL,
-              token_version = token_version + 1
-        WHERE user_id = ? AND deleted_at IS NULL`,
-      [deletedAt, userId]
-    );
-
-    if (closed.affectedRows === 0) {
+    const closed = await users.withdraw(userId, deletedAt);
+    if (!closed) {
       return res.status(404).json({ message: '이미 탈퇴한 계정입니다.' });
     }
-
-    // 이미 지워져 있던 글은 건드리지 않아, 되살려도 그대로 지워진 채 남습니다.
-    await query<ResultSetHeader>('UPDATE posts SET deleted_at = ? WHERE user_id = ? AND deleted_at IS NULL', [deletedAt, userId]);
-    await query<ResultSetHeader>('UPDATE comments SET deleted_at = ? WHERE user_id = ? AND deleted_at IS NULL', [deletedAt, userId]);
-    await query<ResultSetHeader>('UPDATE reviews SET deleted_at = ? WHERE user_id = ? AND deleted_at IS NULL', [deletedAt, userId]);
-
-    await query<ResultSetHeader>('DELETE FROM favorite_facilities WHERE user_id = ?', [userId]);
-    await query<ResultSetHeader>('DELETE FROM pets WHERE user_id = ?', [userId]);
 
     return res.json({ message: '탈퇴가 완료되었습니다.' });
   } catch (err) {
