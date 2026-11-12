@@ -105,7 +105,7 @@ app.get("/search", (req: Request, res: Response) => {
 });
 
 // 시설 검색 조건·정렬 (테스트를 위해 분리했습니다)
-import { keywordClause, keywordScoreExpr, facilityTypeFilter } from './search.js';
+import { keywordClause, keywordScoreExpr, facilityTypeFilter, OPEN_FACILITY_CLAUSE } from './search.js';
 
 /**
  * 지도에 내려보낼 컬럼.
@@ -122,9 +122,9 @@ import { keywordClause, keywordScoreExpr, facilityTypeFilter } from './search.js
  * 서울 도심 300건으로 재면 139,598B → 96,764B (31%). 이 요청 하나가 전체 전송량의
  * 65% 라 전체로는 20%가 줄어듭니다. (docs/LoadTest-2026-09-15.md)
  *
- * trdstatenm 은 지금 데이터에서 dtlstatenm 과 1:1 로 겹치지만(3만건 중 어긋나는 것 0건)
- * 남겨 둡니다. 우리가 만드는 값이 아니라 공공데이터 원본이라 언젠가 갈라질 수 있고,
- * 화면의 폐업 거르기가 둘 다 봅니다 (client/src/apis/place.api.ts 의 isClosed).
+ * trdstatenm 은 dtlstatenm 을 넓게 묶은 값이지만(말소 · 행정처분 → '취소/말소/만료/정지/중지')
+ * 남겨 둡니다. 서버와 화면의 폐업 · 말소 · 휴업 거르기가 둘 다 봅니다
+ * (search.ts 의 OPEN_FACILITY_CLAUSE, client/src/utils/facilityStatus.ts).
  *
  * 즐겨찾기도 같은 방식으로 골라 담습니다 (controller/favorites.ts 의 getFavorites).
  */
@@ -166,9 +166,10 @@ app.get("/facilities", (req: Request, res: Response) => {
     query += keywordClause(keyword, values);
   }
 
-  // 폐업 제외. 전국 3만건 중 약 1.2만건이 폐업이라 서버에서 걸러 전송량을 줄입니다.
+  // 폐업 · 말소 · 휴업 제외 (search.ts 의 HIDDEN_FACILITY_STATES).
+  // 전국 3만건 중 약 1.2만건이 폐업이라 서버에서 걸러 전송량을 줄입니다.
   if (onlyOpened !== "false") {
-    query += " AND (dtlstatenm IS NULL OR dtlstatenm <> '폐업')";
+    query += ` AND ${OPEN_FACILITY_CLAUSE}`;
   }
 
   /*
@@ -298,7 +299,7 @@ app.get("/facilities/clusters", (req: Request, res: Response) => {
   }
 
   if (onlyOpened !== "false") {
-    where += " AND (dtlstatenm IS NULL OR dtlstatenm <> '폐업')";
+    where += ` AND ${OPEN_FACILITY_CLAUSE}`;
   }
 
   /*

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { expandKeyword, escapeLike, tokenize, loosePattern, keywordClause, keywordScoreExpr, facilityTypeFilter } from './search.js';
+import { expandKeyword, escapeLike, tokenize, loosePattern, keywordClause, keywordScoreExpr, facilityTypeFilter, HIDDEN_FACILITY_STATES, HIDDEN_TRADE_STATES, OPEN_FACILITY_CLAUSE } from './search.js';
 
 /*
  * 시설 검색 규칙.
@@ -114,6 +114,24 @@ test('facilityTypeFilter: 안 보내면 둘 다, 보내면 병원·약국 중 �
     assert.deepEqual(facilityTypeFilter(''), { value: null });
     assert.deepEqual(facilityTypeFilter('병원'), { value: '병원' });
     assert.deepEqual(facilityTypeFilter('약국'), { value: '약국' });
+});
+
+test('OPEN_FACILITY_CLAUSE: 폐업 · 말소 · 휴업을 거르고 정상과 상태 모름은 남긴다', () => {
+    // 폐업만 거르던 때는 말소 · 휴업 시설이 지도에 떠서 문 닫은 곳을 안내했습니다.
+    assert.deepEqual([...HIDDEN_FACILITY_STATES].sort(), ['말소', '폐업', '휴업'].sort());
+    assert.equal(
+        OPEN_FACILITY_CLAUSE,
+        "((dtlstatenm IS NULL OR dtlstatenm NOT IN ('폐업', '말소', '휴업'))"
+        + " AND (trdstatenm IS NULL OR trdstatenm NOT IN ('폐업', '휴업', '취소/말소/만료/정지/중지')))",
+    );
+    assert.ok(!OPEN_FACILITY_CLAUSE.includes("'정상'"));
+    assert.ok(!OPEN_FACILITY_CLAUSE.includes("'영업/정상'"));
+});
+
+test('OPEN_FACILITY_CLAUSE: 상세 상태가 처음 보는 값이어도 영업 상태 묶음으로 거른다', () => {
+    // 전국 데이터에는 상세 '행정처분' + 영업 '취소/말소/만료/정지/중지' 가 2건 있습니다.
+    assert.ok(!HIDDEN_FACILITY_STATES.includes('행정처분'));
+    assert.ok(HIDDEN_TRADE_STATES.includes('취소/말소/만료/정지/중지'));
 });
 
 test('facilityTypeFilter: 쿼리스트링이 만든 배열·객체나 다른 글자는 받지 않는다', () => {

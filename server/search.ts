@@ -136,4 +136,38 @@ function facilityTypeFilter(type: unknown): { value: string | null; error?: unde
   return { value: type };
 }
 
-export { REGION_ALIASES, expandKeyword, escapeLike, tokenize, loosePattern, keywordClause, keywordScoreExpr, facilityTypeFilter };
+/**
+ * 지도 · 검색에 내보내지 않는 시설 상태.
+ *
+ * 폐업만 거르던 때는 말소 · 휴업한 시설이 지도에 그대로 떠서, 찾아가도 문을 열지 않는
+ * 곳을 안내했습니다. 전국 31,493건(2026-11-12 개발 DB)의 상태는 이렇습니다.
+ *
+ *   dtlstatenm(상세)   trdstatenm(영업)              건수
+ *   정상               영업/정상                     19,116
+ *   폐업               폐업                          12,180
+ *   말소               취소/말소/만료/정지/중지         144
+ *   휴업               휴업                              48
+ *   (빈 값)            영업/정상                          3
+ *   행정처분           취소/말소/만료/정지/중지           2
+ *
+ * 상세 상태만 보면 '행정처분' 처럼 처음 보는 값이 빠져나갑니다(서울 원본에는 없던 값).
+ * 그래서 영업 상태 묶음으로도 거릅니다 — 말소와 행정처분은 같은 묶음입니다.
+ *
+ * 화면의 거르기(client/src/utils/facilityStatus.ts)와 같은 값이어야 합니다.
+ */
+const HIDDEN_FACILITY_STATES = ['폐업', '말소', '휴업'];
+const HIDDEN_TRADE_STATES = ['폐업', '휴업', '취소/말소/만료/정지/중지'];
+
+const sqlList = (values: string[]) => values.map((s) => `'${s}'`).join(', ');
+
+/**
+ * 영업 중인 시설만 남기는 WHERE 조각.
+ *
+ * 들어가는 값이 위 상수뿐이라 바인딩 없이 글자로 넣습니다. 상태 칸이 비어 있는 행은
+ * 상태를 알 수 없으므로 예전처럼 남깁니다.
+ */
+const OPEN_FACILITY_CLAUSE =
+  `((dtlstatenm IS NULL OR dtlstatenm NOT IN (${sqlList(HIDDEN_FACILITY_STATES)}))` +
+  ` AND (trdstatenm IS NULL OR trdstatenm NOT IN (${sqlList(HIDDEN_TRADE_STATES)})))`;
+
+export { REGION_ALIASES, expandKeyword, escapeLike, tokenize, loosePattern, keywordClause, keywordScoreExpr, facilityTypeFilter, HIDDEN_FACILITY_STATES, HIDDEN_TRADE_STATES, OPEN_FACILITY_CLAUSE };
