@@ -22,6 +22,10 @@ import {
   MARKER_SIZE,
 } from '../../utils/markerIcons';
 import { PlaceData } from '../../types/place.type';
+import {
+  readLastSearchView,
+  saveLastSearchView,
+} from '../../utils/lastSearchView';
 import { useSearchParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '../../store';
@@ -152,29 +156,58 @@ function SearchMap() {
     lng: number;
   } | null>(null);
 
+  /*
+   * 주소의 좌표(즐겨찾기)·검색·집계 풍선으로 지도를 이미 옮겼는지.
+   * 위치 권한 창에 답하는 사이에 사용자가 먼저 움직였다면, 뒤늦게 위치를 못 얻었다고
+   * 마지막 검색 화면으로 끌고 가지 않습니다.
+   */
+  const movedByUserRef = useRef(false);
+
   const isValidLatLng = (lat: number, lng: number) => {
     return lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
   };
 
-  const handleCurrentPositionClick = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const lat = position.coords.latitude;
-          const lng = position.coords.longitude;
-          setCurrentPosition({ lat, lng });
-        },
-        (error) => {
-          console.error('Error getting current position:', error);
-        }
-      );
-    } else {
+  /** 현재 위치를 묻습니다. 못 얻으면(권한 거부 · 위치 없음 · 시간 초과) onFail 을 부릅니다. */
+  const locate = (onFail?: () => void) => {
+    if (!navigator.geolocation) {
       console.error('Geolocation is not supported by this browser.');
+      onFail?.();
+      return;
     }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        setCurrentPosition({ lat, lng });
+      },
+      (error) => {
+        console.error('Error getting current position:', error);
+        onFail?.();
+      }
+    );
+  };
+
+  const handleCurrentPositionClick = () => locate();
+
+  /*
+   * 처음 열 때 위치를 못 얻으면 마지막으로 검색한 화면으로 엽니다.
+   *
+   * 예전에는 늘 서울시청에서 열려, 위치 권한을 주지 않은 사람은 들어올 때마다 자기
+   * 지역을 다시 검색해야 했습니다. 검색한 적이 없으면 그대로 서울시청입니다.
+   * "현재 위치" 버튼으로 다시 물을 때는 이 동작을 하지 않습니다 — 버튼은 내 위치를
+   * 보려는 것이라, 실패했다고 다른 곳으로 옮기면 무엇이 일어났는지 알 수 없습니다.
+   */
+  const openLastSearchView = () => {
+    if (movedByUserRef.current) return;
+    const view = readLastSearchView();
+    if (!view) return;
+    setSearchCenter({ lat: view.lat, lng: view.lng });
+    setMapLevel(view.level);
   };
 
   useEffect(() => {
-    handleCurrentPositionClick();
+    // 처음 한 번만 묻습니다. 두 함수 모두 상태 setter 와 ref 만 써서 오래된 값을 읽지 않습니다.
+    locate(openLastSearchView);
   }, []);
 
   /**
@@ -407,6 +440,7 @@ function SearchMap() {
     const key = `${lat},${lng}`;
     if (movedForRef.current === key) return;
     movedForRef.current = key;
+    movedByUserRef.current = true;
 
     setSearchCenter({ lat, lng });
     // 시설 하나를 보러 온 것이므로 건물이 구분될 만큼 당깁니다. (작을수록 확대)
@@ -430,13 +464,22 @@ function SearchMap() {
     const first = filteredResults[0];
     if (!first) return;
 
-    setSearchCenter({ lat: first.x, lng: first.y });
     // 너무 넓게 보고 있으면 결과가 보이도록 당겨줍니다. (숫자가 작을수록 확대)
-    setMapLevel((level) => (level > 5 ? 5 : level));
+    const level = Math.min(mapLevel, 5);
+    movedByUserRef.current = true;
+    setSearchCenter({ lat: first.x, lng: first.y });
+    setMapLevel(level);
+    /*
+     * 위치 권한이 없을 때 다음에 이 화면으로 엽니다 (위의 openLastSearchView).
+     * 지도를 끌어 옮긴 자리가 아니라 검색이 데려간 자리를 남깁니다 — 사용자가 고른 것은
+     * 검색어이고, 끌다 멈춘 자리는 우연입니다.
+     */
+    saveLastSearchView({ lat: first.x, lng: first.y, level });
     /*
      * filteredResults 는 일부러 의존성에서 뺐습니다 — 그게 이 효과를 다시 돌리는
      * 것이 바로 위에서 없앤 고리입니다. 검색 결과는 searchSeq 와 같은 갱신에
-     * 담겨 오므로 여기서 읽는 값은 그 검색의 결과가 맞습니다.
+     * 담겨 오므로 여기서 읽는 값은 그 검색의 결과가 맞습니다. mapLevel 도 같습니다 —
+     * 넣으면 확대 · 축소할 때마다 첫 결과로 되돌아갑니다.
      */
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchSeq]);
@@ -466,6 +509,7 @@ function SearchMap() {
         : 'all';
 
   const handleClusterClick = (cell: PlaceCluster) => {
+    movedByUserRef.current = true;
     setSearchCenter({ lat: cell.lat, lng: cell.lng });
     setMapLevel((level) => Math.max(level - 2, 1));
     // 이동 후 idle 에서 반드시 다시 조회하도록 직전 범위 기록을 비웁니다.
