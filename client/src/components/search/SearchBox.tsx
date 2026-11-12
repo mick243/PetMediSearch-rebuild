@@ -71,9 +71,31 @@ function SearchBox() {
   );
 }
 
+/*
+ * 버튼은 줄이지 않고, 모자란 폭은 입력창이 양보합니다.
+ *
+ * 375px 화면의 후기 화면에서 입력창 272px + 간격 10px + 버튼 68px = 350px 를
+ * 넣어야 했는데 상자가 336px 이라 둘 다 줄어들었습니다. 한글은 글자 사이에서도
+ * 줄이 바뀌기 때문에 버튼이 66px 로 줄며 "검 / 색" 두 줄(높이 58px)이 됐습니다.
+ *
+ * 버튼만 못 줄게 하면 상자가 350px 로 커져 후기 화면의 좌우 여백(30px)을 먹고,
+ * 320px 화면에서는 화면 밖으로 넘칩니다. 그래서 상자를 부모 폭 안에 가두고
+ * (max-width), 입력창이 자기 기본 폭 밑으로도 줄 수 있게(min-width: 0) 둡니다.
+ * 넓은 화면에서는 상자가 원래 폭(350px) 그대로입니다.
+ */
 const SearchBoxStyle = styled.div`
   display: flex;
   gap: 10px;
+  max-width: 100%;
+
+  input {
+    min-width: 0;
+  }
+
+  button {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
 `;
 
 export default SearchBox;
