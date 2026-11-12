@@ -1,8 +1,12 @@
-import conn from '../mysql.js';
 import { logError } from '../logError.js';
 import { verifyToken } from './authUser.js';
+import * as favorites from '../repositories/favorites.js';
 import type { Request, Response } from 'express';
-import type { RowDataPacket, ResultSetHeader } from 'mysql2';
+
+/*
+ * 즐겨찾기. DB 는 repositories/favorites.ts 가 만지고 여기는 토큰 · 경로 · 응답만 다룹니다.
+ * Prisma 로 옮긴 첫 모듈입니다 — 응답은 mysql2 때와 같습니다(contract/golden.json).
+ */
 
 function requireUser(req: Request, res: Response) {
     const token = req.headers.authorization?.split(' ')[1];
@@ -14,78 +18,66 @@ function requireUser(req: Request, res: Response) {
     return decoded.id;
 }
 
+/**
+ * 경로의 시설 번호. 정수가 아니면 null.
+ *
+ * mysql2 는 문자열을 그대로 넘겨 MySQL 이 숫자로 바꿨습니다('abc' → 0, 없는 시설). Prisma 는
+ * Int 자리에 숫자만 받으므로 여기서 먼저 봅니다. 결과는 그때와 같게 — 넣기는 404, 빼기는 성공.
+ */
+function facilityIdFromPath(raw: string): number | null {
+    return /^\d{1,10}$/.test(raw) && Number(raw) <= 2147483647 ? Number(raw) : null;
+}
+
 // 즐겨찾기한 병원·약국 목록 (시설 정보 포함)
-const getFavorites = (req: Request, res: Response) => {
+const getFavorites = async (req: Request, res: Response) => {
     const user_id = requireUser(req, res);
     if (!user_id) return;
 
-    const query = `
-        SELECT f.facility_id, f.created_at,
-               m.bplcnm, m.type, m.rdnwhladdr, m.sitewhladdr, m.sitetel, m.lat, m.lng, m.dtlstatenm
-        FROM favorite_facilities f
-        JOIN medical_facilities m ON m.id = f.facility_id
-        WHERE f.user_id = ?
-        ORDER BY f.created_at DESC`;
-    conn.query<RowDataPacket[]>(query, [user_id], (err, rows) => {
-        if (err) {
-            logError('favorites', err);
-            return res.status(500).send({ message: '서버 에러 발생' });
-        }
-        return res.send(rows);
-    });
+    try {
+        return res.send(await favorites.listFavorites(user_id));
+    } catch (error) {
+        logError('favorites', error);
+        return res.status(500).send({ message: '서버 에러 발생' });
+    }
 };
 
 /*
  * 즐겨찾기 추가. 이미 있으면 그대로 성공 처리합니다(같은 별을 두 번 눌러도 오류가 아닙니다).
  *
- * 예전에는 INSERT IGNORE 였습니다. IGNORE 는 중복만이 아니라 **외래 키 오류까지**
- * 경고로 낮춥니다. 그래서 없는 시설 번호를 보내도 err 이 null 로 돌아왔고,
- * 아래에 준비해 둔 ER_NO_REFERENCED_ROW_2 분기는 한 번도 실행된 적이 없습니다.
- * 화면에는 "즐겨찾기에 추가했습니다" 가 뜨는데 목록은 비어 있었습니다.
- *
- * 그냥 INSERT 로 넣고, 중복(ER_DUP_ENTRY)만 성공으로 받습니다.
+ * 예전에는 INSERT IGNORE 였습니다. IGNORE 는 중복만이 아니라 **외래 키 오류까지** 경고로
+ * 낮춰서, 없는 시설 번호를 보내도 성공으로 답하고 목록은 비어 있었습니다. 지금은 중복만
+ * 성공으로 받고 없는 시설은 404 입니다(repositories/favorites.ts 의 addFavorite).
  */
-const addFavorite = (req: Request, res: Response) => {
+const addFavorite = async (req: Request, res: Response) => {
     const user_id = requireUser(req, res);
     if (!user_id) return;
 
-    conn.query<ResultSetHeader>(
-        'INSERT INTO favorite_facilities (user_id, facility_id) VALUES (?, ?)',
-        [user_id, req.params.facility_id],
-        (err) => {
-            if (err) {
-                // 이미 즐겨찾기한 곳. 누르기 전과 결과가 같으므로 성공으로 답합니다.
-                if (err.code === 'ER_DUP_ENTRY') {
-                    return res.send({ message: '즐겨찾기에 추가했습니다.' });
-                }
-                // 없는 시설 번호(외래 키). 이제 여기로 옵니다.
-                if (err.code === 'ER_NO_REFERENCED_ROW_2' || err.code === 'ER_NO_REFERENCED_ROW') {
-                    return res.status(404).send({ message: '해당 시설을 찾을 수 없습니다.' });
-                }
-                logError('favorites', err);
-                return res.status(500).send({ message: '서버 에러 발생' });
-            }
-            return res.send({ message: '즐겨찾기에 추가했습니다.' });
-        }
-    );
+    const facility_id = facilityIdFromPath(req.params.facility_id);
+    if (facility_id === null) return res.status(404).send({ message: '해당 시설을 찾을 수 없습니다.' });
+
+    try {
+        const result = await favorites.addFavorite(user_id, facility_id);
+        if (result === 'no-such-facility') return res.status(404).send({ message: '해당 시설을 찾을 수 없습니다.' });
+        return res.send({ message: '즐겨찾기에 추가했습니다.' });
+    } catch (error) {
+        logError('favorites', error);
+        return res.status(500).send({ message: '서버 에러 발생' });
+    }
 };
 
 // 즐겨찾기 해제
-const removeFavorite = (req: Request, res: Response) => {
+const removeFavorite = async (req: Request, res: Response) => {
     const user_id = requireUser(req, res);
     if (!user_id) return;
 
-    conn.query<ResultSetHeader>(
-        'DELETE FROM favorite_facilities WHERE user_id = ? AND facility_id = ?',
-        [user_id, req.params.facility_id],
-        (err) => {
-            if (err) {
-                logError('favorites', err);
-                return res.status(500).send({ message: '서버 에러 발생' });
-            }
-            return res.send({ message: '즐겨찾기에서 뺐습니다.' });
-        }
-    );
+    const facility_id = facilityIdFromPath(req.params.facility_id);
+    try {
+        if (facility_id !== null) await favorites.removeFavorite(user_id, facility_id);
+        return res.send({ message: '즐겨찾기에서 뺐습니다.' });
+    } catch (error) {
+        logError('favorites', error);
+        return res.status(500).send({ message: '서버 에러 발생' });
+    }
 };
 
 export { getFavorites, addFavorite, removeFavorite };

@@ -18,6 +18,8 @@ cd client && npm run start
 > **지금 상태의 정본은 루트 `SSOT.md`** 입니다. 브랜치 · 수치 · 미해결 · 다음 작업은 거기서 봅니다. 데이터 건수는 문서 대신 개발 DB 를 직접 조회합니다.
 >
 > 상시 규칙은 `.claude/rules/` 에 있습니다 — `daily-ssot-update.md`(매일 18:40 에 진행 상태를 다시 재서 `SSOT.md` 를 갱신).
+>
+> **진행 중인 큰 작업 — 백엔드 재설계(Prisma · TypeScript).** 계획은 `docs/Backend-Rebuild-Plan-2026-09-28.md`, 이어받을 때는 `docs/Backend-Rebuild-Handoff-2026-09-28.md` 를 먼저 읽습니다. 어느 모델·세션이 이어받든 그 문서가 출발점입니다.
 
 ---
 
@@ -70,6 +72,12 @@ cd client && npm run start
 "리스트가 비면 숨겨 주세요"와 "비회원일 때만 보여 주세요"는 다른 요청입니다.
 읽은 대로 만들되, 두 가지로 읽힐 때는 만들기 전에 묻습니다.
 
+
+### 1.6 보안 작업은 막는 쪽으로만 쓴다
+
+취약점을 고칠 때 공격을 재현하는 스크립트나 우회 입력(헤더 위조 · 주입 문자열 따위)을 만들지 않습니다.
+원인은 코드와 설정을 읽어 설명하고, 고친 것은 입구 검사의 단위 테스트와 정상 요청으로 확인합니다.
+보고와 PR 도 "무엇을 어떻게 막았나" 로 씁니다 — 공격 절차를 적은 글은 저장소를 받는 누구에게나 그대로 넘어갑니다.
 ---
 
 ## 2. 서버 규약
@@ -210,20 +218,25 @@ axios 오류를 통째로 찍으면 요청 config 에 실린 `client_secret` 까
 
 ## 3. 데이터베이스
 
-### 3.1 스키마 변경은 파일로 남긴다
+### 3.1 스키마 변경은 마이그레이션으로 남긴다
 
-`server/scripts/alter*.sql` 에 한 파일씩. 각 파일 맨 위에 **왜 필요한지와 적용
-명령**을 주석으로 답니다.
+`server/prisma/migrations/<시각>_<이름>/migration.sql` 에 한 단계씩. `schema.prisma` 를 고치고
+`npx prisma migrate dev --create-only --name <이름>` 으로 파일을 만든 뒤, Prisma 가 쓰지 못하는 것
+(CHECK · 생성 컬럼 · 컬럼 COMMENT · `ON UPDATE CURRENT_TIMESTAMP`)은 손으로 보탭니다. 파일 맨 위에
+**왜 필요한지**를 주석으로 답니다.
 
-```
-server/scripts/alterUsersAuth.sql     소셜/일반 계정 컬럼
-server/scripts/alterSoftDelete.sql    deleted_at
-server/scripts/alterReviewImages.sql  images json
-server/scripts/alterListIndexes.sql   목록 인덱스
-```
+CI 가 `npm run migrate:diff` 로 **마이그레이션 ↔ `schema.prisma` 의 차이가 0 인지** 봅니다.
+한쪽만 고치면 거기서 멈춥니다. 예전에는 `createTables.sql`(신규) 과 `alter*.sql`(기존) 두 갈래를
+손으로 맞췄고, 어긋나도 알 길이 없었습니다.
 
-신규 설치용 `createTables.sql` 도 같이 고쳐, 새로 까는 사람과 마이그레이션한
-사람의 스키마가 같게 둡니다.
+- 새 DB: `npx prisma migrate deploy`. 앱이 돌기 위한 기준 데이터(분류 9개, `ALL_CATEGORY_ID = 1`)는
+  `0_init` 안에 있고, 예시 계정은 `prisma/seed.ts`(`npx prisma db seed`)로 따로 넣습니다.
+- 2026-09-28 이전 스키마로 이미 돌고 있는 DB: 적용하지 않고 `npx prisma migrate resolve --applied 0_init`
+  로 표시만 합니다. 운영은 사람이 스키마가 같은지 확인한 뒤 합니다.
+- CLI 는 root 로 붙습니다 — `prisma.config.ts` 가 `DB_ROOT_PASSWORD` 로 URL 을 만듭니다. 앱 계정으로는
+  CREATE TABLE 이 안 됩니다. 그림자 DB `<DB_NAME>_shadow` 는 Prisma 가 만들어 주지 않으니 한 번 만들어 둡니다.
+- `scripts/alter*.sql` · `createTables.sql` 은 기록으로 남아 있고, compose 초기화는 아직 그것을 씁니다
+  (재설계 4단계에서 `migrate deploy` 로 바꿈). **새 변경은 거기에 넣지 않습니다.**
 
 적용 전에 대상 표를 백업하고, 되돌리는 SQL 을 같이 적어 둡니다.
 
@@ -452,6 +465,10 @@ MySQL 설정 파일(`my.cnf`)로 푸는 방법은 **Windows 에서 통하지 않
 작업은 `.claude/worktrees/...` 안에서만 합니다. 베이스 체크아웃을 고치면 훅이
 막습니다. 워크트리에는 `.env` 를 복사하고 `node_modules` 를 연결해 둡니다
 (단, Turbopack 처럼 정션을 거부하는 도구는 실제 `npm ci` 가 필요합니다).
+
+**연결한 `node_modules` 에서 `npm install` 을 하면** npm 이 링크를 걷어 내고 그 워크트리에 새로 깝니다.
+이 기계의 npm 11 은 승인하지 않은 설치 스크립트를 돌리지 않아, 그렇게 새로 깐 곳에는 bcrypt 네이티브 모듈이
+빠집니다(런타임에 깨짐). 의존성을 바꾸는 워크트리는 빌드된 `node_modules` 를 **복사**해 독립시킨 뒤 설치합니다.
 
 ---
 

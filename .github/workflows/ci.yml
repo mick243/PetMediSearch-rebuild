@@ -96,6 +96,22 @@ jobs:
           CONTRACT_DB_PORT: '3306'
           CONTRACT_DB_PASSWORD: contract
 
+      # 마이그레이션 파일(prisma/migrations)을 빈 DB 에 처음부터 적용한 결과가 schema.prisma 와
+      # 같은지. 스키마만 고치고 마이그레이션을 빼먹으면(또는 그 반대) 여기서 exit 2 로 멈춥니다.
+      # 그림자 DB 는 같은 테스트 컨테이너의 별도 DB(prisma.config.ts 의 `<DB_NAME>_shadow`)인데,
+      # Prisma 가 만들어 주지 않아 먼저 만듭니다.
+      - name: 마이그레이션 ↔ 스키마 차이 0 인지
+        run: |
+          docker exec contract-db mysql --protocol=TCP -h127.0.0.1 -uroot -pcontract \
+            -e 'CREATE DATABASE petmedisearch_ci_shadow'
+          npm run migrate:diff
+        working-directory: server
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: '3306'
+          DB_NAME: petmedisearch_ci
+          DB_ROOT_PASSWORD: contract
+
   client:
     name: 화면 (타입 · 린트 · 테스트 · 빌드)
     runs-on: ubuntu-latest

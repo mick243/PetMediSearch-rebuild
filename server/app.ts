@@ -2,6 +2,7 @@
 import './loadEnv.js';
 import express from 'express';
 import mysql from './mysql.js';
+import prisma from './db/prisma.js';
 import nodePath from 'path';
 import { execFile } from 'node:child_process';
 import cors from 'cors';
@@ -485,9 +486,10 @@ const shutdown = (signal: NodeJS.Signals) => {
   forceExit.unref();
 
   server.close(() => {
+    // 모듈을 옮기는 동안은 풀이 둘입니다(mysql.ts · db/prisma.ts). 둘 다 닫습니다.
     mysql.end((error) => {
       if (error) logError('shutdown', error);
-      process.exit(0);
+      prisma.$disconnect().catch((e: unknown) => logError('shutdown', e)).finally(() => process.exit(0));
     });
   });
 };

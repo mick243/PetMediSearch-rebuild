@@ -1,9 +1,9 @@
 /*
- * 기준선용 DB 를 새로 깝니다: 신규 설치 스키마 → 고정 데이터 → 앱 전용 계정.
+ * 기준선용 DB 를 새로 깝니다: 마이그레이션(prisma/migrations) → 시드 → 고정 데이터 → 앱 전용 계정.
  *
- * 스키마는 운영이 처음 뜰 때와 같은 파일(scripts/createFacilitiesTable.sql ·
- * createTables.sql)을 그대로 씁니다. 앱은 root 가 아니라 scripts/createDbUser.ts 와 같은
- * 권한의 계정으로 붙어서, 권한이 모자란 자리(예: 이모티콘 삭제의 ALTER)가 여기서 드러납니다.
+ * 스키마는 운영이 처음 뜰 때와 같은 SQL(prisma/migrations/*)을 그대로 씁니다. 앱은 root 가 아니라
+ * scripts/createDbUser.ts 와 같은 권한의 계정으로 붙어서, 권한이 모자란 자리(예: 이모티콘 삭제의
+ * ALTER)가 여기서 드러납니다.
  *
  * 반드시 이 테스트만 쓰는 MySQL 에 대고 돌리세요. 이름에 contract 가 든 DB 를 지우고 새로 만듭니다.
  */
@@ -12,12 +12,21 @@ import fs from 'fs';
 import path from 'path';
 import mysql from 'mysql2/promise';
 import { statements } from '../scripts/createDbUser.js';
+import { SAMPLE_USERS } from '../prisma/seed.js';
 import { loadFixture } from './fixture.js';
 import type { ConnectionOptions, QueryError, RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 
 const DATABASE = 'petmedisearch_contract';
 const APP_USER = 'contract_app';
-const SCHEMA_FILES = ['createFacilitiesTable.sql', 'createTables.sql'];
+const MIGRATIONS_DIR = path.join(import.meta.dirname, '..', 'prisma', 'migrations');
+
+/** 마이그레이션 디렉터리를 이름순으로. Prisma 도 같은 순서(타임스탬프 접두어)로 적용합니다. */
+const migrationDirs = () =>
+    fs.readdirSync(MIGRATIONS_DIR, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => entry.name)
+        .sort()
+        .map((name) => path.join(MIGRATIONS_DIR, name));
 
 /** 스키마를 깔고 고정 데이터를 넣는 관리자 계정의 접속 정보. */
 interface AdminSettings {
@@ -76,9 +85,15 @@ async function prepareDatabase(admin: AdminSettings): Promise<AppDbSettings> {
         await db.query<ResultSetHeader>(`CREATE DATABASE \`${DATABASE}\` CHARACTER SET utf8mb4`);
         await db.query(`USE \`${DATABASE}\``);
 
-        for (const file of SCHEMA_FILES) {
-            await db.query(fs.readFileSync(path.join(import.meta.dirname, '..', 'scripts', file), 'utf8'));
+        /*
+         * 스키마는 마이그레이션 파일을 차례로 적용해 깝니다 — 운영이 prisma migrate deploy 로 까는 것과
+         * 같은 SQL 입니다. 그 뒤 시드(예시 계정)와 고정 데이터를 넣습니다. 고정 데이터의 글·댓글은
+         * 시드 계정을 작성자로 쓰지 않지만, 개발 DB 와 같은 모양을 두려고 시드도 넣습니다.
+         */
+        for (const dir of migrationDirs()) {
+            await db.query(fs.readFileSync(path.join(dir, 'migration.sql'), 'utf8'));
         }
+        await db.query<ResultSetHeader>('INSERT INTO users (user_id, username) VALUES ?', [SAMPLE_USERS.map((u) => [u.user_id, u.username])]);
         await loadFixture(db);
 
         const password = crypto.randomBytes(18).toString('base64url');

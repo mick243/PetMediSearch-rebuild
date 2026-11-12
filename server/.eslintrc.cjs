@@ -46,5 +46,5 @@ module.exports = {
       rules: { '@typescript-eslint/no-explicit-any': 'off' },
     },
   ],
-  ignorePatterns: ['node_modules/', 'public/', 'dist/'],
+  ignorePatterns: ['node_modules/', 'public/', 'dist/', 'generated/'],
 };
