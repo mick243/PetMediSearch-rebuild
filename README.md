@@ -80,6 +80,16 @@ cd client && npm install && npm run dev
 cd server && ADMIN_PASSWORD='고른-비밀번호' npm run create-admin
 ```
 
+### 테스트
+
+```bash
+cd server && npm test
+```
+
+DB 없이 돕니다. 서버 내부를 바꿨다면 **응답 기준선**도 돌립니다 — 고정 데이터를 깐 전용
+MySQL 에 앱을 띄워 81개 요청의 응답을 `server/contract/golden.json` 과 비교합니다.
+돌리는 법과 기준선을 다시 뜨는 법은 `CLAUDE.md` §6.7 에 있습니다. CI 는 둘 다 돕니다.
+
 ---
 
 ## 배포

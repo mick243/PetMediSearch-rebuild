@@ -10,7 +10,8 @@
     "sync-data": "node scripts/syncData.js",
     "create-admin": "node scripts/createAdmin.js",
     "send-reminders": "node scripts/sendReminders.js",
-    "lint": "eslint . --ext .js"
+    "lint": "eslint . --ext .js",
+    "test:contract": "node --test contract/contract.test.js"
   },
   "author": "",
   "license": "ISC",
